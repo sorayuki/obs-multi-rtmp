@@ -1,0 +1,30 @@
+language: cpp
+
+global:
+  env:
+    - PROJECT_NAME="obs-plugintemplate"
+
+matrix:
+  include:
+  - os: linux
+    env: _linux_build
+    dist: trusty
+    sudo: required
+    services:
+    - docker
+    before_install:
+    - docker run -d --name xenial -v $(dirname $(pwd)):/root -v /home/travis/package:/package
+      -e TRAVIS_BRANCH="$TRAVIS_BRANCH" -e TRAVIS_TAG="$TRAVIS_TAG" -e PROJECT_NAME="$PROJECT_NAME" -w /root nimmis/ubuntu:16.04
+    - docker exec -it xenial /root/$PROJECT_NAME/CI/linux/install-dependencies-xenial.sh
+    script:
+    - docker exec -it xenial /root/$PROJECT_NAME/CI/linux/build-xenial.sh
+    after_success:
+    - docker exec -it xenial /root/$PROJECT_NAME/CI/linux/package-xenial.sh
+
+  - os: osx
+    env: _macos_build
+    osx_image: xcode8.3
+    before_install: "./CI/macos/install-dependencies-macos.sh"
+    script: "./CI/macos/build-macos.sh"
+    after_success:
+    - ./CI/macos/package-macos.sh

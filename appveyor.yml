@@ -1,0 +1,40 @@
+environment:
+  CURL_VERSION: 7.39.0
+
+install:
+  - git submodule update --init --recursive
+  - cd C:\projects\
+  - if not exist dependencies2015.zip curl -kLO https://obsproject.com/downloads/dependencies2015.zip -f --retry 5 -C -
+  - 7z x dependencies2015.zip -odependencies2015
+  - set DepsPath32=%CD%\dependencies2015\win32
+  - set DepsPath64=%CD%\dependencies2015\win64
+  - call C:\projects\%APPVEYOR_PROJECT_NAME%\CI\install-setup-qt.cmd
+  - set build_config=Release
+  - call C:\projects\%APPVEYOR_PROJECT_NAME%\CI\install-build-obs.cmd
+  - cd C:\projects\%APPVEYOR_PROJECT_NAME%\
+  - mkdir build32
+  - mkdir build64
+  - cd ./build32
+  - cmake -G "Visual Studio 14 2015" -DQTDIR="%QTDIR32%" -DLibObs_DIR="C:\projects\obs-studio\build32\libobs" -DLIBOBS_INCLUDE_DIR="C:\projects\obs-studio\libobs" -DLIBOBS_LIB="C:\projects\obs-studio\build32\libobs\%build_config%\obs.lib" -DOBS_FRONTEND_LIB="C:\projects\obs-studio\build32\UI\obs-frontend-api\%build_config%\obs-frontend-api.lib" ..
+  - cd ../build64
+  - cmake -G "Visual Studio 14 2015 Win64" -DQTDIR="%QTDIR64%" -DLibObs_DIR="C:\projects\obs-studio\build64\libobs" -DLIBOBS_INCLUDE_DIR="C:\projects\obs-studio\libobs" -DLIBOBS_LIB="C:\projects\obs-studio\build64\libobs\%build_config%\obs.lib" -DOBS_FRONTEND_LIB="C:\projects\obs-studio\build64\UI\obs-frontend-api\%build_config%\obs-frontend-api.lib" ..
+
+build_script:
+  - call msbuild /m /p:Configuration=%build_config% C:\projects\%APPVEYOR_PROJECT_NAME%\build32\%APPVEYOR_PROJECT_NAME%.sln /logger:"C:\Program Files\AppVeyor\BuildAgent\Appveyor.MSBuildLogger.dll"
+  - call msbuild /m /p:Configuration=%build_config% C:\projects\%APPVEYOR_PROJECT_NAME%\build64\%APPVEYOR_PROJECT_NAME%.sln /logger:"C:\Program Files\AppVeyor\BuildAgent\Appveyor.MSBuildLogger.dll"
+
+before_deploy:
+  - 7z a "C:\projects\%APPVEYOR_PROJECT_NAME%\build.zip" C:\projects\%APPVEYOR_PROJECT_NAME%\release\*
+  - set PATH=%PATH%;"C:\\Program Files (x86)\\Inno Setup 5"
+  - iscc "C:\projects\%APPVEYOR_PROJECT_NAME%\installer\installer-Windows.iss"
+
+deploy_script:
+  - ps: Push-AppveyorArtifact "C:\projects\%APPVEYOR_PROJECT_NAME%\build.zip" -FileName "%APPVEYOR_PROJECT_NAME%-$(git log --pretty=format:'%h' -n 1)-Windows.zip"
+  - ps: Push-AppveyorArtifact "C:\projects\%APPVEYOR_PROJECT_NAME%\installer\Output\%APPVEYOR_PROJECT_NAME%-git-Windows-Installer.exe" -FileName "%APPVEYOR_PROJECT_SLUG%-$(git log --pretty=format:'%h' -n 1)-Windows-Installer.exe"
+
+test: off
+
+cache:
+  - C:\projects\dependencies2015.zip
+  - C:\projects\obs-studio-last-tag-built.txt
+  - C:\projects\obs-studio\
