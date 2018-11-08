@@ -12,6 +12,7 @@ endif()
 
 find_package(LibObs REQUIRED)
 find_package(Qt5Core REQUIRED)
+find_package(Qt5Widgets REQUIRED)
 
 set(PLUGIN_SOURCES
 	src/plugin-main.c)
@@ -100,7 +101,6 @@ endif()
 if(UNIX AND NOT APPLE)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
-	target_compile_options(mbedcrypto PRIVATE -fPIC)
 	set_target_properties(obs-plugintemplate PROPERTIES PREFIX "")
 	target_link_libraries(obs-plugintemplate
 		obs-frontend-api)

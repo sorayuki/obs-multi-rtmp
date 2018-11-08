@@ -1,5 +1,5 @@
 #define MyAppName "obs-plugintemplate"
-#define MyAppVersion "latest"
+#define MyAppVersion "0.1.0"
 #define MyAppPublisher "Developer Name"
 #define MyAppURL "http://www.mywebsite.com"
 

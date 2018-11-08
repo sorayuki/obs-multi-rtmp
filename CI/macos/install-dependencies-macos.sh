@@ -7,7 +7,7 @@ brew install ffmpeg
 brew install libav
 
 # qt 5.9.2
-brew install https://raw.githubusercontent.com/Homebrew/homebrew-core/2b121c9a96e58a5da14228630cb71d5bead7137e/Formula/qt.rb
+brew install ./CI/macos/qt.rb
 
 # Build obs-studio
 cd ..

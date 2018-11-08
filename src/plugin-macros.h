@@ -19,6 +19,7 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #ifndef PLUGINNAME_H
 #define PLUGINNAME_H
 
-#define blog(level, msg, ...) blog(level, "[Plugin Name] " msg, ##__VA_ARGS__)
+#define MY_PLUGIN_NAME "obs-plugintemplate"
+#define blog(level, msg, ...) blog(level, "[" MY_PLUGIN_NAME "] " msg, ##__VA_ARGS__)
 
 #endif // PLUGINNAME_H

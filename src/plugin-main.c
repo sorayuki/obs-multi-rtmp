@@ -18,7 +18,10 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 
 #include <obs-module.h>
 
+#include "plugin-macros.h"
+
 OBS_DECLARE_MODULE()
+OBS_MODULE_USE_DEFAULT_LOCALE(MY_PLUGIN_NAME, "en-US")
 
 bool obs_module_load(void)
 {
