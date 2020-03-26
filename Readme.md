@@ -10,6 +10,13 @@
 [リリースページへ](https://github.com/sorayuki/obs-multi-rtmp/releases/)
 
 
+# インストール手順
+
+zipファイルを OBS のフォルダーに解凍してインストール完了。
+
+![install](./install.jpg)
+
+
 # スクリーンショット
 
 ![screenshot](./screenshot.jpg)
