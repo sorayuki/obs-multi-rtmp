@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.17)
-project(obs-multi-rtmp)
+project(obs-multi-rtmp VERSION 0.1.0.0)
 
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
@@ -17,6 +17,10 @@ elseif (CMAKE_SIZEOF_VOID_P EQUAL 8)
 else ()
     message(FATAL_ERROR "?")
 endif ()
+
+if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+    set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/obs-bin/obs-plugins/${PLAT}" CACHE PATH "" FORCE)
+endif()
 
 # build obs lib
 execute_process(COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/tools/pexports.exe"
@@ -41,9 +45,12 @@ execute_process(COMMAND ${CMAKE_LINKER}
 
 find_package(Qt5 COMPONENTS Widgets REQUIRED)
 
+configure_file(src/version.rc.in ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
+
 add_library(obs-multi-rtmp SHARED
     src/obs-multi-rtmp.cpp
     src/obs-multi-rtmp.h
+    ${CMAKE_CURRENT_BINARY_DIR}/version.rc
 )
 target_include_directories(obs-multi-rtmp PRIVATE
     obs-src/libobs
@@ -57,3 +64,8 @@ target_link_libraries(obs-multi-rtmp PRIVATE
     libobs
     obs-frontend-api
 )
+
+install(TARGETS obs-multi-rtmp
+    DESTINATION obs-plugins/${PLAT}
+)
+
