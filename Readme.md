@@ -1,8 +1,44 @@
-# Screenshot
+一生懸命に日本語で書いてみます＞＜
+
+# OBS 同時配信プラグイン
+
+本プラグインは、複数サイトに同時配信のため作ったものです。
+
+
+# スクリーンショット
 
 ![screenshot](./screenshot.jpg)
 
-# Build
+# 要求環境
+
+OBS-Studio バージョン 25.0.0 以降
+また、OBS-Studio 本体は QT 5.10.1 と共にビルドしたバージョン
+
+確認済：
+obs-studio 25.0.1 ~ obs-studio 25.0.3
+
+# ダウンロード
+
+[リリースページへ](https://github.com/sorayuki/obs-multi-rtmp/releases/)
+
+
+# よくあるご質問
+
+Q: どうして OBS 25.0 以降じゃなくてダメなの？
+
+A: 古いバージョンの RTMP 配信モジュールはスレッドセーフじゃないため、複数配信の時クラッシュする可能性があります。
+
+詳しいはこのコミットに参照してください: 
+
+https://github.com/obsproject/obs-studio/commit/2b131d212fc0e5a6cd095b502072ddbedc54ab52 
+
+
+Q: どうして OBS 本体が配信したことない時このプラグインは使えないでしょうか？
+
+A: このプラグインは OBS 本体のエンコーダーと共有している。しかし、OBS は初めての配信を開始した前エンコーダーの作成しない。
+
+
+# How to Build
 
 1. Prepare environment
    1. Put official release OBS 25.0 into obs-bin directory. 
@@ -19,18 +55,3 @@
 
 3. Compile
 
-
-# FAQ
-
-Q: Why it must be OBS 25.0.0 or higher?
-
-A: OBS's rtmp output module is not thread-safe until 25.0.0. 
-
-detail: 
-
-https://github.com/obsproject/obs-studio/commit/2b131d212fc0e5a6cd095b502072ddbedc54ab52 
-
-
-Q: Why it must start streaming in OBS main UI before the multiple output plugin works?
-
-A: This plugin shares encoders with OBS, but OBS will not create them before first streaming.
