@@ -5,9 +5,15 @@
 本プラグインは、複数サイトに同時配信のため作ったものです。
 
 
+# ダウンロード
+
+[リリースページへ](https://github.com/sorayuki/obs-multi-rtmp/releases/)
+
+
 # スクリーンショット
 
 ![screenshot](./screenshot.jpg)
+
 
 # 要求環境
 
@@ -17,14 +23,10 @@ OBS-Studio バージョン 25.0.0 以降
 確認済：
 obs-studio 25.0.1 ~ obs-studio 25.0.3
 
-# ダウンロード
-
-[リリースページへ](https://github.com/sorayuki/obs-multi-rtmp/releases/)
-
 
 # よくあるご質問
 
-Q: どうして OBS 25.0 以降じゃなくてダメなの？
+**Q: どうして OBS 25.0 以降じゃなくてダメなの？**
 
 A: 古いバージョンの RTMP 配信モジュールはスレッドセーフじゃないため、複数配信の時クラッシュする可能性があります。
 
@@ -33,7 +35,7 @@ A: 古いバージョンの RTMP 配信モジュールはスレッドセーフ�
 https://github.com/obsproject/obs-studio/commit/2b131d212fc0e5a6cd095b502072ddbedc54ab52 
 
 
-Q: どうして OBS 本体が配信したことない時このプラグインは使えないでしょうか？
+**Q: どうして OBS 本体が配信したことない時このプラグインは使えないでしょうか？**
 
 A: このプラグインは OBS 本体のエンコーダーと共有している。しかし、OBS は初めての配信を開始した前エンコーダーの作成しない。
 
