@@ -23,9 +23,14 @@
 # FAQ
 
 Q: Why it must be OBS 25.0.0 or higher?
-A: OBS's rtmp output module is not thread-safe until 25.0.0.
-detail:
+
+A: OBS's rtmp output module is not thread-safe until 25.0.0. 
+
+detail: 
+
 https://github.com/obsproject/obs-studio/commit/2b131d212fc0e5a6cd095b502072ddbedc54ab52 
 
+
 Q: Why it must start streaming in OBS main UI before the multiple output plugin works?
+
 A: This plugin shares encoders with OBS, but OBS will not create them before first streaming.
