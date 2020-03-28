@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(obs-multi-rtmp VERSION 0.1.0.0)
+project(obs-multi-rtmp VERSION 0.2.0.0)
 
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
@@ -45,12 +45,12 @@ execute_process(COMMAND ${CMAKE_LINKER}
 
 find_package(Qt5 COMPONENTS Widgets REQUIRED)
 
-#configure_file(src/version.rc.in ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
+configure_file(src/version.rc.in ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
 
 add_library(obs-multi-rtmp SHARED
     src/obs-multi-rtmp.cpp
     src/obs-multi-rtmp.h
-    #${CMAKE_CURRENT_BINARY_DIR}/version.rc
+    ${CMAKE_CURRENT_BINARY_DIR}/version.rc
 )
 target_include_directories(obs-multi-rtmp PRIVATE
     obs-src/libobs
