@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(obs-multi-rtmp VERSION 0.2.1.0)
+project(obs-multi-rtmp VERSION 0.2.2.0)
 
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 

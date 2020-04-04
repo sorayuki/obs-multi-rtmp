@@ -1060,6 +1060,9 @@ OBS_MODULE_AUTHOR("雷鳴 (@sorayukinoyume)")
 
 bool obs_module_load()
 {
+    if (obs_get_version() < MAKE_SEMANTIC_VERSION(25, 0, 0))
+        return false;
+    
     auto mainwin = (QMainWindow*)obs_frontend_get_main_window();
     auto dock = new MultiOutputWidget(mainwin);
     auto action = (QAction*)obs_frontend_add_dock(dock);
