@@ -68,4 +68,5 @@ target_link_libraries(obs-multi-rtmp PRIVATE
 install(TARGETS obs-multi-rtmp
     DESTINATION obs-plugins/${PLAT}
 )
-
+install(DIRECTORY locale
+    DESTINATION data/obs-plugins/obs-multi-rtmp)
