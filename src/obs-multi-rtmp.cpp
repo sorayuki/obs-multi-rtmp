@@ -931,21 +931,6 @@ public:
             dockLocation_ = area;
             
         });
-        QObject::connect(this, &QDockWidget::visibilityChanged, [this](bool visible) {
-            dockVisible_ = visible;
-
-            if (visible == false
-                && reopenShown_ == false
-                && !config_has_user_value(obs_frontend_get_global_config(), ConfigSection, "DockVisible"))
-            {
-                reopenShown_ = true;
-                QMessageBox(QMessageBox::Icon::Information, 
-                    obs_module_text("Notice.Title"), 
-                    obs_module_text("Notice.Reopen"), 
-                    QMessageBox::StandardButton::Ok,
-                    this).exec();
-            }
-        });
 
         scroll_ = new QScrollArea(this);
         scroll_->move(0, 22);
@@ -973,6 +958,24 @@ public:
         setLayout(layout_);
 
         resize(200, 400);
+    }
+
+    void visibleToggled(bool visible)
+    {
+        dockVisible_ = visible;
+        return;
+
+        if (visible == false
+            && reopenShown_ == false
+            && !config_has_user_value(obs_frontend_get_global_config(), ConfigSection, "DockVisible"))
+        {
+            reopenShown_ = true;
+            QMessageBox(QMessageBox::Icon::Information, 
+                obs_module_text("Notice.Title"), 
+                obs_module_text("Notice.Reopen"), 
+                QMessageBox::StandardButton::Ok,
+                this).exec();
+        }
     }
 
     bool event(QEvent *event) override
@@ -1066,6 +1069,7 @@ bool obs_module_load()
     auto mainwin = (QMainWindow*)obs_frontend_get_main_window();
     auto dock = new MultiOutputWidget(mainwin);
     auto action = (QAction*)obs_frontend_add_dock(dock);
+    QObject::connect(action, &QAction::toggled, dock, &MultiOutputWidget::visibleToggled);
 
     // begin work around obs not remember dock geometry added by obs_frontend_add_dock
     mainwin->removeDockWidget(dock);
