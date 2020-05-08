@@ -36,7 +36,7 @@
 																		<key>GID</key>
 																		<integer>80</integer>
 																		<key>PATH</key>
-																		<string>../../build/@CMAKE_PROJECT_NAME@.so</string>
+																		<string>../build/@CMAKE_PROJECT_NAME@.so</string>
 																		<key>PATH_TYPE</key>
 																		<integer>1</integer>
 																		<key>PERMISSIONS</key>
