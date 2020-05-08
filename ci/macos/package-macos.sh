@@ -2,7 +2,8 @@
 
 set -e
 
-source ../ci_includes.generated.sh
+script_dir=$(dirname "$0")
+source "$script_dir/../ci_includes.generated.sh"
 
 OSTYPE=$(uname)
 
