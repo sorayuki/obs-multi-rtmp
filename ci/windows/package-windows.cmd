@@ -1,7 +1,7 @@
 mkdir package
 cd package
 
-call ..\ci_config.inc.cmd
+call ..\ci_includes.generated.cmd
 
 git rev-parse --short HEAD > package-version.txt
 set /p PackageVersion=<package-version.txt
@@ -11,4 +11,4 @@ REM Package ZIP archive
 7z a "%PluginName%-%PackageVersion%-Windows.zip" "..\release\*"
 
 REM Build installer
-iscc ..\installer\installer-Windows.iss /O. /F"%PluginName%-%PackageVersion%-Windows-Installer"
+iscc ..\installer\installer-Windows.generated.iss /O. /F"%PluginName%-%PackageVersion%-Windows-Installer"

@@ -2,7 +2,7 @@
 
 set -e
 
-source ../ci_config.inc.sh
+source ../ci_includes.generated.sh
 
 OSTYPE=$(uname)
 
@@ -44,7 +44,7 @@ else
 fi
 
 echo "=> Actual package build"
-packagesbuild ./CI/macos/installer-macOS.pkgproj
+packagesbuild ./CI/macos/installer-macOS.generated.pkgproj
 
 echo "=> Renaming $PLUGIN_NAME.pkg to $FILENAME"
 mv ./release/$PLUGIN_NAME.pkg ./release/$FILENAME_UNSIGNED

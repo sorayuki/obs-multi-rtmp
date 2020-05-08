@@ -21,33 +21,33 @@ endif()
 find_package(LibObs REQUIRED)
 find_package(Qt5 REQUIRED COMPONENTS Core Widgets)
 
+configure_file(
+    src/plugin-macros.h.in
+    src/plugin-macros.generated.h
+)
+configure_file(
+    installer/installer-macOS.pkgproj.in
+    installer/installer-macOS.generated.pkgproj
+)
+configure_file(
+    installer/installer-Windows.iss.in
+    installer/installer-Windows.generated.iss
+)
+
+configure_file(
+    ci/ci_includes.sh.in
+    ci/ci_includes.generated.sh
+)
+configure_file(
+    ci/ci_includes.cmd.in
+    ci/ci_includes.generated.cmd
+)
+
 set(PLUGIN_SOURCES
 	src/plugin-main.c)
 
 set(PLUGIN_HEADERS
-	src/plugin-macros.h)
-
-configure_file(
-    src/plugin-macros.h.in
-    src/plugin-macros.h
-)
-configure_file(
-    installer/installer-macOS.pkgproj.in
-    installer/installer-macOS.pkgproj
-)
-configure_file(
-    installer/installer-Windows.iss.in
-    installer/installer-Windows.iss
-)
-
-configure_file(
-    ci/ci_config.inc.sh.in
-    ci/ci_config.inc.sh
-)
-configure_file(
-    ci/ci_config.inc.cmd.in
-    ci/ci_config.inc.cmd
-)
+	src/plugin-macros.generated.h)
 
 # --- Platform-independent build settings ---
 add_library(${CMAKE_PROJECT_NAME} MODULE ${PLUGIN_SOURCES} ${PLUGIN_HEADERS})
