@@ -3,6 +3,7 @@ project(obs-plugintemplate VERSION 1.0.0)
 
 set(PLUGIN_AUTHOR "Your Name Here")
 set(MACOS_BUNDLEID "com.example.obs-plugintemplate")
+set(LINUX_MAINTAINER_EMAIL "me@contoso.com")
 
 set(CMAKE_PREFIX_PATH "${QTDIR}")
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
@@ -30,15 +31,22 @@ configure_file(
     src/plugin-macros.h.in
     src/plugin-macros.h
 )
-
 configure_file(
     installer/installer-macOS.pkgproj.in
     installer/installer-macOS.pkgproj
 )
-
 configure_file(
     installer/installer-Windows.iss.in
     installer/installer-Windows.iss
+)
+
+configure_file(
+    ci/ci_config.inc.sh.in
+    ci/ci_config.inc.sh
+)
+configure_file(
+    ci/ci_config.inc.cmd.in
+    ci/ci_config.inc.cmd
 )
 
 # --- Platform-independent build settings ---
