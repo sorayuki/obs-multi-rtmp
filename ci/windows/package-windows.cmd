@@ -1,7 +1,7 @@
 mkdir package
 cd package
 
-call "%~dp0..\ci_includes.generated.cmd"
+call "ci\ci_includes.generated.cmd"
 
 git rev-parse --short HEAD > package-version.txt
 set /p PackageVersion=<package-version.txt
