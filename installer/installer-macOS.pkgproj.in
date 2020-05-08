@@ -66,7 +66,7 @@
 																<key>GID</key>
 																<integer>80</integer>
 																<key>PATH</key>
-																<string>../../data</string>
+																<string>../data</string>
 																<key>PATH_TYPE</key>
 																<integer>1</integer>
 																<key>PERMISSIONS</key>
@@ -542,7 +542,7 @@
 			<key>BUILD_PATH</key>
 			<dict>
 				<key>PATH</key>
-				<string>../../release</string>
+				<string>../release</string>
 				<key>PATH_TYPE</key>
 				<integer>1</integer>
 			</dict>
