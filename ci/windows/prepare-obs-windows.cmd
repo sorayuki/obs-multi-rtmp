@@ -12,11 +12,14 @@ if not exist %OBSPath% (
 
 REM Prepare OBS Studio builds
 
-echo Building obs-studio...
+echo Running CMake...
 cd /D %OBSPath%
 echo   git checkout %OBSLatestTag%
 git checkout %OBSLatestTag%
 echo:
+
+if not exist build32 mkdir build32
+if not exist build64 mkdir build64
 
 echo   Running cmake for obs-studio %OBSLatestTag% 32-bit...
 cd build32
