@@ -45,7 +45,7 @@ else
 fi
 
 echo "=> Actual package build"
-packagesbuild ./CI/macos/installer-macOS.generated.pkgproj
+packagesbuild ./installer/installer-macOS.generated.pkgproj
 
 echo "=> Renaming $PLUGIN_NAME.pkg to $FILENAME"
 mv ./release/$PLUGIN_NAME.pkg ./release/$FILENAME_UNSIGNED
