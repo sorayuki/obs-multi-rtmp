@@ -47,15 +47,15 @@ On macOS, Release Mode builds will be signed and sent to Apple for notarization 
 
 In addition to enabling `macosSignAndNotarize`, you'll need to setup a few more things for Signing and Notarizing to work:
 
-	- On your Apple Developer dashboard, go to "Certificates, IDs & Profiles" and create two signing certificates:
-		- One of the "Developer ID Application" type. It will be used to sign the plugin's binaries
-		- One of the "Developer ID Installer" type. It will be used to sign the plugin's installer
-	- Using the Keychain app on macOS, export these two certificates and keys into a .p12 file **protected with a strong password**
-	- Add that `Certificates.P12` file as a [Secure File in Azure Pipelines](https://docs.microsoft.com/en-us/azure/devops/pipelines/library/secure-files?view=azure-devops) and make sure it is named `Certificates.p12`
-	- Add the following secrets in your pipeline settings:
-		- `secrets.macOS.certificatesImportPassword`: Password of the .p12 file generated earlier
-		- `secrets.macOS.codeSigningIdentity`: Name of the "Developer ID Application" signing certificate generated earlier
-		- `secrets.macOS.installerSigningIdentity`: Name of "Developer ID Installer" signing certificate generated earlier
-		- `secrets.macOS.notarization.username`: Your Apple Developer Account's username
-		- `secrets.macOS.notarization.password`: Your Apple Developer Account's password
-		- `secrets.macOS.notarization.providerShortName`: Identifier (`Provider Short Name`, as Apple calls it) of the Developer Team to which the signing certificates belong. 
+- On your Apple Developer dashboard, go to "Certificates, IDs & Profiles" and create two signing certificates:
+    - One of the "Developer ID Application" type. It will be used to sign the plugin's binaries
+    - One of the "Developer ID Installer" type. It will be used to sign the plugin's installer
+- Using the Keychain app on macOS, export these two certificates and keys into a .p12 file **protected with a strong password**
+- Add that `Certificates.P12` file as a [Secure File in Azure Pipelines](https://docs.microsoft.com/en-us/azure/devops/pipelines/library/secure-files?view=azure-devops) and make sure it is named `Certificates.p12`
+- Add the following secrets in your pipeline settings:
+    - `secrets.macOS.certificatesImportPassword`: Password of the .p12 file generated earlier
+    - `secrets.macOS.codeSigningIdentity`: Name of the "Developer ID Application" signing certificate generated earlier
+    - `secrets.macOS.installerSigningIdentity`: Name of "Developer ID Installer" signing certificate generated earlier
+    - `secrets.macOS.notarization.username`: Your Apple Developer Account's username
+    - `secrets.macOS.notarization.password`: Your Apple Developer Account's password
+    - `secrets.macOS.notarization.providerShortName`: Identifier (`Provider Short Name`, as Apple calls it) of the Developer Team to which the signing certificates belong. 
