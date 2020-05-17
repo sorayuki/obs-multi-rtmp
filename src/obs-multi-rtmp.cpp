@@ -1,4 +1,4 @@
-#include "obs-multi-rtmp.h"
+﻿#include "obs-multi-rtmp.h"
 #include "obs-module.h"
 #include "obs-frontend-api.h"
 #include "util/config-file.h"
@@ -123,13 +123,14 @@ public:
 
 
 
+static QThread* s_uiThread = nullptr;
+
 template<class T>
 bool RunInUIThread(T&& func)
 {
-    auto mainwnd = (QMainWindow*)obs_frontend_get_main_window();
-    if (mainwnd == nullptr)
+    if (s_uiThread == nullptr)
         return false;
-    QMetaObject::invokeMethod(mainwnd, [func = std::move(func)]() {
+    QMetaObject::invokeMethod(s_uiThread, [func = std::move(func)]() {
         func();
     });
     return true;
@@ -679,6 +680,9 @@ public:
         timer_ = new QTimer(this);
         timer_->setInterval(std::chrono::milliseconds(1000));
         QObject::connect(timer_, &QTimer::timeout, [this]() {
+            if (output_)
+                return;
+            
             auto new_frames = obs_output_get_total_frames(output_);
             auto now = clock::now();
 
@@ -949,6 +953,11 @@ public:
         });
         layout_->addWidget(addButton_);
 
+        if (std::string(u8"多路推流") == obs_module_text("Title"))
+            layout_->addWidget(new QLabel(u8"本插件免费提供，请不要为此付费。\n作者：雷鸣", container_));
+        else
+            layout_->addWidget(new QLabel(u8"This plugin provided free of charge. \nAuthor: SoraYuki", container_));
+
         // load config
         LoadConfig();
 
@@ -1067,6 +1076,12 @@ bool obs_module_load()
         return false;
     
     auto mainwin = (QMainWindow*)obs_frontend_get_main_window();
+    if (mainwin == nullptr)
+        return false;
+    QMetaObject::invokeMethod(mainwin, []() {
+        s_uiThread = QThread::currentThread();
+    });
+
     auto dock = new MultiOutputWidget(mainwin);
     auto action = (QAction*)obs_frontend_add_dock(dock);
     QObject::connect(action, &QAction::toggled, dock, &MultiOutputWidget::visibleToggled);
