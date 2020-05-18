@@ -146,6 +146,9 @@ class EditOutputWidget : public QDialog
     QLineEdit* rtmp_path_ = 0;
     QLineEdit* rtmp_key_ = 0;
 
+    QLineEdit* rtmp_user_ = 0;
+    QLineEdit* rtmp_pass_ = 0;
+
     QComboBox* venc_ = 0;
     QLineEdit* v_bitrate_ = 0;
     QLineEdit* v_keyframe_sec_ = 0;
@@ -198,6 +201,24 @@ public:
         {
             layout->addWidget(new QLabel(obs_module_text("StreamingKey"), this), currow, 0);
             layout->addWidget(rtmp_key_ = new QLineEdit(u8"", this), currow, 1);
+        }
+        ++currow;
+        {
+            auto sub_layout = new QGridLayout(this);
+            layout->addLayout(sub_layout, currow, 0, 1, 2);
+
+            sub_layout->setColumnStretch(0, 0);
+            sub_layout->setColumnStretch(1, 1);
+            sub_layout->setColumnStretch(2, 0);
+            sub_layout->setColumnStretch(3, 1);
+            sub_layout->addWidget(new QLabel(obs_module_text("StreamingUser"), this), 0, 0);
+            sub_layout->addWidget(rtmp_user_ = new QLineEdit(u8"", this), 0, 1);
+            sub_layout->addWidget(new QLabel(obs_module_text("StreamingPassword"), this), 0, 2);
+            sub_layout->addWidget(rtmp_pass_ = new QLineEdit(u8"", this), 0, 3);
+
+            rtmp_user_->setPlaceholderText(obs_module_text("UsuallyNoNeed"));
+            rtmp_pass_->setPlaceholderText(obs_module_text("UsuallyNoNeed"));
+            rtmp_pass_->setEchoMode(QLineEdit::Password);
         }
         ++currow;
         {
@@ -384,6 +405,8 @@ public:
         conf_["name"] = name_->text();
         conf_["rtmp-path"] = rtmp_path_->text();
         conf_["rtmp-key"] = rtmp_key_->text();
+        conf_["rtmp-user"] = rtmp_user_->text();
+        conf_["rtmp-pass"] = rtmp_pass_->text();
         conf_["v-enc"] = venc_->currentData().toString();
         conf_["a-enc"] = aenc_->currentData().toString();
         if (v_bitrate_->isEnabled())
@@ -411,7 +434,16 @@ public:
         it = conf_.find("rtmp-key");
         if (it != conf_.end() && it->isString())
             rtmp_key_->setText(it->toString());
-                it = conf_.find("v-enc");
+
+        it = conf_.find("rtmp-user");
+        if (it != conf_.end() && it->isString())
+            rtmp_user_->setText(it->toString());
+
+        it = conf_.find("rtmp-pass");
+        if (it != conf_.end() && it->isString())
+            rtmp_pass_->setText(it->toString());
+
+        it = conf_.find("v-enc");
         if (it != conf_.end() && it->isString())
         {
             int idx = venc_->findData(it->toString());
@@ -531,6 +563,18 @@ class PushWidget : public QWidget, public IOBSOutputEventHanlder
         
         obs_data_set_string(conf, "server", tostdu8(conf_["rtmp-path"].toString()).c_str());
         obs_data_set_string(conf, "key", tostdu8(conf_["rtmp-key"].toString()).c_str());
+
+        auto user = tostdu8(conf_["rtmp-user"].toString());
+        auto pass = tostdu8(conf_["rtmp-pass"].toString());
+        if (!user.empty())
+        {
+            obs_data_set_bool(conf, "use_auth", true);
+            obs_data_set_string(conf, "username", user.c_str());
+            obs_data_set_string(conf, "password", pass.c_str());
+        }
+        else
+            obs_data_set_bool(conf, "use_auth", false);
+        
         auto service = obs_service_create("rtmp_custom", "multi-output-service", conf, nullptr);
         obs_data_release(conf);
         if (!service)
