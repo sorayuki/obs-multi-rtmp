@@ -1,0 +1,5 @@
+build*/
+dist/
+obs-src/
+*.zip
+*.tar.xz
