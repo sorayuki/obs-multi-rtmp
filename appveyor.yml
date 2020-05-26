@@ -1,81 +1,37 @@
-image: Visual Studio 2019
-
 environment:
-  OBS_BASE_BIN_URL: "https://github.com/obsproject/obs-studio/releases/download/"
-  OBS_BASE_SRC_URL: "https://github.com/obsproject/obs-studio/archive/"
-  QT_URL: "https://cdn-fastly.obsproject.com/downloads/Qt_5.10.1.7z"
-
   matrix:
-  - TARGET: "25.0.4"
+  - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
+    OBS_VER: "25.0.8"
+  - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
+    OBS_VER: "25.0.4"
 
-install:
-- ps: >-
-    New-Item -Path obs -Type Directory
+  - APPVEYOR_BUILD_WORKER_IMAGE: Ubuntu2004
+  # no previous version on Ubuntu PPA
 
-    New-Item -Path ${env:APPVEYOR_BUILD_FOLDER}/obs-bin/bin/32bit -Type Directory
+for:
+- matrix:
+    only:
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
 
-    New-Item -Path ${env:APPVEYOR_BUILD_FOLDER}/obs-bin/bin/64bit -Type Directory
+  install:
+  - pwsh: ci/install.ps1 -OBS_VER "$Env:OBS_VER"
 
-    New-Item -Path ${env:APPVEYOR_BUILD_FOLDER}/obs-src -Type Directory
+  build_script:
+  - pwsh: ./build.ps1 -QTDIR32 "C:/Qt/5.14.2/msvc2017" -QTDIR64 "C:/Qt/5.14.2/msvc2017_64" -OBS_BIN_DIR32 "../OBS-Studio-${Env:OBS_VER}-Full-x86" -OBS_BIN_DIR64 "../OBS-Studio-${Env:OBS_VER}-Full-x64" -OBS_SRC_DIR "../obs-studio-${Env:OBS_VER}"
 
-    Write-Host "Download qt.7z"
+  artifacts:
+  - path: "*.zip"
 
-    appveyor DownloadFile ${env:QT_URL} -FileName qt.7z
+- matrix:
+    only:
+    - APPVEYOR_BUILD_WORKER_IMAGE: Ubuntu2004
 
-    Write-Host "Download obs-studio-${env:TARGET}-Full-x64.zip"
+  install:
+  - ci/install_ubuntu.sh
 
-    appveyor DownloadFile ${env:OBS_BASE_BIN_URL}/${env:TARGET}/OBS-Studio-${env:TARGET}-Full-x64.zip -FileName obs/x64.zip
+  build_script:
+  - sed -i 's/CMAKE_CXX_STANDARD 17/CMAKE_CXX_STANDARD 11/' CMakeLists.txt
+  - QTDIR=$HOME/Qt/5.14.2/gcc_64 ./build_linux.sh
 
-    Write-Host "Download obs-studio-${env:TARGET}-Full-x86.zip"
-
-    appveyor DownloadFile ${env:OBS_BASE_BIN_URL}/${env:TARGET}/OBS-Studio-${env:TARGET}-Full-x86.zip -FileName obs/x86.zip
-
-    Write-Host "Download ${env:TARGET}.zip"
-
-    appveyor DownloadFile ${env:OBS_BASE_SRC_URL}/${env:TARGET}.zip -FileName obs/src.zip
-
-    Write-Host "Extract qt.7z"
-
-    7z x qt.7z -oQt
-
-    Write-Host "Unzip obs-studio-${env:TARGET}-Full-x64.zip"
-
-    unzip -qq obs/x64.zip -d obs/x64/
-
-    Write-Host "Unzip obs-studio-${env:TARGET}-Full-x86.zip"
-
-    unzip -qq obs/x86.zip -d obs/x86/
-
-    Write-Host "Unzip ${env:TARGET}.zip"
-
-    unzip -qq obs/src.zip -d obs/src/
-
-    Write-Host "Copy 32bit files"
-
-    Copy-Item -Path obs/x86/bin/32bit/* -Destination ${env:APPVEYOR_BUILD_FOLDER}/obs-bin/bin/32bit
-
-    Write-Host "Copy 64bit files"
-
-    Copy-Item -Path obs/x64/bin/64bit/* -Destination ${env:APPVEYOR_BUILD_FOLDER}/obs-bin/bin/64bit
-
-    Write-Host "Copy src files"
-
-    Copy-Item -Path obs/src/obs-studio-${env:TARGET}/* -Destination ${env:APPVEYOR_BUILD_FOLDER}/obs-src -Recurse -Container
-
-build_script:
-- ps: >-
-    cmake -DQTDIR="Qt/5.10.1/msvc2017" -G "Visual Studio 16 2019" -A Win32 -B build_x86 -S . -DCMAKE_INSTALL_PREFIX=dist
-
-    cmake --build build_x86 --config Release
-
-    cmake --install build_x86 --config Release
-
-    cmake -DQTDIR="Qt/5.10.1/msvc2017_64" -G "Visual Studio 16 2019" -A x64 -B build_x64 -S . -DCMAKE_INSTALL_PREFIX=dist
-
-    cmake --build build_x64 --config Release
-
-    cmake --install build_x64 --config Release
-
-artifacts:
-- path: dist
-  name: Release
+  artifacts:
+  - path: "*.tar.xz"
