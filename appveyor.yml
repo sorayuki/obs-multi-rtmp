@@ -1,83 +1,35 @@
-image: Visual Studio 2019
+image:
+  - Visual Studio 2019
+  - Ubuntu2004
 
 environment:
+  QT_BASE_URL: "https://cdn-fastly.obsproject.com/downloads/"
+  QT_FILENAME: "Qt_5.10.1"
   OBS_BASE_BIN_URL: "https://github.com/obsproject/obs-studio/releases/download/"
   OBS_BASE_SRC_URL: "https://github.com/obsproject/obs-studio/archive/"
-  QT_URL: "https://cdn-fastly.obsproject.com/downloads/Qt_5.10.1.7z"
+  TARGET: "25.0.8"
 
-  matrix:
-  - TARGET: "25.0.4"
+for:
+- matrix:
+    only:
+    - image: Visual Studio 2019
 
-  - TARGET: "25.0.1"
+  install:
+  - pwsh: ci\install.ps1
 
-install:
-- ps: >-
-    New-Item -Path obs -Type Directory
+  build_script:
+  - cmd: .\build.bat
 
-    New-Item -Path ${env:APPVEYOR_BUILD_FOLDER}/obs-bin/bin/32bit -Type Directory
+- matrix:
+    only:
+    - image: Ubuntu2004
 
-    New-Item -Path ${env:APPVEYOR_BUILD_FOLDER}/obs-bin/bin/64bit -Type Directory
+  install:
+  - ci/install.sh
 
-    New-Item -Path ${env:APPVEYOR_BUILD_FOLDER}/obs-src -Type Directory
-
-    Write-Host "Download qt.7z"
-
-    appveyor DownloadFile ${env:QT_URL} -FileName qt.7z
-
-    Write-Host "Download obs-studio-${env:TARGET}-Full-x64.zip"
-
-    appveyor DownloadFile ${env:OBS_BASE_BIN_URL}/${env:TARGET}/OBS-Studio-${env:TARGET}-Full-x64.zip -FileName obs/x64.zip
-
-    Write-Host "Download obs-studio-${env:TARGET}-Full-x86.zip"
-
-    appveyor DownloadFile ${env:OBS_BASE_BIN_URL}/${env:TARGET}/OBS-Studio-${env:TARGET}-Full-x86.zip -FileName obs/x86.zip
-
-    Write-Host "Download ${env:TARGET}.zip"
-
-    appveyor DownloadFile ${env:OBS_BASE_SRC_URL}/${env:TARGET}.zip -FileName obs/src.zip
-
-    Write-Host "Extract qt.7z"
-
-    7z x qt.7z -oQt
-
-    Write-Host "Unzip obs-studio-${env:TARGET}-Full-x64.zip"
-
-    unzip -qq obs/x64.zip -d obs/x64/
-
-    Write-Host "Unzip obs-studio-${env:TARGET}-Full-x86.zip"
-
-    unzip -qq obs/x86.zip -d obs/x86/
-
-    Write-Host "Unzip ${env:TARGET}.zip"
-
-    unzip -qq obs/src.zip -d obs/src/
-
-    Write-Host "Copy 32bit files"
-
-    Copy-Item -Path obs/x86/bin/32bit/* -Destination ${env:APPVEYOR_BUILD_FOLDER}/obs-bin/bin/32bit
-
-    Write-Host "Copy 64bit files"
-
-    Copy-Item -Path obs/x64/bin/64bit/* -Destination ${env:APPVEYOR_BUILD_FOLDER}/obs-bin/bin/64bit
-
-    Write-Host "Copy src files"
-
-    Copy-Item -Path obs/src/obs-studio-${env:TARGET}/* -Destination ${env:APPVEYOR_BUILD_FOLDER}/obs-src -Recurse -Container
-
-build_script:
-- ps: >-
-    cmake -DQTDIR="Qt/5.10.1/msvc2017" -DOBS_INCLUDE_DIR="obs-src" -G "Visual Studio 16 2019" -A Win32 -B build_x86 -S . -DCMAKE_INSTALL_PREFIX=dist
-
-    cmake --build build_x86 --config Release
-
-    cmake --install build_x86 --config Release
-
-    cmake -DQTDIR="Qt/5.10.1/msvc2017_64" -DOBS_INCLUDE_DIR="obs-src" -G "Visual Studio 16 2019" -A x64 -B build_x64 -S . -DCMAKE_INSTALL_PREFIX=dist
-
-    cmake --build build_x64 --config Release
-
-    cmake --install build_x64 --config Release
+  build_script:
+  - INSTALL=1 DESTDIR=dist ./build_linux.sh
 
 artifacts:
 - path: dist
-  name: Release
+  name: release

@@ -6,8 +6,11 @@ set (CMAKE_INCLUDE_CURRENT_DIR ON)
 set (QTDIR "" CACHE PATH "Directory of Qt 5, example D:/dev/qt5/5.10.1/msvc2017")
 set (CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} ${QTDIR})
 
+find_package(Qt5 COMPONENTS Widgets REQUIRED)
+
 # build obs lib
 if (WIN32)
+# Windows
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
     if (CMAKE_SIZEOF_VOID_P EQUAL 4)
@@ -21,16 +24,16 @@ if (WIN32)
     endif ()
 
     if (CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-        set(CMAKE_INSTALL_PREFIX "${CMAKE_CURRENT_SOURCE_DIR}/obs-bin" CACHE PATH "" FORCE)
+        set(CMAKE_INSTALL_PREFIX "${OBS_BIN_DIR}" CACHE PATH "" FORCE)
     endif ()
 
     execute_process(COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/tools/pexports.exe"
-        "${CMAKE_CURRENT_SOURCE_DIR}/obs-bin/bin/${PLAT}/obs.dll"
+        "${OBS_BIN_DIR}/bin/${PLAT}/obs.dll"
         OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/libobs.def"
         COMMAND_ECHO STDOUT
     )
     execute_process(COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/tools/pexports.exe"
-        "${CMAKE_CURRENT_SOURCE_DIR}/obs-bin/bin/${PLAT}/obs-frontend-api.dll"
+        "${OBS_BIN_DIR}/bin/${PLAT}/obs-frontend-api.dll"
         OUTPUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/obs-frontend-api.def"
         COMMAND_ECHO STDOUT
     )
@@ -48,12 +51,10 @@ elseif (APPLE)
 # macOS
 elseif (UNIX)
 # Linux
+    find_package(LibObs REQUIRED)
 else ()
     message(FATAL_ERROR "Unsupported OS!")
 endif ()
-
-find_package(LibObs REQUIRED)
-find_package(Qt5 COMPONENTS Widgets REQUIRED)
 
 configure_file(src/version.rc.in ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
 
@@ -63,8 +64,8 @@ add_library(obs-multi-rtmp SHARED
     ${CMAKE_CURRENT_BINARY_DIR}/version.rc
 )
 target_include_directories(obs-multi-rtmp PRIVATE
-    ${OBS_INCLUDE_DIR}/libobs
-    ${OBS_INCLUDE_DIR}/UI/obs-frontend-api
+    ${OBS_SRC_DIR}/libobs
+    ${OBS_SRC_DIR}/UI/obs-frontend-api
 )
 target_link_directories(obs-multi-rtmp PRIVATE
     ${CMAKE_CURRENT_BINARY_DIR}
@@ -76,18 +77,18 @@ target_link_libraries(obs-multi-rtmp PRIVATE
 )
 
 if (WIN32)
-    install(TARGETS obs-multi-rtmp
-        DESTINATION obs-plugins/${PLAT}
+    install(TARGETS obs-multi-rtmp RUNTIME
+        DESTINATION "obs-plugins/${PLAT}"
     )
     install(DIRECTORY locale
         DESTINATION data/obs-plugins/obs-multi-rtmp
     )
 elseif (APPLE)
-    set_target_properties(obs-multi-rtmp PROPERTIES PREFIX "")
-else ()
+
+elseif (UNIX)
     set_target_properties(obs-multi-rtmp PROPERTIES PREFIX "")
 
-    install(TARGETS obs-multi-rtmp
+    install(TARGETS obs-multi-rtmp LIBRARY
         DESTINATION lib/obs-plugins
     )
     install(DIRECTORY locale
