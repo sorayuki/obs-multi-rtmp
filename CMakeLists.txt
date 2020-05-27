@@ -1,10 +1,12 @@
 cmake_minimum_required(VERSION 3.16)
 project(obs-multi-rtmp VERSION 0.2.4)
 
-set (AUTOMOC ON)
-set (CMAKE_INCLUDE_CURRENT_DIR ON)
-set (QTDIR "" CACHE PATH "Directory of Qt 5, example D:/dev/qt5/5.10.1/msvc2017")
-set (CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} ${QTDIR})
+list(APPEND CMAKE_PREFIX_PATH "${QTDIR}")
+set(CMAKE_INCLUDE_CURRENT_DIR ON)
+
+set(AUTOMOC ON)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt5 COMPONENTS Widgets REQUIRED)
 
@@ -56,19 +58,19 @@ else ()
     message(FATAL_ERROR "Unsupported OS!")
 endif ()
 
-configure_file(src/version.rc.in ${CMAKE_CURRENT_BINARY_DIR}/version.rc)
+configure_file("src/version.rc.in" "${CMAKE_CURRENT_BINARY_DIR}/version.rc")
 
 add_library(obs-multi-rtmp SHARED
-    src/obs-multi-rtmp.cpp
-    src/obs-multi-rtmp.h
-    ${CMAKE_CURRENT_BINARY_DIR}/version.rc
+    "src/obs-multi-rtmp.cpp"
+    "src/obs-multi-rtmp.h"
+    "${CMAKE_CURRENT_BINARY_DIR}/version.rc"
 )
 target_include_directories(obs-multi-rtmp PRIVATE
-    ${OBS_SRC_DIR}/libobs
-    ${OBS_SRC_DIR}/UI/obs-frontend-api
+    "${OBS_SRC_DIR}/libobs"
+    "${OBS_SRC_DIR}/UI/obs-frontend-api"
 )
 target_link_directories(obs-multi-rtmp PRIVATE
-    ${CMAKE_CURRENT_BINARY_DIR}
+    "${CMAKE_CURRENT_BINARY_DIR}"
 )
 target_link_libraries(obs-multi-rtmp PRIVATE
     Qt5::Widgets
@@ -81,7 +83,7 @@ if (WIN32)
         DESTINATION "obs-plugins/${PLAT}"
     )
     install(DIRECTORY locale
-        DESTINATION data/obs-plugins/obs-multi-rtmp
+        DESTINATION "data/obs-plugins/obs-multi-rtmp"
     )
 elseif (APPLE)
 
@@ -89,9 +91,9 @@ elseif (UNIX)
     set_target_properties(obs-multi-rtmp PROPERTIES PREFIX "")
 
     install(TARGETS obs-multi-rtmp LIBRARY
-        DESTINATION lib/obs-plugins
+        DESTINATION "lib/obs-plugins"
     )
     install(DIRECTORY locale
-        DESTINATION share/obs/obs-plugins/obs-multi-rtmp
+        DESTINATION "share/obs/obs-plugins/obs-multi-rtmp"
     )
 endif ()

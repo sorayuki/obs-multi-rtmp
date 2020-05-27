@@ -1,33 +1,37 @@
-image:
-  - Visual Studio 2019
-  - Ubuntu2004
-
 environment:
-  OBS_BIN_URL: "https://github.com/obsproject/obs-studio/releases/download/#TARGET#/OBS-Studio-#TARGET#-Full-#ARCH#.zip"
-  OBS_SRC_URL: "https://github.com/obsproject/obs-studio/archive/#TARGET#.zip"
-  TARGET: "25.0.8"
+  matrix:
+  - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
+    OBS_VER: "25.0.8"
+  - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
+    OBS_VER: "25.0.4"
+
+  - APPVEYOR_BUILD_WORKER_IMAGE: Ubuntu2004
+  # no previous version on Ubuntu PPA
 
 for:
 - matrix:
     only:
-    - image: Visual Studio 2019
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
 
   install:
-  - pwsh: ci/install.ps1
+  - pwsh: ci/install.ps1 -OBS_VER "$Env:OBS_VER"
 
   build_script:
-  - pwsh: ./build.ps1 -QTDIR32 "C:\Qt\5.14.2\msvc2017" -QTDIR64 "C:\Qt\5.14.2\msvc2017_64"
+  - pwsh: ./build.ps1 -QTDIR32 "C:/Qt/5.14.2/msvc2017" -QTDIR64 "C:/Qt/5.14.2/msvc2017_64" -OBS_BIN_DIR32 "../OBS-Studio-${Env:OBS_VER}-Full-x86" -OBS_BIN_DIR64 "../OBS-Studio-${Env:OBS_VER}-Full-x64" -OBS_SRC_DIR "../obs-studio-${Env:OBS_VER}"
+
+  artifacts:
+  - path: "*.zip"
 
 - matrix:
     only:
-    - image: Ubuntu2004
+    - APPVEYOR_BUILD_WORKER_IMAGE: Ubuntu2004
 
   install:
   - ci/install_ubuntu.sh
 
   build_script:
+  - sed -i 's/CMAKE_CXX_STANDARD 17/CMAKE_CXX_STANDARD 11/' CMakeLists.txt
   - QTDIR=$HOME/Qt/5.14.2/gcc_64 ./build_linux.sh
 
-artifacts:
-- path: "*.zip"
-- path: "*.tar.xz"
+  artifacts:
+  - path: "*.tar.xz"
