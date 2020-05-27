@@ -5,6 +5,7 @@ image:
 environment:
   QT_BASE_URL: "https://cdn-fastly.obsproject.com/downloads"
   QT_FILENAME: "Qt_5.10.1"
+  QTDIR: "$HOME/Qt/latest"
   OBS_BASE_BIN_URL: "https://github.com/obsproject/obs-studio/releases/download"
   OBS_BASE_SRC_URL: "https://github.com/obsproject/obs-studio/archive"
   TARGET: "25.0.8"

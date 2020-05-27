@@ -10,7 +10,7 @@ Start-FileDownload "$env:OBS_BASE_BIN_URL/$env:TARGET/$obs_x86.zip"
 Start-FileDownload "$env:OBS_BASE_BIN_URL/$env:TARGET/$obs_x64.zip"
 Start-FileDownload "$env:OBS_BASE_SRC_URL/$env:TARGET.zip"
 
-7z x "$env:QT_FILENAME.7z" -o ..
+7z x "$env:QT_FILENAME.7z" '-o..'
 Move-Item ../$env:QT_FILENAME.Substring(3) ../$env:QT_FILENAME
 
 unzip -q "$obs_x86.zip" -d ../$obs_x86
