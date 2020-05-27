@@ -3,10 +3,10 @@ image:
   - Ubuntu2004
 
 environment:
-  QT_BASE_URL: "https://cdn-fastly.obsproject.com/downloads/"
+  QT_BASE_URL: "https://cdn-fastly.obsproject.com/downloads"
   QT_FILENAME: "Qt_5.10.1"
-  OBS_BASE_BIN_URL: "https://github.com/obsproject/obs-studio/releases/download/"
-  OBS_BASE_SRC_URL: "https://github.com/obsproject/obs-studio/archive/"
+  OBS_BASE_BIN_URL: "https://github.com/obsproject/obs-studio/releases/download"
+  OBS_BASE_SRC_URL: "https://github.com/obsproject/obs-studio/archive"
   TARGET: "25.0.8"
 
 for:
@@ -15,20 +15,20 @@ for:
     - image: Visual Studio 2019
 
   install:
-  - pwsh: ci\install.ps1
+  - ps: ci/install.ps1
 
   build_script:
-  - cmd: .\build.bat
+  - ps: ./build.ps1
 
 - matrix:
     only:
     - image: Ubuntu2004
 
   install:
-  - ci/install.sh
+  - ci/install_ubuntu.sh
 
   build_script:
-  - INSTALL=1 DESTDIR=dist ./build_linux.sh
+  - ./build_linux.sh
 
 artifacts:
 - path: dist
