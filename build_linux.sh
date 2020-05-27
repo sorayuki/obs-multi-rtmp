@@ -22,4 +22,4 @@ cd dist
 cmake -E tar cfJ ../obs-multi-rtmp_Linux_$ver.tar.xz --format=gnutar .
 cd ..
 
-[ $INSTALL -gt 0 ] && sudo cmake --install build --config Release
+[ $INSTALL -gt 0 ] && sudo cmake --install build --config Release || :

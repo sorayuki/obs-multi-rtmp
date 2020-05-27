@@ -1,17 +1,25 @@
-Set-PSDebug -Trace 1
-$ErrorActionPreference = "Stop"
+param(
+    [string]$QTDIR32 = "../Qt_5.10.1/msvc2017",
+    [string]$QTDIR64 = "../Qt_5.10.1/msvc2017_64",
+    [string]$OBS_BIN_DIR32 = "../OBS-Studio-25.0.8-Full-x86",
+    [string]$OBS_BIN_DIR64 = "../OBS-Studio-25.0.8-Full-x64",
+    [string]$OBS_SRC_DIR = "../obs-studio-25.0.8"
+)
 
-$ver = (Select-String 'obs-multi-rtmp VERSION' CMakeLists.txt -Raw)
-$ver = $ver.Split(' ')[2]
+$ErrorActionPreference = "Stop"
+Set-PSDebug -Trace 1
+
+$ver = (Select-String -Pattern "obs-multi-rtmp VERSION" -Path CMakeLists.txt -Raw)
+$ver = $ver.Split(" ")[2]
 $ver = $ver.Remove($ver.Length - 1)
 
-Remove-Item build_x86 build_x64 dist *.zip -Recurse -ErrorAction Ignore
+Remove-Item -Path build_x86, build_x64, dist, *.zip -Recurse -ErrorAction Ignore
 
-cmake -DQTDIR="../Qt_5.10.1/msvc2017" -DOBS_BIN_DIR="../OBS-Studio-25.0.8-Full-x86" -DOBS_SRC_DIR="../obs-studio-25.0.8" -G "Visual Studio 16 2019" -A Win32 -B build_x86 -DCMAKE_INSTALL_PREFIX=dist .
+cmake -DQTDIR="$QTDIR32" -DOBS_BIN_DIR="$OBS_BIN_DIR32" -DOBS_SRC_DIR="$OBS_SRC_DIR" -G "Visual Studio 16 2019" -A Win32 -B build_x86 -DCMAKE_INSTALL_PREFIX=dist .
 cmake --build build_x86 --config Release
 cmake --install build_x86 --config Release
 
-cmake -DQTDIR="../Qt_5.10.1/msvc2017_64" -DOBS_BIN_DIR="../OBS-Studio-25.0.8-Full-x64" -DOBS_SRC_DIR="../obs-studio-25.0.8" -G "Visual Studio 16 2019" -A x64 -B build_x64 -DCMAKE_INSTALL_PREFIX=dist .
+cmake -DQTDIR="$QTDIR64" -DOBS_BIN_DIR="$OBS_BIN_DIR64" -DOBS_SRC_DIR="$OBS_SRC_DIR" -G "Visual Studio 16 2019" -A x64 -B build_x64 -DCMAKE_INSTALL_PREFIX=dist .
 cmake --build build_x64 --config Release
 cmake --install build_x64 --config Release
 

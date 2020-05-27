@@ -3,11 +3,8 @@ image:
   - Ubuntu2004
 
 environment:
-  QT_BASE_URL: "https://cdn-fastly.obsproject.com/downloads"
-  QT_FILENAME: "Qt_5.10.1"
-  QTDIR: "$HOME/Qt/latest"
-  OBS_BASE_BIN_URL: "https://github.com/obsproject/obs-studio/releases/download"
-  OBS_BASE_SRC_URL: "https://github.com/obsproject/obs-studio/archive"
+  OBS_BIN_URL: "https://github.com/obsproject/obs-studio/releases/download/#TARGET#/OBS-Studio-#TARGET#-Full-#ARCH#.zip"
+  OBS_SRC_URL: "https://github.com/obsproject/obs-studio/archive/#TARGET#.zip"
   TARGET: "25.0.8"
 
 for:
@@ -16,10 +13,10 @@ for:
     - image: Visual Studio 2019
 
   install:
-  - ps: ci/install.ps1
+  - pwsh: ci/install.ps1
 
   build_script:
-  - ps: ./build.ps1
+  - pwsh: ./build.ps1 -QTDIR32 "C:\Qt\5.14.2\msvc2017" -QTDIR64 "C:\Qt\5.14.2\msvc2017_64"
 
 - matrix:
     only:
@@ -29,8 +26,8 @@ for:
   - ci/install_ubuntu.sh
 
   build_script:
-  - ./build_linux.sh
+  - QTDIR=$HOME/Qt/5.14.2/gcc_64 ./build_linux.sh
 
 artifacts:
-- path: dist
-  name: release
+- path: "*.zip"
+- path: "*.tar.xz"

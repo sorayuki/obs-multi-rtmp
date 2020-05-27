@@ -6,7 +6,7 @@ set -eux
 
 sudo add-apt-repository -y ppa:obsproject/obs-studio
 sudo apt-get -q update
-sudo apt-get install -qy obs-studio
+sudo apt-get install -qy mesa-common-dev obs-studio
 
 obs_ver=$(obs -V)
 obs_ver=${obs_ver//-/ }
