@@ -14,5 +14,6 @@ cmake --install build_x64 --config Release
 
 if not exist dist\nul exit /b
 cd dist
+if exist ..\dist\nul if exist ..\appveyor.yml del /s obs-multi-rtmp.lib
 cmake -E tar cf ..\release.zip --format=zip .
 cd ..
