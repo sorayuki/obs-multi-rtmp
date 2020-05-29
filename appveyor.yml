@@ -8,8 +8,6 @@ environment:
   matrix:
   - TARGET: "25.0.4"
 
-  - TARGET: "25.0.1"
-
 install:
 - ps: >-
     New-Item -Path obs -Type Directory
