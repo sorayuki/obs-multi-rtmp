@@ -4,7 +4,6 @@ project(obs-multi-rtmp VERSION 0.2.4)
 list(APPEND CMAKE_PREFIX_PATH "${QTDIR}")
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
-set(AUTOMOC ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -12,7 +11,7 @@ find_package(Qt5 COMPONENTS Widgets REQUIRED)
 
 # build obs lib
 if (WIN32)
-# Windows
+    # Windows
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
     if (CMAKE_SIZEOF_VOID_P EQUAL 4)
@@ -23,6 +22,13 @@ if (WIN32)
         set(LINK_PLAT "x64")
     else ()
         message(FATAL_ERROR "Unsupported Architecture!")
+    endif ()
+
+    if (NOT DEFINED OBS_SRC_DIR)
+        set(OBS_SRC_DIR "{CMAKE_CURRENT_SOURCE_DIR}/../obs-src")
+    endif ()
+    if (NOT DEFINED OBS_BIN_DIR)
+        set(OBS_BIN_DIR "{CMAKE_CURRENT_SOURCE_DIR}/../obs-bin")
     endif ()
 
     if (CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
@@ -50,21 +56,25 @@ if (WIN32)
         "/out:${CMAKE_CURRENT_BINARY_DIR}/obs-frontend-api.lib"
     )
 elseif (APPLE)
-# macOS
+    # macOS
+    message(FATAL_ERROR "Unsupported OS!")
 elseif (UNIX)
-# Linux
+    # Linux
     find_package(LibObs REQUIRED)
 else ()
     message(FATAL_ERROR "Unsupported OS!")
 endif ()
 
-configure_file("src/version.rc.in" "${CMAKE_CURRENT_BINARY_DIR}/version.rc")
-
 add_library(obs-multi-rtmp SHARED
     "src/obs-multi-rtmp.cpp"
     "src/obs-multi-rtmp.h"
-    "${CMAKE_CURRENT_BINARY_DIR}/version.rc"
 )
+if (WIN32)
+    configure_file("src/version.rc.in" "${CMAKE_CURRENT_BINARY_DIR}/version.rc")
+    target_sources(obs-multi-rtmp PRIVATE
+        "${CMAKE_CURRENT_BINARY_DIR}/version.rc"
+    )
+endif ()
 target_include_directories(obs-multi-rtmp PRIVATE
     "${OBS_SRC_DIR}/libobs"
     "${OBS_SRC_DIR}/UI/obs-frontend-api"
@@ -86,7 +96,7 @@ if (WIN32)
         DESTINATION "data/obs-plugins/obs-multi-rtmp"
     )
 elseif (APPLE)
-
+    # not implemented
 elseif (UNIX)
     set_target_properties(obs-multi-rtmp PROPERTIES PREFIX "")
 

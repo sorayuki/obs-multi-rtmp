@@ -1,13 +1,16 @@
 param(
-    [string]$QTDIR32 = "../Qt_5.10.1/msvc2017",
-    [string]$QTDIR64 = "../Qt_5.10.1/msvc2017_64",
     [string]$OBS_BIN_DIR32 = "../OBS-Studio-25.0.8-Full-x86",
     [string]$OBS_BIN_DIR64 = "../OBS-Studio-25.0.8-Full-x64",
-    [string]$OBS_SRC_DIR = "../obs-studio-25.0.8"
+    [string]$OBS_SRC_DIR = "../obs-studio-25.0.8",
+    [string]$QTROOT = "C:/QtDep"
 )
 
 $ErrorActionPreference = "Stop"
 Set-PSDebug -Trace 1
+
+# find qt directory
+$QTDIR32 = [System.IO.Directory]::GetDirectories("c:/QtDep/", "msvc2017", 1)[0].Replace("\", "/")
+$QTDIR64 = [System.IO.Directory]::GetDirectories("c:/QtDep/", "msvc2017_64", 1)[0].Replace("\", "/")
 
 $ver = (Select-String -Pattern "obs-multi-rtmp VERSION" -Path CMakeLists.txt -Raw)
 $ver = $ver.Split(" ")[2]

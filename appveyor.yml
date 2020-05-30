@@ -2,8 +2,6 @@ environment:
   matrix:
   - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
     OBS_VER: "25.0.8"
-  - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
-    OBS_VER: "25.0.4"
 
   - APPVEYOR_BUILD_WORKER_IMAGE: Ubuntu2004
   # no previous version on Ubuntu PPA
@@ -17,7 +15,7 @@ for:
   - pwsh: ci/install.ps1 -OBS_VER "$Env:OBS_VER"
 
   build_script:
-  - pwsh: ./build.ps1 -QTDIR32 "C:/Qt/5.14.2/msvc2017" -QTDIR64 "C:/Qt/5.14.2/msvc2017_64" -OBS_BIN_DIR32 "../OBS-Studio-${Env:OBS_VER}-Full-x86" -OBS_BIN_DIR64 "../OBS-Studio-${Env:OBS_VER}-Full-x64" -OBS_SRC_DIR "../obs-studio-${Env:OBS_VER}"
+  - pwsh: ./build.ps1 -OBS_BIN_DIR32 "../OBS-Studio-${Env:OBS_VER}-Full-x86" -OBS_BIN_DIR64 "../OBS-Studio-${Env:OBS_VER}-Full-x64" -OBS_SRC_DIR "../obs-studio-${Env:OBS_VER}"
 
   artifacts:
   - path: "*.zip"

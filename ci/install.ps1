@@ -34,3 +34,4 @@ Start-FileDownload $obs_src_url -FileName ../$obs_src_filename
 unzip -oqd ../$obs_bin_dirname_x86 ../$obs_bin_filename_x86
 unzip -oqd ../$obs_bin_dirname_x64 ../$obs_bin_filename_x64
 unzip -oqd .. ../$obs_src_filename
+& "../obs-studio-$OBS_VER/CI/install-qt-win.cmd"
