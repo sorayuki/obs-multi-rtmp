@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 project(obs-multi-rtmp VERSION 0.2.4)
 
+set(QTDIR "${QTDIR}" CACHE PATH "Path to qt directory")
+
 list(APPEND CMAKE_PREFIX_PATH "${QTDIR}")
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
@@ -25,10 +27,10 @@ if (WIN32)
     endif ()
 
     if (NOT DEFINED OBS_SRC_DIR)
-        set(OBS_SRC_DIR "{CMAKE_CURRENT_SOURCE_DIR}/../obs-src")
+        set(OBS_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/obs-src")
     endif ()
     if (NOT DEFINED OBS_BIN_DIR)
-        set(OBS_BIN_DIR "{CMAKE_CURRENT_SOURCE_DIR}/../obs-bin")
+        set(OBS_BIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/obs-bin")
     endif ()
 
     if (CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
