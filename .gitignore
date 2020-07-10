@@ -4,3 +4,5 @@ obs-src/
 *.7z
 *.zip
 *.tar.xz
+*.pkg
+.DS_Store
