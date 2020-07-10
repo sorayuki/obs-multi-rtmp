@@ -6,8 +6,8 @@ set -eux
 : "${OBS_API_SRC_URL:=https://raw.githubusercontent.com/obsproject/obs-studio/#OBS_VER#/UI/obs-frontend-api/obs-frontend-api.h}"
 
 sudo add-apt-repository -y ppa:obsproject/obs-studio
-sudo apt-get -q update
-sudo apt-get install -qy mesa-common-dev obs-studio
+sudo apt-get update
+sudo apt-get install -y mesa-common-dev obs-studio
 
 obs_ver=$(obs -V)
 obs_ver=${obs_ver//-/ }

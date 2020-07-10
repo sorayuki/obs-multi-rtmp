@@ -11,6 +11,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt5 COMPONENTS Widgets REQUIRED)
 
+set(LIB_OBS libobs)
+
 # build obs lib
 if (WIN32)
     # Windows
@@ -59,7 +61,8 @@ if (WIN32)
     )
 elseif (APPLE)
     # macOS
-    message(FATAL_ERROR "Unsupported OS!")
+    find_library(_LIB_OBS "${LIB_OBS}.0.dylib" PATHS ${OBS_BIN_DIR} REQUIRED)
+    set(LIB_OBS "${_LIB_OBS}")
 elseif (UNIX)
     # Linux
     find_package(LibObs REQUIRED)
@@ -83,10 +86,11 @@ target_include_directories(obs-multi-rtmp PRIVATE
 )
 target_link_directories(obs-multi-rtmp PRIVATE
     "${CMAKE_CURRENT_BINARY_DIR}"
+    ${OBS_BIN_DIR}
 )
 target_link_libraries(obs-multi-rtmp PRIVATE
     Qt5::Widgets
-    libobs
+    ${LIB_OBS}
     obs-frontend-api
 )
 
@@ -98,7 +102,17 @@ if (WIN32)
         DESTINATION "data/obs-plugins/obs-multi-rtmp"
     )
 elseif (APPLE)
-    # not implemented
+    set_target_properties(obs-multi-rtmp PROPERTIES
+        PREFIX ""
+        SUFFIX ".so"
+    )
+
+    install(TARGETS obs-multi-rtmp LIBRARY
+        DESTINATION "obs-studio/plugins/obs-multi-rtmp/bin"
+    )
+    install(DIRECTORY locale
+        DESTINATION "obs-studio/plugins/obs-multi-rtmp/data"
+    )
 elseif (UNIX)
     set_target_properties(obs-multi-rtmp PROPERTIES PREFIX "")
 
