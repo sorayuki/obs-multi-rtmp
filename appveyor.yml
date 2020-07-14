@@ -42,7 +42,7 @@ for:
 
   build_script:
   - sed -i 's/CMAKE_CXX_STANDARD 17/CMAKE_CXX_STANDARD 11/' CMakeLists.txt
-  - QTDIR=$HOME/Qt/latest/gcc_64 ./build_linux.sh
+  - QTDIR=$HOME/Qt/5.14/gcc_64 ./build_linux.sh
 
   artifacts:
   - path: "*.tar.xz"
