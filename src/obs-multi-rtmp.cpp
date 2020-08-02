@@ -156,6 +156,7 @@ class EditOutputWidget : public QDialog
     QLabel* v_warning_ = 0;
     QComboBox* aenc_ = 0;
     QLineEdit* a_bitrate_ = 0;
+    QComboBox* a_mixer_ = 0;
 
     std::vector<std::string> EnumEncodersByCodec(const char* codec)
     {
@@ -311,8 +312,12 @@ public:
                     }
                     ++currow;
                     {
-                        encLayout->addWidget(new QWidget(), currow, 0);
-                        encLayout->setRowStretch(currow, 1);
+                        int curcol = 0;
+                        encLayout->addWidget(new QLabel(obs_module_text("AudioMixerID"), gp), currow, curcol++);
+                        encLayout->addWidget(a_mixer_ = new QComboBox(gp), currow, curcol++);
+
+                        for(int i = 1; i <= 6; ++i)
+                            a_mixer_->addItem(QString(std::to_string(i).c_str()), i - 1);
                     }
                     gp->setLayout(encLayout);
                 }
@@ -393,10 +398,12 @@ public:
         {
             a_bitrate_->setText(obs_module_text("SameAsOBS"));
             a_bitrate_->setEnabled(false);
+            a_mixer_->setEnabled(false);
         }
         else
         {
             a_bitrate_->setEnabled(true);
+            a_mixer_->setEnabled(true);
         }
     }
 
@@ -417,6 +424,8 @@ public:
             conf_["v-resolution"] = v_resolution_->text();
         if (a_bitrate_->isEnabled())
             try { conf_["a-bitrate"] = std::stod(tostdu8(a_bitrate_->text())); } catch(...) {}
+        if (a_mixer_->isEnabled())
+            conf_["a-mixer"] = a_mixer_->currentData().toDouble();
     }
 
     void LoadConfig()
@@ -482,6 +491,18 @@ public:
             a_bitrate_->setText(std::to_string((int)it->toDouble()).c_str());
         else
             a_bitrate_->setText("128");
+
+        it = conf_.find("a-mixer");
+        {
+            int dataToFind = 1;
+            if (it != conf_.end() && it->isDouble())
+                dataToFind = (int)it->toDouble();
+            int index = a_mixer_->findData(dataToFind);
+            if (index >= 0)
+                a_mixer_->setCurrentIndex(index);
+            else
+                a_mixer_->setCurrentIndex(0);
+        }
     }
 };
 
@@ -593,6 +614,7 @@ class PushWidget : public QWidget, public IOBSOutputEventHanlder
 
         std::string venc_id, aenc_id;
         int v_bitrate = 2000, a_bitrate = 128;
+        int a_mixer = 0;
         int v_width = -1, v_height = -1;
         int v_keyframe_sec = 3;
 
@@ -625,6 +647,13 @@ class PushWidget : public QWidget, public IOBSOutputEventHanlder
             it = conf_.find("v-keyframe-sec");
             if (it != conf_.end() && it->isDouble())
                 v_keyframe_sec = (int)it->toDouble();
+            it = conf_.find("a-mixer");
+            if (it != conf_.end() && it->isDouble())
+            {
+                int data = (int)it->toDouble();
+                if (data >= 0 && data <= 5)
+                    a_mixer = data;
+            }
         }
 
         // ====== prepare encoder
@@ -678,7 +707,7 @@ class PushWidget : public QWidget, public IOBSOutputEventHanlder
         {
             obs_data_t* settings = obs_data_create();
             obs_data_set_int(settings, "bitrate", a_bitrate);
-            aenc = obs_audio_encoder_create(aenc_id.c_str(), "multi-rtmp-audio-encoder", settings, 0, nullptr);
+            aenc = obs_audio_encoder_create(aenc_id.c_str(), "multi-rtmp-audio-encoder", settings, a_mixer, nullptr);
             obs_data_release(settings);
             obs_encoder_set_audio(aenc, obs_get_audio());
         }
