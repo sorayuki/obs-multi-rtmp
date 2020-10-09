@@ -753,7 +753,7 @@ public:
         timer_ = new QTimer(this);
         timer_->setInterval(std::chrono::milliseconds(1000));
         QObject::connect(timer_, &QTimer::timeout, [this]() {
-            if (output_)
+            if (!output_)
                 return;
             
             auto new_frames = obs_output_get_total_frames(output_);
