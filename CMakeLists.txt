@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(obs-multi-rtmp VERSION 0.2.5)
+project(obs-multi-rtmp VERSION 0.2.5.1)
 
 set(QTDIR "${QTDIR}" CACHE PATH "Path to qt directory")
 
@@ -73,6 +73,14 @@ endif ()
 add_library(obs-multi-rtmp SHARED
     "src/obs-multi-rtmp.cpp"
     "src/obs-multi-rtmp.h"
+    "src/edit-widget.cpp"
+    "src/edit-widget.h"
+    "src/push-widget.cpp"
+    "src/push-widget.h"
+    "src/pch.h"
+)
+target_precompile_headers(obs-multi-rtmp PRIVATE
+    "src/pch.h"
 )
 if (WIN32)
     configure_file("src/version.rc.in" "${CMAKE_CURRENT_BINARY_DIR}/version.rc")
