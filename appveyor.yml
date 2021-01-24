@@ -1,25 +1,12 @@
 environment:
   matrix:
   - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
-    OBS_VER: "25.0.8"
+    OBS_VER: "26.1.2"
 
   - APPVEYOR_BUILD_WORKER_IMAGE: macos
   - APPVEYOR_BUILD_WORKER_IMAGE: Ubuntu2004
 
 for:
-- matrix:
-    only:
-    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
-
-  install:
-  - pwsh: ci/install.ps1 -OBS_VER "$Env:OBS_VER"
-
-  build_script:
-  - pwsh: ./build.ps1 -OBS_BIN_DIR32 "../OBS-Studio-${Env:OBS_VER}-Full-x86" -OBS_BIN_DIR64 "../OBS-Studio-${Env:OBS_VER}-Full-x64" -OBS_SRC_DIR "../obs-studio-${Env:OBS_VER}"
-
-  artifacts:
-  - path: "*.zip"
-
 - matrix:
     only:
     - APPVEYOR_BUILD_WORKER_IMAGE: macos

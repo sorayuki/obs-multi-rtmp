@@ -34,11 +34,11 @@ zipファイルを OBS のフォルダーに解凍してインストール完了
 
 # 要求環境
 
-OBS-Studio バージョン 25.0.0 以降
-また、OBS-Studio 本体は QT 5.10.1 と共にビルドしたバージョン
+OBS-Studio バージョン 26.1.1 以降
+また、OBS-Studio 本体は QT 5.15.2 と共にビルドしたバージョン
 
 確認済：
-obs-studio 25.0.1 ~ obs-studio 25.0.3
+obs-studio 26.1.1
 
 
 # よくあるご質問
@@ -60,12 +60,12 @@ A: このプラグインは OBS 本体のエンコーダーと共有している
 # How to Build
 
 1. Prepare environment
-   1. Put official release OBS 25.0 into obs-bin directory. 
+   1. Put official release OBS 26.1.2 into obs-bin directory. 
    2. Extract OBS source code of same version as binary to obs-src
    3. Download Qt that obs-bin uses. Which can be found in CI\install-qt-win.cmd
 
 2. Configure
-   Use cmake to configure this project. must use VS2017 or higher. 
+   Use cmake to configure this project. must use VS2019 or higher. 
    cmake's QTDIR variable is set to the path of QT in the same version as obs uses. 
    
    Set CMAKE_BUILD_TYPE to Release. 
