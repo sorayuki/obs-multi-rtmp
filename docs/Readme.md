@@ -85,9 +85,9 @@ If you regard this tool useful and want to doante for some, here is the link. (I
 
 ## paypal / 贝宝
 <div id="smart-button-container">
-    <div style="text-align: center"><label for="description">super chat </label><input type="text" name="descriptionInput" id="description" maxlength="127" value=""></div>
+    <div style="text-align: center"><label for="description">text </label><input type="text" name="descriptionInput" id="description" maxlength="127" value=""></div>
       <p id="descriptionError" style="visibility: hidden; color:red; text-align: center;">Please enter a description</p>
-    <div style="text-align: center"><label for="amount">amount </label><input name="amountInput" type="number" id="amount" value="" ><span> USD</span></div>
+    <div style="text-align: center"><label for="amount">super chat </label><input name="amountInput" type="number" id="amount" value="" ><span> USD</span></div>
       <p id="priceLabelError" style="visibility: hidden; color:red; text-align: center;">Please enter a price</p>
     <div id="invoiceidDiv" style="text-align: center; display: none;"><label for="invoiceid"> </label><input name="invoiceid" maxlength="127" type="text" id="invoiceid" value="" ></div>
       <p id="invoiceidError" style="visibility: hidden; color:red; text-align: center;">Please enter an Invoice ID</p>
@@ -121,8 +121,8 @@ If you regard this tool useful and want to doante for some, here is the link. (I
     paypal.Buttons({
       style: {
         color: 'gold',
-        shape: 'rect',
-        label: 'pay',
+        shape: 'pill',
+        label: 'paypal',
         layout: 'horizontal',
         
       },
