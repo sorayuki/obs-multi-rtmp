@@ -358,7 +358,7 @@ public:
 
         it = conf_.find("a-mixer");
         {
-            int dataToFind = 1;
+            int dataToFind = 0;
             if (it != conf_.end() && it->isDouble())
                 dataToFind = (int)it->toDouble();
             int index = a_mixer_->findData(dataToFind);

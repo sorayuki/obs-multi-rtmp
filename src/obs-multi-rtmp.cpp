@@ -47,7 +47,7 @@ public:
         });
         layout_->addWidget(addButton_);
 
-        if (std::string(u8"多路推流") == obs_module_text("Title"))
+        if (std::string("\xe5\xa4\x9a\xe8\xb7\xaf\xe6\x8e\xa8\xe6\xb5\x81") == obs_module_text("Title"))
             layout_->addWidget(new QLabel(u8"本插件免费提供，请不要为此付费。\n作者：雷鸣", container_));
         else
             layout_->addWidget(new QLabel(u8"This plugin provided free of charge. \nAuthor: SoraYuki", container_));
