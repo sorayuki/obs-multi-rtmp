@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(obs-multi-rtmp VERSION 0.2.5.2)
+project(obs-multi-rtmp VERSION 0.2.5.3)
 
 set(QTDIR "${QTDIR}" CACHE PATH "Path to qt directory")
 

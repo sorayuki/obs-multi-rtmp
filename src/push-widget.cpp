@@ -305,16 +305,29 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
 
     bool ReleaseOutput()
     {
+        if (output_) {
+            DisconnectSignals(output_);
+        }
+
+        if (output_ && obs_output_active(output_)) {
+            obs_output_force_stop(output_);
+        }
+
         if (output_ && obs_output_active(output_) == false)
         {
             bool ret = ReleaseOutputService();
             ret = ReleaseOutputEncoder() && ret;
 
-            DisconnectSignals(output_);
             obs_output_release(output_);
             output_ = nullptr;
 
             return ret;
+        }
+        else if (output_) {
+            obs_output_release(output_);
+            output_ = nullptr;
+
+            return true;
         }
         else if (output_ == nullptr)
             return true;
@@ -359,7 +372,9 @@ public:
 
         layout->addWidget(edit_btn_ = new QPushButton(obs_module_text("Btn.Edit"), this), 1, 1);
         QObject::connect(edit_btn_, &QPushButton::clicked, [this]() {
-            ShowEditDlg();
+            if (ShowEditDlg() == true) {
+                GetGlobalService().SaveConfig();
+            }
         });
 
         layout->addWidget(remove_btn_ = new QPushButton(obs_module_text("Btn.Delete"), this), 1, 2);
@@ -370,8 +385,12 @@ public:
                 QMessageBox::Yes | QMessageBox::No,
                 this
             );
-            if (msgbox->exec() == QMessageBox::Yes)
-                delete this;
+            if (msgbox->exec() == QMessageBox::Yes) {
+                GetGlobalService().RunInUIThread([this]() {
+                    delete this;
+                    GetGlobalService().SaveConfig();
+                });
+            }
         });
 
         layout->addWidget(msg_ = new QLabel(u8"", this), 2, 0, 1, 3);
@@ -453,7 +472,7 @@ public:
 
     bool ShowEditDlg() override
     {
-        auto dlg = createEditOutputWidget(conf_, this);
+        std::unique_ptr<EditOutputWidget> dlg{ createEditOutputWidget(conf_, this) };
 
         if (dlg->exec() == QDialog::DialogCode::Accepted)
         {
@@ -474,7 +493,7 @@ public:
     // obs logical
     void OnStarting() override
     {
-        RunInUIThread([this]()
+        GetGlobalService().RunInUIThread([this]()
         {
             remove_btn_->setEnabled(false);
             btn_->setEnabled(false);
@@ -485,7 +504,7 @@ public:
 
     void OnStarted() override
     {
-        RunInUIThread([this]() {
+        GetGlobalService().RunInUIThread([this]() {
             remove_btn_->setEnabled(false);
             btn_->setText(obs_module_text("Status.Stop"));
             btn_->setEnabled(true);
@@ -498,7 +517,7 @@ public:
 
     void OnReconnect() override
     {
-        RunInUIThread([this]() {
+        GetGlobalService().RunInUIThread([this]() {
             remove_btn_->setEnabled(false);
             btn_->setText(obs_module_text("Status.Stop"));
             btn_->setEnabled(true);
@@ -508,7 +527,7 @@ public:
 
     void OnReconnected() override
     {
-        RunInUIThread([this]() {
+        GetGlobalService().RunInUIThread([this]() {
             remove_btn_->setEnabled(false);
             btn_->setText(obs_module_text("Status.Stop"));
             btn_->setEnabled(true);
@@ -520,7 +539,7 @@ public:
 
     void OnStopping() override
     {
-        RunInUIThread([this]() {
+        GetGlobalService().RunInUIThread([this]() {
             remove_btn_->setEnabled(false);
             btn_->setText(obs_module_text("Status.Stop"));
             btn_->setEnabled(false);
@@ -530,7 +549,7 @@ public:
 
     void OnStopped(int code) override
     {
-        RunInUIThread([this, code]() {
+        GetGlobalService().RunInUIThread([this, code]() {
             ResetInfo();
             timer_->stop();
 

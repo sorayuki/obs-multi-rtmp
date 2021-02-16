@@ -33,17 +33,3 @@ inline std::string tostdu8(const QString& qs)
     auto b = qs.toUtf8();
     return std::string(b.begin(), b.end());
 }
-
-
-extern QThread* g_uiThread;
-
-template<class T>
-bool RunInUIThread(T&& func)
-{
-    if (g_uiThread == nullptr)
-        return false;
-    QMetaObject::invokeMethod(g_uiThread, [func = std::move(func)]() {
-        func();
-    });
-    return true;
-}

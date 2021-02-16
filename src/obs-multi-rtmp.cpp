@@ -7,7 +7,32 @@
 
 #define ConfigSection "obs-multi-rtmp"
 
-QThread* g_uiThread = nullptr;
+static class GlobalServiceImpl : public GlobalService
+{
+public:
+    void SaveConfig() override {
+        if (saveConfig_) {
+            saveConfig_();
+        }
+    }
+
+    bool RunInUIThread(std::function<void()> task) override {
+        if (uiThread_ == nullptr)
+            return false;
+        QMetaObject::invokeMethod(uiThread_, [func = std::move(task)]() {
+            func();
+        });
+        return true;
+    }
+
+    QThread* uiThread_ = nullptr;
+    std::function<void()> saveConfig_;
+} s_service;
+
+
+GlobalService& GetGlobalService() {
+    return s_service;
+}
 
 
 class MultiOutputWidget : public QDockWidget
@@ -27,7 +52,6 @@ public:
         // save dock location
         QObject::connect(this, &QDockWidget::dockLocationChanged, [this](Qt::DockWidgetArea area) {
             dockLocation_ = area;
-            
         });
 
         scroll_ = new QScrollArea(this);
@@ -61,6 +85,12 @@ public:
         setLayout(layout_);
 
         resize(200, 400);
+
+        s_service.saveConfig_ = [this]() {
+            s_service.RunInUIThread([this]() {
+                SaveConfig();
+            });
+        };
     }
 
     void visibleToggled(bool visible)
@@ -77,7 +107,8 @@ public:
                 obs_module_text("Notice.Title"), 
                 obs_module_text("Notice.Reopen"), 
                 QMessageBox::StandardButton::Ok,
-                this).exec();
+                this
+            ).exec();
         }
     }
 
@@ -110,8 +141,15 @@ public:
             x->Stop();
     }
 
+    void RemoveAll()
+    {
+
+    }
+
     void SaveConfig()
     {
+        auto profile_config = obs_frontend_get_profile_config();
+        
         QJsonArray targetlist;
         for(auto x : GetAllPushWidgets())
             targetlist.append(x->Config());
@@ -119,22 +157,35 @@ public:
         root["targets"] = targetlist;
         QJsonDocument jsondoc;
         jsondoc.setObject(root);
-        config_set_string(obs_frontend_get_global_config(), ConfigSection, "json", jsondoc.toBinaryData().toBase64());
+        config_set_string(profile_config, ConfigSection, "json", jsondoc.toBinaryData().toBase64());
 
-        config_set_int(obs_frontend_get_global_config(), ConfigSection, "DockLocation", (int)dockLocation_);
-        config_set_bool(obs_frontend_get_global_config(), ConfigSection, "DockVisible", dockVisible_);
+        config_set_int(profile_config, ConfigSection, "DockLocation", (int)dockLocation_);
+        config_set_bool(profile_config, ConfigSection, "DockVisible", dockVisible_);
+
+        config_save_safe(profile_config, "tmp", "bak");
     }
 
     void LoadConfig()
     {
+        auto profile_config = obs_frontend_get_profile_config();
+
         QJsonObject conf;
-        auto base64str = config_get_string(obs_frontend_get_global_config(), ConfigSection, "json");
+        auto base64str = config_get_string(profile_config, ConfigSection, "json");
+        if (!base64str || !*base64str) { // compatible with old version
+            base64str = config_get_string(obs_frontend_get_global_config(), ConfigSection, "json");
+        }
+
         if (base64str && *base64str)
         {
             auto bindat = QByteArray::fromBase64(base64str);
             auto jsondoc = QJsonDocument::fromBinaryData(bindat);
-            if (jsondoc.isObject())
+            if (jsondoc.isObject()) {
                 conf = jsondoc.object();
+
+                // load succeed. remove all existing widgets
+                for (auto x : GetAllPushWidgets())
+                    delete x;
+            }
         }
 
         auto targets = conf.find("targets");
@@ -173,7 +224,7 @@ bool obs_module_load()
     if (mainwin == nullptr)
         return false;
     QMetaObject::invokeMethod(mainwin, []() {
-        g_uiThread = QThread::currentThread();
+        s_service.uiThread_ = QThread::currentThread();
     });
 
     auto dock = new MultiOutputWidget(mainwin);
@@ -210,8 +261,11 @@ bool obs_module_load()
         [](enum obs_frontend_event event, void *private_data) {
             if (event == obs_frontend_event::OBS_FRONTEND_EVENT_EXIT)
             {
-                static_cast<MultiOutputWidget*>(private_data)->SaveConfig();
                 static_cast<MultiOutputWidget*>(private_data)->StopAll();
+            }
+            else if (event == obs_frontend_event::OBS_FRONTEND_EVENT_PROFILE_CHANGED)
+            {
+                static_cast<MultiOutputWidget*>(private_data)->LoadConfig();
             }
         }, dock
     );
