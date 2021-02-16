@@ -1,5 +1,4 @@
-# [See Readme](https://sorayuki.github.io/obs-multi-rtmp)
-
+# [Homepage / 主页](https://sorayuki.github.io/obs-multi-rtmp)
 
 # 声明 
 
@@ -22,3 +21,21 @@ Recently an Baidu Tieba account 'maggot' is selling this plugin. Don't buy it.
 このプラグインは無料ソフトです。
 
 最近百度Tiebaで有料でこのソフトを提供する人があります。注意してください。
+
+
+# Donate
+
+如果你觉得这个工具很有用想要捐赠，这里是链接。注意：这不是提需求的渠道。
+
+このツールに投げ銭したいならここはリンクです。（機能要求ではありません）
+
+If you regard this tool useful and want to doante for some, here is the link. (It's not for feature request.)
+
+## [paypal / 贝宝](https://paypal.me/sorayuki0)
+
+## alipay / 支付宝
+
+![alipay](./docs/zhi.png) 
+
+## wechat / 微信
+![wechat](./docs/wechat.jpg)
