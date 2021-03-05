@@ -28,7 +28,7 @@ zipファイルを OBS のフォルダーに解凍してインストール完了
 
 ![install](./install.jpg)
 
-デフォルトインストールフォルダは C:¥Program Files¥obs-studio になります。
+デフォルトインストールフォルダは C:\Program Files\obs-studio になります。
 
 
 # スクリーンショット
