@@ -22,11 +22,13 @@
 [macOS版リリースページへ](https://github.com/kilinbox/obs-multi-rtmp/releases)
 
 
-# インストール手順
+# Windows版インストール手順
 
 zipファイルを OBS のフォルダーに解凍してインストール完了。
 
 ![install](./install.jpg)
+
+デフォルトインストールフォルダは C:¥Program Files¥obs-studio になります。
 
 
 # スクリーンショット
