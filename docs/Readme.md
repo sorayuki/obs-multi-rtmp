@@ -24,7 +24,7 @@
 
 [Windows版リリースページへ](https://github.com/sorayuki/obs-multi-rtmp/releases/)
 
-[macOS版リリースページへ](https://github.com/kilinbox/obs-multi-rtmp/releases)
+[macOS版リリースページへ](https://github.com/kilinbox/obs-multi-rtmp/releases) (非公式)
 
 
 # Windows版インストール手順
