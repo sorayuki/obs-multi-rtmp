@@ -17,7 +17,9 @@
 
 # ダウンロード
 
-[リリースページへ](https://github.com/sorayuki/obs-multi-rtmp/releases/)
+[Windows版リリースページへ](https://github.com/sorayuki/obs-multi-rtmp/releases/)
+
+[macOS版リリースページへ](https://github.com/kilinbox/obs-multi-rtmp/releases)
 
 
 # インストール手順
@@ -88,6 +90,6 @@ If you regard this tool useful and want to doante for some, here is the link. (I
 
 ## alipay or wechat / 支付宝或微信
 
-![alipay](./zhi.png) 
+[alipay](./zhi.png) 
 
-![wechat](./wechat.jpg)
+[wechat](./wechat.jpg)
