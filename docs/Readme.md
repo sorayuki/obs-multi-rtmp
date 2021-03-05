@@ -15,6 +15,11 @@
 本プラグインは、複数サイトに同時配信のため作ったものです。
 
 
+# スクリーンショット
+
+![screenshot](./screenshot.jpg)
+
+
 # ダウンロード
 
 [Windows版リリースページへ](https://github.com/sorayuki/obs-multi-rtmp/releases/)
@@ -30,13 +35,12 @@ zipファイルを OBS のフォルダーに解凍してインストール完了
 
 デフォルトインストールフォルダは C:\Program Files\obs-studio になります。
 
+# macOS版インストール手順
 
-# スクリーンショット
-
-![screenshot](./screenshot.jpg)
+[kilinさんのページ](https://www.kilinbox.net/2021/01/obs-multi-rtmp.html)
 
 
-# 要求環境
+# 要求環境(Windows版)
 
 OBS-Studio バージョン 26.1.1 以降
 また、OBS-Studio 本体は QT 5.15.2 と共にビルドしたバージョン
@@ -61,7 +65,7 @@ https://github.com/obsproject/obs-studio/commit/2b131d212fc0e5a6cd095b502072ddbe
 A: このプラグインは OBS 本体のエンコーダーと共有している。しかし、OBS は初めての配信を開始した前エンコーダーの作成しない。
 
 
-# How to Build
+# How to Build (Windows)
 
 1. Prepare environment
    1. Put official release OBS 26.1.2 into obs-bin directory. 
