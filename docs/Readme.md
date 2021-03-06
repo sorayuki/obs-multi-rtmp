@@ -37,7 +37,7 @@ zipファイルを OBS のフォルダーに解凍してインストール完了
 
 # macOS版インストール手順
 
-[kilinさんのページ](https://www.kilinbox.net/2021/01/obs-multi-rtmp.html)
+[kilinboxさんのページ](https://www.kilinbox.net/2021/01/obs-multi-rtmp.html)
 
 
 # 要求環境(Windows版)
