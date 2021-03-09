@@ -5,8 +5,13 @@ set -eux
 : "${INSTALL:=0}"
 : "${DESTDIR:=/Library/Application Support}"
 : "${QTDIR:=/usr/local/opt/qt}"
-: "${OBS_BIN_DIR:=/Applications/OBS.app/Contents/MacOS}"
-: "${OBS_SRC_DIR:=../obs-studio-25.0.8}"
+: "${OBS_BIN_DIR:=/Applications/OBS.app}"
+
+obs_ver=$("$OBS_BIN_DIR/Contents/MacOS/obs" -V)
+obs_ver=${obs_ver//-/ }
+obs_ver=($obs_ver)
+obs_ver=${obs_ver[2]}
+: "${OBS_SRC_DIR:=../obs-studio-$obs_ver}"
 
 lib_path="dist/$DESTDIR/obs-studio/plugins/obs-multi-rtmp/bin/obs-multi-rtmp.so"
 
@@ -19,7 +24,7 @@ ver=${ver:0:$ver_len}
 
 rm -fr build dist *.pkg
 
-cmake -DCMAKE_INSTALL_PREFIX="$DESTDIR" -DQTDIR="$QTDIR" -DOBS_BIN_DIR="$OBS_BIN_DIR" -DOBS_SRC_DIR="$OBS_SRC_DIR" -B build .
+cmake -DCMAKE_INSTALL_PREFIX="$DESTDIR" -DQTDIR="$QTDIR" -DOBS_BIN_DIR="$OBS_BIN_DIR/Contents/Frameworks" -DOBS_SRC_DIR="$OBS_SRC_DIR" -B build .
 cmake --build build --config Release
 cmake --install build --config Release --prefix "dist/$DESTDIR"
 
