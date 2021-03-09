@@ -1,8 +1,5 @@
 environment:
   matrix:
-  - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2019
-    OBS_VER: "26.1.2"
-
   - APPVEYOR_BUILD_WORKER_IMAGE: macos
   - APPVEYOR_BUILD_WORKER_IMAGE: Ubuntu2004
 
@@ -15,7 +12,7 @@ for:
   - ci/install_macos.sh
 
   build_script:
-  - ./build_macos.sh
+  - QTDIR=$HOME/Qt/5.15.2/clang_64 ./build_macos.sh
 
   artifacts:
   - path: "*.pkg"
@@ -28,8 +25,7 @@ for:
   - ci/install_ubuntu.sh
 
   build_script:
-  - sed -i 's/CMAKE_CXX_STANDARD 17/CMAKE_CXX_STANDARD 11/' CMakeLists.txt
-  - QTDIR=$HOME/Qt/5.14/gcc_64 ./build_linux.sh
+  - QTDIR=$HOME/Qt/5.15.2/gcc_64 ./build_linux.sh
 
   artifacts:
   - path: "*.tar.xz"
