@@ -24,6 +24,7 @@ cmake --install build_x64 --config Release
 
 cmake -E make_directory installer
 pushd dist
-"C:\Program Files (x86)\NSIS\makensis" ..\installer_script\installer.nsi
+copy ..\installer_script\installer.nsi .
+"C:\Program Files (x86)\NSIS\makensis" installer.nsi
 copy obs-multi-rtmp-setup.exe ..\installer
 popd

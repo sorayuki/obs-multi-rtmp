@@ -2,8 +2,13 @@
 
 #include <list>
 #include <regex>
+#include <filesystem>
 
 #include "push-widget.h"
+
+#ifdef _WIN32
+#include <Windows.h>
+#endif
 
 #define ConfigSection "obs-multi-rtmp"
 
@@ -209,16 +214,72 @@ private:
     QPushButton* addButton_ = 0;
 };
 
-
-
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE("obs-multi-rtmp", "en-US")
 OBS_MODULE_AUTHOR("雷鳴 (@sorayukinoyume)")
 
 bool obs_module_load()
 {
-    if (obs_get_version() < MAKE_SEMANTIC_VERSION(25, 0, 0))
+    // check obs version
+    if (obs_get_version() < MAKE_SEMANTIC_VERSION(26, 1, 0))
         return false;
+    
+    // check old version
+#ifdef _WIN32
+    {
+        std::vector<wchar_t> szExePath(MAX_PATH);
+        if (GetModuleFileNameW(NULL, szExePath.data(), szExePath.size()) > 0) {
+            auto old_data_dir = std::filesystem::path(szExePath.data())
+                .parent_path() // 32bit or 64bit
+                .parent_path() // bin
+                .parent_path() // install dir
+                .append(L"data")
+                .append(L"obs-plugins")
+                .append(L"obs-multi-rtmp");
+
+            auto old_32bit_file = std::filesystem::path(szExePath.data())
+                .parent_path() // 32bit or 64bit
+                .parent_path() // bin
+                .parent_path() // install dir
+                .append(L"obs-plugins")
+                .append(L"32bit")
+                .append(L"obs-multi-rtmp.dll");
+
+            auto old_64bit_file = std::filesystem::path(szExePath.data())
+                .parent_path() // 32bit or 64bit
+                .parent_path() // bin
+                .parent_path() // install dir
+                .append(L"obs-plugins")
+                .append(L"64bit")
+                .append(L"obs-multi-rtmp.dll");
+
+            std::wstring pathlist;
+            if (std::filesystem::exists(old_data_dir)) {
+                pathlist += L"\n" + old_data_dir.wstring();
+            }
+
+            if (std::filesystem::exists(old_32bit_file)) {
+                pathlist += L"\n" + old_32bit_file.wstring();
+            }
+
+            if (std::filesystem::exists(old_64bit_file)) {
+                pathlist += L"\n" + old_64bit_file.wstring();
+            }
+            
+            if (!pathlist.empty()) {
+                MessageBoxW(NULL, 
+                    (LR"__(插件加载失败！请先手工删除本插件的旧版本。
+ロード失敗。お手順ですがこのプラグインの古いバージョンを削除してください。
+Fail to load obs-multi-rtmp. Please remove old versions of this plugin.
+
+旧版残留 / 残りファイル / Old version files:)__" + pathlist).c_str(), 
+                    L"OBS-MULTI-RTMP 错误 / エラー / Error", MB_ICONERROR | MB_OK
+                );
+                return false;
+            }
+        }
+    }
+#endif
     
     auto mainwin = (QMainWindow*)obs_frontend_get_main_window();
     if (mainwin == nullptr)
