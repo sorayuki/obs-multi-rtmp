@@ -33,4 +33,4 @@ jobs:
         uses: actions/upload-artifact@v2.2.0
         with:
           name: obs-multi-rtmp
-          path: dist
+          path: installer

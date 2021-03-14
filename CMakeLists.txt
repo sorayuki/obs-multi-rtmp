@@ -36,7 +36,7 @@ if (WIN32)
     endif ()
 
     if (CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-        set(CMAKE_INSTALL_PREFIX "${OBS_BIN_DIR}" CACHE PATH "" FORCE)
+        set(CMAKE_INSTALL_PREFIX "$ENV{ProgramData}/obs-studio" CACHE PATH "" FORCE)
     endif ()
 
     execute_process(COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/tools/pexports.exe"
@@ -104,10 +104,10 @@ target_link_libraries(obs-multi-rtmp PRIVATE
 
 if (WIN32)
     install(TARGETS obs-multi-rtmp RUNTIME
-        DESTINATION "obs-plugins/${PLAT}"
+        DESTINATION "plugins/obs-multi-rtmp/bin/${PLAT}"
     )
     install(DIRECTORY locale
-        DESTINATION "data/obs-plugins/obs-multi-rtmp"
+        DESTINATION "plugins/obs-multi-rtmp/data"
     )
 elseif (APPLE)
     set_target_properties(obs-multi-rtmp PROPERTIES

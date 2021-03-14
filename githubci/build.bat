@@ -22,7 +22,8 @@ cmake %QTDIR64% -G "Visual Studio 16 2019" -A x64 -B build_x64 -S . -DCMAKE_INST
 cmake --build build_x64 --config Release
 cmake --install build_x64 --config Release
 
-if not exist dist\nul exit /b
+cmake -E make_directory installer
 pushd dist
-cmake -E tar cf ..\release.zip --format=zip .
+"C:\Program Files (x86)\NSIS\makensis" ..\installer_script\installer.nsi
+copy obs-multi-rtmp-setup.exe ..\installer
 popd
