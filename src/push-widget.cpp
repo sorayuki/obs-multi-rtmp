@@ -105,6 +105,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     QPushButton* remove_btn_ = 0;
 
     obs_output_t* output_ = 0;
+    bool isUseDelay_ = false;
 
     bool ReleaseOutputService()
     {
@@ -440,6 +441,8 @@ public:
             }
 
             if (output_) {
+                isUseDelay_ = false;
+                
                 auto profileConfig = obs_frontend_get_profile_config();
                 if (profileConfig) {
                     bool useDelay = config_get_bool(profileConfig, "Output", "DelayEnable");
@@ -449,6 +452,9 @@ public:
                         useDelay ? delaySec : 0,
 			            preserveDelay ? OBS_OUTPUT_DELAY_PRESERVE : 0
                     );
+
+                    if (useDelay && delaySec > 0)
+                        isUseDelay_ = true;
                 }
             }
 
@@ -469,9 +475,24 @@ public:
                 SetMsg(obs_module_text("Error.StartOutput"));
             }
         }
-        else
+        else if (output_ != nullptr)
         {
-            obs_output_stop(output_);
+            bool useForce = false;
+            if (isUseDelay_) {
+                auto res = QMessageBox(QMessageBox::Icon::Information, 
+                    "?",
+                    obs_module_text("Ques.DropDelay"), 
+                    QMessageBox::StandardButton::Yes | QMessageBox::StandardButton::No,
+                    this
+                ).exec();
+                if (res == QMessageBox::Yes)
+                    useForce = true;
+            }
+
+            if (!useForce)
+                obs_output_stop(output_);
+            else
+                obs_output_force_stop(output_);
         }
     }
 
@@ -479,7 +500,7 @@ public:
     {
         if (output_ && obs_output_active(output_))
         {
-            obs_output_stop(output_);
+            obs_output_force_stop(output_);
         }
     }
 
@@ -509,7 +530,8 @@ public:
         GetGlobalService().RunInUIThread([this]()
         {
             remove_btn_->setEnabled(false);
-            btn_->setEnabled(false);
+            btn_->setText(obs_module_text("Status.Stop"));
+            btn_->setEnabled(true);
             SetMsg(obs_module_text("Status.Connecting"));
             remove_btn_->setEnabled(false);
         });
@@ -555,7 +577,7 @@ public:
         GetGlobalService().RunInUIThread([this]() {
             remove_btn_->setEnabled(false);
             btn_->setText(obs_module_text("Status.Stop"));
-            btn_->setEnabled(false);
+            btn_->setEnabled(true);
             SetMsg(obs_module_text("Status.Stopping"));
         });
     }
