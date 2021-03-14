@@ -29,11 +29,7 @@
 
 # Windows版インストール手順
 
-zipファイルを OBS のフォルダーに解凍してインストール完了。
-
-![install](./install.jpg)
-
-デフォルトインストールフォルダは C:\Program Files\obs-studio になります。
+インストーラーを利用してください。目標フォルダを変更しないで。
 
 # macOS版インストール手順
 
