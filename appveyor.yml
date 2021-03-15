@@ -25,7 +25,7 @@ for:
   - ci/install_ubuntu.sh
 
   build_script:
-  - QTDIR=$HOME/Qt/5.15.2/gcc_64 ./build_linux.sh
+  - CC=gcc-9 CXX=g++-9 QTDIR=$HOME/Qt/5.15.2/gcc_64 ./build_linux.sh
 
   artifacts:
   - path: "*.tar.xz"
