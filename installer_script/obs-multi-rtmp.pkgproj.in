@@ -833,8 +833,6 @@
 			<string>obs-multi-rtmp</string>
 			<key>PAYLOAD_ONLY</key>
 			<false/>
-			<key>REFERENCE_FOLDER_PATH</key>
-			<string>/Users/jat/obs-multi-rtmp</string>
 			<key>TREAT_MISSING_PRESENTATION_DOCUMENTS_AS_WARNING</key>
 			<false/>
 		</dict>

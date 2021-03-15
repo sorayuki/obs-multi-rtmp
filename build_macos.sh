@@ -38,7 +38,7 @@ install_name_tool \
     "$lib_path"
 otool -L "$lib_path"
 
-sed "s/#VERSION#/$ver/g" src/obs-multi-rtmp.pkgproj.in > build/obs-multi-rtmp.pkgproj
+sed "s/#VERSION#/$ver/g" installer_script/obs-multi-rtmp.pkgproj.in > build/obs-multi-rtmp.pkgproj
 packagesbuild -F ./ build/obs-multi-rtmp.pkgproj
 mv obs-multi-rtmp.pkg "obs-multi-rtmp_$ver.pkg"
 
