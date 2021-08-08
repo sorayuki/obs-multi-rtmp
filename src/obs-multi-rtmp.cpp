@@ -71,7 +71,9 @@ public:
         QObject::connect(addButton_, &QPushButton::clicked, [this]() {
             auto pushwidget = createPushWidget(QJsonObject(), container_);
             layout_->addWidget(pushwidget);
-            if (!pushwidget->ShowEditDlg())
+            if (pushwidget->ShowEditDlg())
+                GetGlobalService().SaveConfig();
+            else
                 delete pushwidget;
         });
         layout_->addWidget(addButton_);
