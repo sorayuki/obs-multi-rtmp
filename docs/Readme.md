@@ -31,6 +31,14 @@
 
 インストーラーを利用してください。目標フォルダを変更しないで。
 
+## アンインストール
+
+インストーラーを利用してアンインストールもできます。
+
+インストーラーはこのプラグインを正しくリムーブしなかった場合、```C:\ProgramData\obs-studio\plugins\obs-multi-rtmp```フォルダを削除して済みます。
+
+ProgramDataは普段に非表示ので注意してください。
+
 # macOS版インストール手順
 
 [kilinboxさんのページ](https://www.kilinbox.net/2021/01/obs-multi-rtmp.html)
