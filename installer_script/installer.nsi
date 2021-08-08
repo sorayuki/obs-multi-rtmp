@@ -17,15 +17,15 @@ Function .onInit
     StrCpy $DefInstDir "$0\obs-studio\plugins\obs-multi-rtmp"
     StrCpy $INSTDIR "$DefInstDir"
 
-    # IfFileExists "$DefInstDir\*.*" AskUninst DontAskUninst
-    # AskUninst:
-    #     MessageBox MB_YESNO|MB_ICONQUESTION "Uninstall obs-multi-rtmp?" IDYES DoUninst IDNO NotDoUninst
-    # DoUninst:
-    #     RMDir /r "$DefInstDir"
-    #     MessageBox MB_OK|MB_ICONINFORMATION "Done."
-    #     Quit
-    # NotDoUninst:
-    # DontAskUninst:
+    IfFileExists "$DefInstDir\*.*" AskUninst DontAskUninst
+    AskUninst:
+        MessageBox MB_YESNO|MB_ICONQUESTION "Uninstall obs-multi-rtmp?" IDYES DoUninst IDNO NotDoUninst
+    DoUninst:
+        RMDir /r "$DefInstDir"
+        MessageBox MB_OK|MB_ICONINFORMATION "Done."
+        Quit
+    NotDoUninst:
+    DontAskUninst:
 FunctionEnd
 
 Function onDirPageLeave
