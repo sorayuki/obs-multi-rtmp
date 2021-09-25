@@ -1,5 +1,6 @@
 #include "pch.h"
 #include <regex>
+#include <optional>
 #include "push-widget.h"
 #include "edit-widget.h"
 
@@ -197,6 +198,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         int a_mixer = 0;
         int v_width = -1, v_height = -1;
         int v_keyframe_sec = 3;
+        std::optional<int> v_bframes = 2;
 
         // read config
         {
@@ -227,6 +229,9 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
             it = conf_.find("v-keyframe-sec");
             if (it != conf_.end() && it->isDouble())
                 v_keyframe_sec = (int)it->toDouble();
+            it = conf_.find("v-bframes");
+            if (it != conf_.end() && it->isDouble())
+                v_bframes = (int)it->toDouble();
             it = conf_.find("a-mixer");
             if (it != conf_.end() && it->isDouble())
             {
@@ -274,6 +279,8 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
             obs_data_t* settings = obs_data_create();
             obs_data_set_int(settings, "bitrate", v_bitrate);
             obs_data_set_int(settings, "keyint_sec", v_keyframe_sec);
+            if (v_bframes.has_value())
+                obs_data_set_int(settings, "bf", v_bframes.value());
             venc = obs_video_encoder_create(venc_id.c_str(), "multi-rtmp-video-encoder", settings, nullptr);
             obs_data_release(settings);
             obs_encoder_set_video(venc, obs_get_video());

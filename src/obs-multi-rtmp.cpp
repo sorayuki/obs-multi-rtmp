@@ -85,7 +85,7 @@ public:
             auto btnFeed = new QPushButton(u8"投喂", cr);
             innerLayout->addWidget(btnFeed, 1, 1, 1, 1);
             QObject::connect(btnFeed, &QPushButton::clicked, [this]() {
-                char alipaypng[] = 
+                const char alipaypng[] = 
                     "iVBORw0KGgoAAAANSUhEUgAAAL4AAAC+CAMAAAC8qkWvAAADAFBMVEX///8AAAAAAAAAAAAAAAAAAAA"
                     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
                     "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
@@ -109,7 +109,7 @@ public:
                     "vHz58ifyEye9Sr5FTUs703758uWfyk+Qev36bv2cfADyeeTLl38SP9HI8S5qvUWqy5cv/04+4aTJEtL"
                     "wyJcv/zY+h3RTY+XLl38qv16cjnQ/wDrJr8uXL/8kPkmqQlDd/fUT+fLlT+cbY4y5Ij9rnzvpMKGpCA"
                     "AAAABJRU5ErkJggg==";
-                char wechatpng[] = 
+                const char wechatpng[] = 
                     "iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAIAAACyr5FlAAAEJklEQVR4nO3dwW7lKBAF0Mlo/v+XM4v"
                     "srFz0MFVAt87Zpm2T9BUqYSh/fX9//wO/+ff0ALiXcBAJB5FwEAkHkXAQCQfRf+kHX19fe0bwWGgZP7"
                     "dwVWblFxyPeTzIlX/c59dhmDmIhINIOIiEgygWpA/bKsG+Bz3uvFJUPqwUlVPP3VyPmzmIhINIOIiEg"

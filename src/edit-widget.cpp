@@ -15,6 +15,7 @@ class EditOutputWidgetImpl : public EditOutputWidget
     QComboBox* venc_ = 0;
     QLineEdit* v_bitrate_ = 0;
     QLineEdit* v_keyframe_sec_ = 0;
+    QLineEdit* v_bframes_ = 0;
     QLineEdit* v_resolution_ = 0;
     QLabel* v_warning_ = 0;
     QComboBox* aenc_ = 0;
@@ -138,6 +139,12 @@ public:
                     }
                     ++currow;
                     {
+                        int curcol = 0;
+                        encLayout->addWidget(new QLabel(obs_module_text("BFrames"), gp), currow, curcol++);
+                        encLayout->addWidget(v_bframes_ = new QLineEdit("2", gp), currow, curcol++);
+                    }
+                    ++currow;
+                    {
                         encLayout->addWidget(v_warning_ = new QLabel(obs_module_text("Notice.CPUPower")), currow, 0, 1, 2);
                         v_warning_->setWordWrap(true);
                         v_warning_->setStyleSheet(u8"background-color: rgb(255,255,0); color: rgb(0,0,0)");
@@ -246,6 +253,8 @@ public:
             v_resolution_->setEnabled(false);
             v_keyframe_sec_->setEnabled(false);
             v_keyframe_sec_->setText(obs_module_text("SameAsOBS"));
+            v_bframes_->setEnabled(false);
+            v_bframes_->setText(obs_module_text("SameAsOBS"));
             v_warning_->setVisible(false);
         }
         else
@@ -253,6 +262,7 @@ public:
             v_bitrate_->setEnabled(true);
             v_resolution_->setEnabled(true);
             v_keyframe_sec_->setEnabled(true);
+            v_bframes_->setEnabled(true);
             v_warning_->setVisible(true);
         }
 
@@ -283,6 +293,8 @@ public:
             try { conf_["v-bitrate"] = std::stod(tostdu8(v_bitrate_->text())); } catch(...) {}
         if (v_keyframe_sec_->isEnabled())
             try { conf_["v-keyframe-sec"] = std::stod(tostdu8(v_keyframe_sec_->text())); } catch(...) {}
+        if (v_bframes_->isEnabled())
+            try { conf_["v-bframes"] = std::stod(tostdu8(v_bframes_->text())); } catch(...) {}
         if (v_resolution_->isEnabled())
             conf_["v-resolution"] = v_resolution_->text();
         if (a_bitrate_->isEnabled())
@@ -334,6 +346,12 @@ public:
             v_keyframe_sec_->setText(std::to_string((int)it->toDouble()).c_str());
         else
             v_keyframe_sec_->setText("3");
+
+        it = conf_.find("v-bframes");
+        if (it != conf_.end() && it->isDouble())
+            v_bframes_->setText(std::to_string((int)it->toDouble()).c_str());
+        else
+            v_bframes_->setText("2");
         
         it = conf_.find("v-resolution");
         if (it != conf_.end() && it->isString())
