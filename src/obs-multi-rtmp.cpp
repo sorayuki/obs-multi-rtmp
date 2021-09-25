@@ -15,12 +15,6 @@
 static class GlobalServiceImpl : public GlobalService
 {
 public:
-    void SaveConfig() override {
-        if (saveConfig_) {
-            saveConfig_();
-        }
-    }
-
     bool RunInUIThread(std::function<void()> task) override {
         if (uiThread_ == nullptr)
             return false;
@@ -71,9 +65,7 @@ public:
         QObject::connect(addButton_, &QPushButton::clicked, [this]() {
             auto pushwidget = createPushWidget(QJsonObject(), container_);
             layout_->addWidget(pushwidget);
-            if (pushwidget->ShowEditDlg())
-                GetGlobalService().SaveConfig();
-            else
+            if (!pushwidget->ShowEditDlg())
                 delete pushwidget;
         });
         layout_->addWidget(addButton_);
@@ -92,12 +84,6 @@ public:
         setLayout(layout_);
 
         resize(200, 400);
-
-        s_service.saveConfig_ = [this]() {
-            s_service.RunInUIThread([this]() {
-                SaveConfig();
-            });
-        };
     }
 
     void visibleToggled(bool visible)
@@ -164,10 +150,7 @@ public:
         root["targets"] = targetlist;
         QJsonDocument jsondoc;
         jsondoc.setObject(root);
-        config_set_string(profile_config, ConfigSection, "json", jsondoc.toBinaryData().toBase64());
-
-        config_set_int(profile_config, ConfigSection, "DockLocation", (int)dockLocation_);
-        config_set_bool(profile_config, ConfigSection, "DockVisible", dockVisible_);
+        config_set_string(profile_config, ConfigSection, "json", jsondoc.toBinaryData().toBase64().constData());
 
         config_save_safe(profile_config, "tmp", "bak");
     }
@@ -228,7 +211,7 @@ bool obs_module_load()
     
     // check old version
 #ifdef _WIN32
-    {
+    if (false) {
         std::vector<wchar_t> szExePath(MAX_PATH);
         if (GetModuleFileNameW(NULL, szExePath.data(), szExePath.size()) > 0) {
             auto old_data_dir = std::filesystem::path(szExePath.data())
@@ -291,39 +274,15 @@ Fail to load obs-multi-rtmp. Please remove old versions of this plugin.
     });
 
     auto dock = new MultiOutputWidget(mainwin);
+    dock->setObjectName("obs-multi-rtmp-dock");
     auto action = (QAction*)obs_frontend_add_dock(dock);
     QObject::connect(action, &QAction::toggled, dock, &MultiOutputWidget::visibleToggled);
-
-    // begin work around obs not remember dock geometry added by obs_frontend_add_dock
-    mainwin->removeDockWidget(dock);
-    auto docklocation = config_get_int(obs_frontend_get_global_config(), ConfigSection, "DockLocation");
-    auto visible = config_get_bool(obs_frontend_get_global_config(), ConfigSection, "DockVisible");
-    if (!config_has_user_value(obs_frontend_get_global_config(), ConfigSection, "DockLocation"))
-    {
-        docklocation = Qt::DockWidgetArea::LeftDockWidgetArea;
-    }
-    if (!config_has_user_value(obs_frontend_get_global_config(), ConfigSection, "DockVisible"))
-    {
-        visible = true;
-    }
-
-    mainwin->addDockWidget((Qt::DockWidgetArea)docklocation, dock);
-    if (visible)
-    {
-        dock->setVisible(true);
-        action->setChecked(true);
-    }
-    else
-    {
-        dock->setVisible(false);
-        action->setChecked(false);
-    }
-    // end work around
 
     obs_frontend_add_event_callback(
         [](enum obs_frontend_event event, void *private_data) {
             if (event == obs_frontend_event::OBS_FRONTEND_EVENT_EXIT)
             {
+                static_cast<MultiOutputWidget*>(private_data)->SaveConfig();
                 static_cast<MultiOutputWidget*>(private_data)->StopAll();
             }
             else if (event == obs_frontend_event::OBS_FRONTEND_EVENT_PROFILE_CHANGED)

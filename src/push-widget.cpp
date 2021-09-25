@@ -373,9 +373,7 @@ public:
 
         layout->addWidget(edit_btn_ = new QPushButton(obs_module_text("Btn.Edit"), this), 1, 1);
         QObject::connect(edit_btn_, &QPushButton::clicked, [this]() {
-            if (ShowEditDlg() == true) {
-                GetGlobalService().SaveConfig();
-            }
+            ShowEditDlg();
         });
 
         layout->addWidget(remove_btn_ = new QPushButton(obs_module_text("Btn.Delete"), this), 1, 2);
@@ -389,7 +387,6 @@ public:
             if (msgbox->exec() == QMessageBox::Yes) {
                 GetGlobalService().RunInUIThread([this]() {
                     delete this;
-                    GetGlobalService().SaveConfig();
                 });
             }
         });
