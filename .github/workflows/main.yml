@@ -34,3 +34,9 @@ jobs:
         with:
           name: obs-multi-rtmp
           path: installer
+
+      - name: Upload another Build Artifact
+        uses: actions/upload-artifact@v2.2.0
+        with:
+          name: obs-multi-rtmp
+          path: portable

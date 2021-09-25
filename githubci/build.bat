@@ -14,6 +14,7 @@ popd
 set QTDIR32=-DQTDIR="C:/QtDep/5.15.2/msvc2019"
 set QTDIR64=-DQTDIR="C:/QtDep/5.15.2/msvc2019_64"
 
+rem install mode
 cmake %QTDIR32% -G "Visual Studio 16 2019" -A Win32 -B build_x86 -S . -DCMAKE_INSTALL_PREFIX=dist
 cmake --build build_x86 --config Release
 cmake --install build_x86 --config Release
@@ -28,3 +29,12 @@ copy ..\installer_script\installer.nsi .
 "C:\Program Files (x86)\NSIS\makensis" installer.nsi
 copy obs-multi-rtmp-setup.exe ..\installer
 popd
+
+rem portable mode
+cmake %QTDIR32% -G "Visual Studio 16 2019" -A Win32 -B build_x86 -S . -DPORTABLE_MODE=ON -DCMAKE_INSTALL_PREFIX=portable
+cmake --build build_x86 --config Release
+cmake --install build_x86 --config Release
+
+cmake %QTDIR64% -G "Visual Studio 16 2019" -A x64 -B build_x64 -S . -DPORTABLE_MODE=ON -DCMAKE_INSTALL_PREFIX=portable
+cmake --build build_x64 --config Release
+cmake --install build_x64 --config Release
