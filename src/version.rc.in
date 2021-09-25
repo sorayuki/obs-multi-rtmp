@@ -17,7 +17,7 @@ BEGIN
     BEGIN
         BLOCK "041104b0"
         BEGIN
-            VALUE "FileDescription", "http://sorayuki.github.io/obs-multi-rtmp"
+            VALUE "FileDescription", "https://sorayuki.github.io/obs-multi-rtmp"
             VALUE "FileVersion", "@PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@.@PROJECT_VERSION_PATCH@.0"
             VALUE "LegalCopyright", "Copyright (C) SoraYuki 2020"
             VALUE "ProductName", "OBS Multiple RTMP Output Plugin"

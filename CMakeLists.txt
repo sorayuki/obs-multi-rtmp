@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(obs-multi-rtmp VERSION 0.2.6.1)
+project(obs-multi-rtmp VERSION 0.2.7)
 
 option(PORTABLE_MODE "if obs is used in portable mode" OFF)
 set(QTDIR "${QTDIR}" CACHE PATH "Path to qt directory")
