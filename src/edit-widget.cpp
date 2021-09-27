@@ -198,6 +198,7 @@ public:
         {
             auto okbtn = new QPushButton(obs_module_text("OK"), this);
             QObject::connect(okbtn, &QPushButton::clicked, [this]() {
+                SaveConfig();
                 done(DialogCode::Accepted);
             });
             layout->addWidget(okbtn, currow, 0, 1, 2);
