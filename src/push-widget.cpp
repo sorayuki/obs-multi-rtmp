@@ -193,51 +193,29 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         
         ReleaseOutputEncoder();
 
-        std::string venc_id, aenc_id;
-        int v_bitrate = 2000, a_bitrate = 128;
-        int a_mixer = 0;
-        int v_width = -1, v_height = -1;
-        int v_keyframe_sec = 3;
-        std::optional<int> v_bframes = 2;
-
         // read config
+        auto venc_id = QJsonUtil::Get(conf_, "v-enc", std::string{});
+        auto aenc_id = QJsonUtil::Get(conf_, "a-enc", std::string{});
+        auto v_bitrate = QJsonUtil::Get(conf_, "v-bitrate", 2000);
+        auto a_bitrate = QJsonUtil::Get(conf_, "a-bitrate", 128);
+        auto v_keyframe_sec = QJsonUtil::Get(conf_, "v-keyframe-sec", 3);
+        auto a_mixer = QJsonUtil::Get(conf_, "a-mixer", 0);
+        auto v_bframes = QJsonUtil::Get<int>(conf_, "v-bframes");
+        auto resolution = QJsonUtil::Get<std::string>(conf_, "v-resolution");
+        int v_width = -1, v_height = -1;
+        
         {
-            auto it = conf_.find("v-enc");
-            if (it != conf_.end() && it->isString())
-                venc_id = tostdu8(it->toString());
-            it = conf_.find("a-enc");
-            if (it != conf_.end() && it->isString())
-                aenc_id = tostdu8(it->toString());
-            it = conf_.find("v-bitrate");
-            if (it != conf_.end() && it->isDouble())
-                v_bitrate = (int)it->toDouble();
-            it = conf_.find("a-bitrate");
-            if (it != conf_.end() && it->isDouble())
-                a_bitrate = (int)it->toDouble();
-            it = conf_.find("v-resolution");
-            if (it != conf_.end() && it->isString())
-            {
-                auto resstr = tostdu8(it->toString());
+            if (resolution.has_value()) {
                 std::regex res_pattern(R"__(\s*(\d{1,5})\s*x\s*(\d{1,5})\s*)__");
                 std::smatch match;
-                if (std::regex_match(resstr, match, res_pattern))
+                if (std::regex_match(resolution.value(), match, res_pattern))
                 {
                     v_width = std::stoi(match[1].str());
                     v_height = std::stoi(match[2].str());
                 }
-            }
-            it = conf_.find("v-keyframe-sec");
-            if (it != conf_.end() && it->isDouble())
-                v_keyframe_sec = (int)it->toDouble();
-            it = conf_.find("v-bframes");
-            if (it != conf_.end() && it->isDouble())
-                v_bframes = (int)it->toDouble();
-            it = conf_.find("a-mixer");
-            if (it != conf_.end() && it->isDouble())
-            {
-                int data = (int)it->toDouble();
-                if (data >= 0 && data <= 5)
-                    a_mixer = data;
+
+                if (a_mixer < 0 || a_mixer > 5)
+                    a_mixer = 0;
             }
         }
 
@@ -416,11 +394,27 @@ public:
         return conf_;
     }
 
+    void OnOBSEvent(obs_frontend_event ev) override
+    {
+        if (ev == obs_frontend_event::OBS_FRONTEND_EVENT_EXIT
+            || ev == obs_frontend_event::OBS_FRONTEND_EVENT_PROFILE_CHANGED
+            || ev == obs_frontend_event::OBS_FRONTEND_EVENT_PROFILE_LIST_CHANGED
+        ) {
+            Stop();
+        } else if (ev == obs_frontend_event::OBS_FRONTEND_EVENT_STREAMING_STARTING) {
+            if (!IsRunning() && QJsonUtil::Get(conf_, "syncstart", false)) {
+                StartStop();
+            }
+        } else if (ev == obs_frontend_event::OBS_FRONTEND_EVENT_STREAMING_STOPPING) {
+            if (IsRunning() && QJsonUtil::Get(conf_, "syncstart", false)) {
+                StartStop();
+            }
+        }
+    }
+
     void LoadConfig()
     {
-        auto it = conf_.find("name");
-        if (it != conf_.end() && it->isString())
-            name_->setText(it->toString());
+        name_->setText(QJsonUtil::Get(conf_, "name", QString("")));
     }
 
     void ResetInfo()
@@ -430,11 +424,21 @@ public:
         fps_->setText("");
     }
 
+    bool IsRunning()
+    {
+        if (output_ == nullptr)
+            return false;
+        if (output_ != nullptr && obs_output_active(output_) == false)
+            return false;
+        if (output_ != nullptr && obs_output_active(output_) == true)
+            return true;
+        assert(false);
+        return false;
+    }
+
     void StartStop()
     {
-        if (output_ == nullptr
-            || (output_ != nullptr && obs_output_active(output_) == false)
-        ){
+        if (IsRunning() == false){
             // recreate output
             ReleaseOutput();
 
@@ -500,9 +504,9 @@ public:
         }
     }
 
-    void Stop() override
+    void Stop()
     {
-        if (output_ && obs_output_active(output_))
+        if (IsRunning())
         {
             obs_output_force_stop(output_);
         }

@@ -22,6 +22,8 @@ class EditOutputWidgetImpl : public EditOutputWidget
     QLineEdit* a_bitrate_ = 0;
     QComboBox* a_mixer_ = 0;
 
+    QCheckBox* syncStart_ = 0;
+
     std::vector<std::string> EnumEncodersByCodec(const char* codec)
     {
         if (!codec)
@@ -94,7 +96,7 @@ public:
             {
                 {
                     auto gp = new QGroupBox(obs_module_text("VideoSettings"), this);
-                    sub_grid->addWidget(gp, 0, 0);
+                    sub_grid->addWidget(gp, 0, 0, 2, 1);
                     auto encLayout = new QGridLayout(gp);
                     int currow = 0;
                     {
@@ -159,7 +161,7 @@ public:
 
                 {
                     auto gp = new QGroupBox(obs_module_text("AudioSettings"), this);
-                    sub_grid->addWidget(gp, 0, 1);
+                    sub_grid->addWidget(gp, 0, 1, 1, 1);
                     auto encLayout = new QGridLayout(gp);
                     int currow = 0;
                     {
@@ -191,6 +193,14 @@ public:
                             a_mixer_->addItem(QString(std::to_string(i).c_str()), i - 1);
                     }
                     gp->setLayout(encLayout);
+                }
+
+                {
+                    auto gp = new QGroupBox(obs_module_text("OtherSettings"), this);
+                    sub_grid->addWidget(gp, 1, 1, 1, 1);
+                    auto otherLayout = new QGridLayout(gp);
+                    otherLayout->addWidget(syncStart_ = new QCheckBox(obs_module_text("SyncStart"), gp), 0, 0);
+                    gp->setLayout(otherLayout);
                 }
             }
         }
@@ -284,6 +294,7 @@ public:
     void SaveConfig()
     {
         conf_["name"] = name_->text();
+        conf_["syncstart"] = syncStart_->isChecked();
         conf_["rtmp-path"] = rtmp_path_->text();
         conf_["rtmp-key"] = rtmp_key_->text();
         conf_["rtmp-user"] = rtmp_user_->text();
@@ -306,85 +317,71 @@ public:
 
     void LoadConfig()
     {
-        auto it = conf_.find("name");
-        if (it != conf_.end() && it->isString())
-            name_->setText(it->toString());
-        else
-            name_->setText(obs_module_text("NewStreaming"));
+        name_->setText(QJsonUtil::Get(conf_, "name", QString(obs_module_text("NewStreaming"))));
+        syncStart_->setChecked(QJsonUtil::Get(conf_, "syncstart", false));
+
+        QJsonUtil::IfGet(conf_, "rtmp-path", [&](QString rtmppath) {
+            rtmp_path_->setText(rtmppath);
+            return rtmppath;
+        });
         
-        it = conf_.find("rtmp-path");
-        if (it != conf_.end() && it->isString())
-            rtmp_path_->setText(it->toString());
-        
-        it = conf_.find("rtmp-key");
-        if (it != conf_.end() && it->isString())
-            rtmp_key_->setText(it->toString());
+        QJsonUtil::IfGet(conf_, "rtmp-key", [&](QString rtmpkey) {
+            rtmp_key_->setText(rtmpkey);
+            return rtmpkey;
+        });
 
-        it = conf_.find("rtmp-user");
-        if (it != conf_.end() && it->isString())
-            rtmp_user_->setText(it->toString());
+        QJsonUtil::IfGet(conf_, "rtmp-user", [&](QString rtmpuser) {
+            rtmp_user_->setText(rtmpuser);
+            return rtmpuser;
+        });
 
-        it = conf_.find("rtmp-pass");
-        if (it != conf_.end() && it->isString())
-            rtmp_pass_->setText(it->toString());
+        QJsonUtil::IfGet(conf_, "rtmp-pass", [&](QString rtmppass) {
+            rtmp_pass_->setText(rtmppass);
+            return rtmppass;
+        });
 
-        it = conf_.find("v-enc");
-        if (it != conf_.end() && it->isString())
-        {
-            int idx = venc_->findData(it->toString());
+        QJsonUtil::IfGet(conf_, "v-enc", [&](QString encid) {
+            int idx = venc_->findData(encid);
             if (idx >= 0)
                 venc_->setCurrentIndex(idx);
-        }
+            return encid;
+        });
 
-        it = conf_.find("v-bitrate");
-        if (it != conf_.end() && it->isDouble())
-            v_bitrate_->setText(std::to_string((int)it->toDouble()).c_str());
-        else
-            v_bitrate_->setText("2000");
+        v_bitrate_->setText(std::to_string(
+            QJsonUtil::Get(conf_, "v-bitrate", 2000)
+        ).c_str());
 
-        it = conf_.find("v-keyframe-sec");
-        if (it != conf_.end() && it->isDouble())
-            v_keyframe_sec_->setText(std::to_string((int)it->toDouble()).c_str());
-        else
-            v_keyframe_sec_->setText("3");
+        v_keyframe_sec_->setText(std::to_string(
+            QJsonUtil::Get(conf_, "v-keyframe-sec", 3)
+        ).c_str());
 
-        it = conf_.find("v-bframes");
-        if (it != conf_.end() && it->isDouble())
-            v_bframes_->setText(std::to_string((int)it->toDouble()).c_str());
-        else
-            v_bframes_->setText("2");
-        
-        it = conf_.find("v-resolution");
-        if (it != conf_.end() && it->isString())
-            v_resolution_->setText(it->toString());
-        else
-            v_resolution_->setText("");
-        
-        it = conf_.find("a-enc");
-        if (it != conf_.end() && it->isString())
-        {
-            int idx = aenc_->findData(it->toString());
+        v_bframes_->setText(std::to_string(
+            QJsonUtil::Get(conf_, "v-bframes", 2)
+        ).c_str());
+
+        v_resolution_->setText(
+            QJsonUtil::Get(conf_, "v-resolution", QString{})
+        );
+
+        QJsonUtil::IfGet(conf_, "a-enc", [&](QString encid) {
+            int idx = aenc_->findData(encid);
             if (idx >= 0)
                 aenc_->setCurrentIndex(idx);
-        }
+            return encid;
+        });
 
-        it = conf_.find("a-bitrate");
-        if (it != conf_.end() && it->isDouble())
-            a_bitrate_->setText(std::to_string((int)it->toDouble()).c_str());
-        else
-            a_bitrate_->setText("128");
+        a_bitrate_->setText(std::to_string(
+            QJsonUtil::Get(conf_, "a-bitrate", 128)
+        ).c_str());
 
-        it = conf_.find("a-mixer");
-        {
-            int dataToFind = 0;
-            if (it != conf_.end() && it->isDouble())
-                dataToFind = (int)it->toDouble();
-            int index = a_mixer_->findData(dataToFind);
+        QJsonUtil::IfGet(conf_, "a-mixer", [&](int val) {
+            int index = a_mixer_->findData(val);
             if (index >= 0)
                 a_mixer_->setCurrentIndex(index);
             else
                 a_mixer_->setCurrentIndex(0);
-        }
+            return val;
+        });
     }
 };
 

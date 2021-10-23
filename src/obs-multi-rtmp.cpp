@@ -224,12 +224,6 @@ public:
         return result;
     }
 
-    void StopAll()
-    {
-        for(auto x : GetAllPushWidgets())
-            x->Stop();
-    }
-
     void RemoveAll()
     {
 
@@ -376,10 +370,14 @@ Fail to load obs-multi-rtmp. Please remove old versions of this plugin.
 
     obs_frontend_add_event_callback(
         [](enum obs_frontend_event event, void *private_data) {
+            auto mainwin = static_cast<MultiOutputWidget*>(private_data);
+
+            for(auto x: mainwin->GetAllPushWidgets())
+                x->OnOBSEvent(event);
+
             if (event == obs_frontend_event::OBS_FRONTEND_EVENT_EXIT)
             {
-                static_cast<MultiOutputWidget*>(private_data)->SaveConfig();
-                static_cast<MultiOutputWidget*>(private_data)->StopAll();
+                mainwin->SaveConfig();
             }
             else if (event == obs_frontend_event::OBS_FRONTEND_EVENT_PROFILE_CHANGED)
             {
