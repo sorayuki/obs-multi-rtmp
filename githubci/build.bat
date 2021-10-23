@@ -38,3 +38,7 @@ cmake --install build_x86 --config Release
 cmake %QTDIR64% -G "Visual Studio 16 2019" -A x64 -B build_x64 -S . -DPORTABLE_MODE=ON -DCMAKE_INSTALL_PREFIX=portable
 cmake --build build_x64 --config Release
 cmake --install build_x64 --config Release
+
+pushd portable
+cmake -E tar cf ..\installer\obs-multi-rtmp-portable.zip --format=zip .
+popd
