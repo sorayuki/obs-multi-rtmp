@@ -43,36 +43,6 @@ struct QJsonUtil {
     template<class T>
     struct JsonType;
 
-    template<>
-    struct JsonType<double> {
-        bool Check(JsonIt& it) { return it->isDouble(); }
-        double Get(JsonIt& it) { return it->toDouble(); }
-    };
-
-    template<>
-    struct JsonType<int> {
-        bool Check(JsonIt& it) { return it->isDouble(); }
-        int Get(JsonIt& it) { return static_cast<int>(std::round(it->toDouble())); }
-    };
-
-    template<>
-    struct JsonType<QString> {
-        bool Check(JsonIt& it) { return it->isString(); }
-        QString Get(JsonIt& it) { return it->toString(); }
-    };
-
-    template<>
-    struct JsonType<std::string> {
-        bool Check(JsonIt& it) { return it->isString(); }
-        std::string Get(JsonIt& it) { return tostdu8(it->toString()); }
-    };
-
-    template<>
-    struct JsonType<bool> {
-        bool Check(JsonIt& it) { return it->isBool(); }
-        bool Get(JsonIt& it) { return it->toBool(); }
-    };
-
     template<class Val>
     static Val Get(QJsonObject& json, const char* key, Val def) {
         auto it = json.find(key);
@@ -80,7 +50,7 @@ struct QJsonUtil {
             return JsonType<Val>().Get(it);
         else
             return def;
-    }
+    };
 
     template<class Val>
     static std::optional<Val> Get(QJsonObject& json, const char* key) {
@@ -89,7 +59,7 @@ struct QJsonUtil {
             return JsonType<Val>().Get(it);
         else
             return std::optional<Val>{};
-    }
+    };
 
     template<class Fun>
     static bool IfGet(QJsonObject& json, const char* key, const Fun& f) {
@@ -101,5 +71,35 @@ struct QJsonUtil {
         } else {
             return false;
         }
-    }
+    };
+};
+
+template<>
+struct QJsonUtil::JsonType<double> {
+    bool Check(JsonIt& it) { return it->isDouble(); }
+    double Get(JsonIt& it) { return it->toDouble(); }
+};
+
+template<>
+struct QJsonUtil::JsonType<int> {
+    bool Check(JsonIt& it) { return it->isDouble(); }
+    int Get(JsonIt& it) { return static_cast<int>(std::round(it->toDouble())); }
+};
+
+template<>
+struct QJsonUtil::JsonType<QString> {
+    bool Check(JsonIt& it) { return it->isString(); }
+    QString Get(JsonIt& it) { return it->toString(); }
+};
+
+template<>
+struct QJsonUtil::JsonType<std::string> {
+    bool Check(JsonIt& it) { return it->isString(); }
+    std::string Get(JsonIt& it) { return tostdu8(it->toString()); }
+};
+
+template<>
+struct QJsonUtil::JsonType<bool> {
+    bool Check(JsonIt& it) { return it->isBool(); }
+    bool Get(JsonIt& it) { return it->toBool(); }
 };
