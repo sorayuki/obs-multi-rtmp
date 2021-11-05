@@ -1,2 +1,0 @@
-set PluginName=@CMAKE_PROJECT_NAME@
-set PluginVersion=@CMAKE_PROJECT_VERSION@

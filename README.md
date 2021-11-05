@@ -31,31 +31,29 @@ set(LINUX_MAINTAINER_EMAIL "me@contoso.com")
 
 ## CI / Build Bot
 
-The CI scripts are made for Azure Pipelines. The sections below detail some of the common tasks possible with that CI configuration.
+The contained build scripts are used by the local main build script as well as by CI - every sub-script can be run individually as well - by default a workflow for Github Actions is provided, allowing your plugin to use CI right from your Github repository.
 
 ### Retrieving build artifacts
 
-Each build produces installers and packages that you can use for testing and releases. These artifacts can be found a Build's page on Azure Pipelines.
+Each build produces installers and packages that you can use for testing and releases. These artifacts can be found on the action result page via the "Actions" tab in your Github repository.
 
 #### Building a Release
 
-Simply create and push a tag, and Azure Pipelines will run the pipeline in Release Mode. This mode uses the tag as its version number instead of the git ref in normal mode.
+Simply create and push a tag and Github Actions will run the pipeline in Release Mode. This mode uses the tag as its version number instead of the git ref in normal mode.
 
 ### Signing and Notarizing on macOS
 
-On macOS, Release Mode builds will be signed and sent to Apple for notarization if `macosSignAndNotarize` is set to `True` at the top of the `azure-pipelines.yml` file. **You'll need a paid Apple Developer Account for this.**
-
-In addition to enabling `macosSignAndNotarize`, you'll need to setup a few more things for Signing and Notarizing to work:
+On macOS, Release Mode builds can be signed and sent to Apple for notarization if the necessary codesigning credentials are added as secrets to your repository. **You'll need a paid Apple Developer Account for this.**
 
 - On your Apple Developer dashboard, go to "Certificates, IDs & Profiles" and create two signing certificates:
     - One of the "Developer ID Application" type. It will be used to sign the plugin's binaries
     - One of the "Developer ID Installer" type. It will be used to sign the plugin's installer
 - Using the Keychain app on macOS, export these two certificates and keys into a .p12 file **protected with a strong password**
-- Add that `Certificates.P12` file as a [Secure File in Azure Pipelines](https://docs.microsoft.com/en-us/azure/devops/pipelines/library/secure-files?view=azure-devops) and make sure it is named `Certificates.p12`
-- Add the following secrets in your pipeline settings:
-    - `secrets.macOS.certificatesImportPassword`: Password of the .p12 file generated earlier
-    - `secrets.macOS.codeSigningIdentity`: Name of the "Developer ID Application" signing certificate generated earlier
-    - `secrets.macOS.installerSigningIdentity`: Name of "Developer ID Installer" signing certificate generated earlier
-    - `secrets.macOS.notarization.username`: Your Apple Developer Account's username
-    - `secrets.macOS.notarization.password`: Your Apple Developer Account's password
-    - `secrets.macOS.notarization.providerShortName`: Identifier (`Provider Short Name`, as Apple calls it) of the Developer Team to which the signing certificates belong. 
+- Encode the .p12 file into its base64 representation by running `base64 YOUR_P12_FILE`
+- Add the following secrets in your Github repository settings:
+    - `MACOS_SIGNING_APPLICATION_IDENTITY`: Name of the "Developer ID Application" signing certificate generated earlier
+    - `MACOS_SIGNING_INSTALLER_IDENTITY`: Name of "Developer ID Installer" signing certificate generated earlier
+    - `MACOS_SIGNING_CERT`: Base64-encoded string generated above
+    - `MACOS_SIGNING_CERT_PASSWORD`: Password used to generate the .p12 certificate
+    - `MACOS_NOTARIZATION_USERNAME`: Your Apple Developer account's username
+    - `MACOS_NOTARIZATION_PASSWORD`: Your Apple Developer account's password (use a generated "app password" for this)

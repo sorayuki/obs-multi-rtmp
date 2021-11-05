@@ -1,0 +1,2 @@
+$ProductName = "@CMAKE_PROJECT_NAME@"
+$ProductVersion = "@CMAKE_PROJECT_VERSION@"
