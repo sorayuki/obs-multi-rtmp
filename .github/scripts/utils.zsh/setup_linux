@@ -1,0 +1,44 @@
+autoload -Uz log_error log_status log_info mkcd
+
+if (( ! ${+commands[apt-get]} )) {
+  log_error 'apt-get not found. Please ensure apt is available on the system.'
+  return 2
+}
+
+log_info 'Installing obs build dependencies...'
+sudo dpkg --add-architecture amd64
+sudo apt-get -qq update
+sudo apt-get install -y \
+    build-essential \
+    ninja-build \
+    clang \
+    clang-format \
+    git \
+    jq \
+    qtbase5-dev \
+    libqt5svg5-dev \
+    libqt5x11extras5-dev \
+    qtbase5-private-dev \
+    libwayland-dev \
+    libavcodec-dev \
+    libavdevice-dev \
+    libavfilter-dev \
+    libavformat-dev \
+    libavutil-dev \
+    libswresample-dev \
+    libswscale-dev \
+    libx264-dev \
+    libjansson-dev \
+    libpulse-dev \
+    libx11-dev \
+    libx11-xcb-dev \
+    libmbedtls-dev \
+    libgl1-mesa-dev \
+    pkg-config \
+    libcurl4-openssl-dev
+
+if ! type cmake &>/dev/null; then
+    sudo apt-get install -y cmake
+fi
+
+rehash
