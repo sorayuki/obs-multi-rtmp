@@ -1,0 +1,3 @@
+package '7zip.7zip', path: '7-zip', bin: '7z'
+package 'cmake', path: 'Cmake\bin', bin: 'cmake'
+package 'innosetup', path: 'Inno Setup 6', bin: 'iscc'

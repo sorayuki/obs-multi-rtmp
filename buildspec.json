@@ -1,0 +1,56 @@
+{
+    "dependencies": {
+        "obs-studio": {
+            "version": "27.2.3",
+            "repository": "https://github.com/obsproject/obs-studio.git",
+            "branch": "master",
+            "hash": "13f2d7925ff49938e3b286a3b9a65d50c1491ec1"
+        },
+        "obs-deps": {
+            "macos-x86_64": {
+                "version": "2022-02-13",
+                "hash": "1a8715d66e664b857942deaded0dc46c4f6cd22e88f01ed1188f3bd3fcf632c4"
+            },
+            "macos-arm64": {
+                "version": "2022-02-13",
+                "hash": "2cfcaf05765400c696908f242aea87b6e1848e1a48cd3edc2eb7f8cb249c9d48"
+            },
+            "macos-universal": {
+                "version": "2022-02-13",
+                "hash": "77471b1d345a768e8efec3f6ad9dc79f3c7cd34840b66f721b80025d29713f5d"
+            },
+            "windows-x64": {
+                "version": "2022-03-16",
+                "hash": "ed73757d1faee1b8c4a9aeca539e1149704e430085608990771402e60074eec7"
+            },
+            "windows-x86": {
+                "version": "2022-03-16",
+                "hash": "4751f68488cf6d5dcc79fbf6735762154847ca509d669539b241bf4e5cbf7751"
+            }
+        },
+        "obs-deps-qt": {
+            "macos-x86_64": {
+                "version": "2022-02-13",
+                "hash": "35a58fee8dfd70d3d2dcc0ae0b77132c04a451c6f041a02dc41b207b375fc74b"
+            },
+            "macos-arm64": {
+                "version": "2022-02-13",
+                "hash": "e99146b9c7775c245a2d22f2ef24fc111fccd71bad0f03b64db707124ffb8707"
+            },
+            "macos-universal": {
+                "version": "2022-02-13",
+                "hash": "13fbcc45fd9d08b30e702d481fe4d58b23f93aa06848cede4ebe0956c79a5e8a"
+            },
+            "windows-x64": {
+                "version": "2022-03-16",
+                "hash": "4a5faed9bad327be079e08ed6715a287db8936d20e51b9cdfc7eb52d0a57c629"
+            },
+            "windows-x86": {
+                "version": "2022-03-16",
+                "hash": "6664bc60523a8c7c08690f6b800d8d57d830605b9c25d2ce41132c422b0c6e29"
+            }
+        }
+    },
+    "name": "obs-plugintemplate",
+    "version": "1.0.0"
+}

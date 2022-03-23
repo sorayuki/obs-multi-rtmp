@@ -1,0 +1,9 @@
+autoload -Uz log_info log_error
+
+log_info 'Checking for Homebrew...'
+if (( ! ${+commands[brew]} )) {
+  log_error 'No Homebrew command found. Please install Homebrew (https://brew.sh)'
+  return 2
+}
+
+if (( ! ${+commands[xcnotary]} )) brew install akeru-inc/tap/xcnotary

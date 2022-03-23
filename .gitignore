@@ -1,8 +1,7 @@
 *~
 .DS_Store
 /build/
-/build32/
-/build64/
+/build_*/
 /release/
 /installer/Output/
 
@@ -11,3 +10,4 @@
 
 # ignore generated files
 *.generated.*
+**/.Brewfile.lock.json

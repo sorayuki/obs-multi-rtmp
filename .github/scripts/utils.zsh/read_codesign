@@ -1,0 +1,7 @@
+autoload -Uz log_info
+
+if (( ! ${+CODESIGN_IDENT} )) {
+  typeset -g CODESIGN_IDENT
+  log_info 'Setting up identity for application codesigning...'
+  read CODESIGN_IDENT'?Apple Developer Application ID: '
+}
