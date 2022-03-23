@@ -42,7 +42,7 @@ else
 fi
 
 find . -type d \( \
-    -path ./\*build -o \
+    -path ./\*build\* -o \
     -path ./cmake -o \
     -path ./deps -o \
     -path ./plugins/decklink/\*/decklink-sdk -o \

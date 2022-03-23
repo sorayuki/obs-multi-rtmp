@@ -6,40 +6,36 @@ This plugin is meant to make it easy to quickstart development of new OBS plugin
 
 - The CMake project file
 - Boilerplate plugin source code
-- A continuous-integration configuration for automated builds (a.k.a Build Bot)
+- GitHub Actions workflows and repository actions
+- Build scripts for Windows, macOS, and Linux
 
 ## Configuring
 
-Open `CMakeLists.txt` and edit the following lines at the beginning:
+Open `buildspec.json` and change the name and version of the plugin accordingly. This is also where the obs-studio version as well as the pre-built dependencies for Windows and macOS are defined. Use a release version (with associated checksums) from a recent [obs-deps release](https://github.com/obsproject/obs-deps/releases).
+
+Next, open `CMakeLists.txt` and edit the following lines at the beginning:
 
 ```cmake
-# Change `obs-plugintemplate` to your plugin's name in a machine-readable format
-# (e.g.: obs-myawesomeplugin) and set the value next to `VERSION` as your plugin's current version
 project(obs-plugintemplate VERSION 1.0.0)
 
-# Replace `Your Name Here` with the name (yours or your organization's) you want
-# to see as the author of the plugin (in the plugin's metadata itself and in the installers)
 set(PLUGIN_AUTHOR "Your Name Here")
 
-# Replace `com.example.obs-plugin-template` with a unique Bundle ID for macOS releases
-# (used both in the installer and when submitting the installer for notarization)
-set(MACOS_BUNDLEID "com.example.obs-plugintemplate")
-
-# Replace `me@contoso.com` with the maintainer email address you want to put in Linux packages
 set(LINUX_MAINTAINER_EMAIL "me@contoso.com")
 ```
 
-## CI / Build Bot
+The build scripts (contained in the `.github/scripts` directory) will update the `project` line automatically based on values from the `buildspec.json` file. If the scripts are not used, these changes need to be done manually.
 
-The contained build scripts are used by the local main build script as well as by CI - every sub-script can be run individually as well - by default a workflow for Github Actions is provided, allowing your plugin to use CI right from your Github repository.
+## GitHub Actions & CI
+
+The scripts contained in `github/scripts` can be used to build and package the plugin and take care of setting up obs-studio as well as its own dependencies. A default workflow for GitHub Actions is also provided and will use these scripts.
 
 ### Retrieving build artifacts
 
-Each build produces installers and packages that you can use for testing and releases. These artifacts can be found on the action result page via the "Actions" tab in your Github repository.
+Each build produces installers and packages that you can use for testing and releases. These artifacts can be found on the action result page via the "Actions" tab in your GitHub repository.
 
 #### Building a Release
 
-Simply create and push a tag and Github Actions will run the pipeline in Release Mode. This mode uses the tag as its version number instead of the git ref in normal mode.
+Simply create and push a tag and GitHub Actions will run the pipeline in Release Mode. This mode uses the tag as its version number instead of the git ref in normal mode.
 
 ### Signing and Notarizing on macOS
 
