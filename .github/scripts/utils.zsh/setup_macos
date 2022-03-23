@@ -1,0 +1,104 @@
+autoload -Uz log_error log_status log_info mkcd
+
+if (( ! ${+commands[curl]} )) {
+  log_error 'curl not found. Please install curl.'
+  return 2
+}
+
+if (( ! ${+commands[jq]} )) {
+  log_error 'jq not found. Please install jq.'
+  return 2
+}
+
+if (( ! ${+project_root} )) {
+  log_error "'project_root' not set. Please set before running ${0}."
+  return 2
+}
+
+if (( ! ${+target} )) {
+  log_error "'target' not set. Please set before running ${0}."
+  return 2
+}
+
+local -a curl_opts=()
+if (( ! ${+CI} )) {
+    curl_opts+=(--progress-bar)
+} else {
+    curl_opts+=(--show-error --silent)
+}
+curl_opts+=(--location -O ${@})
+
+pushd ${project_root}
+log_info 'Setting up obs-deps...'
+read -r deps_version deps_hash <<< \
+  "$(jq -r --arg key "obs-deps" --arg target "${target}" \
+    '.dependencies[$key][$target] | {version, hash} | join(" ")' \
+    ${buildspec_file})"
+
+if [[ -z "${deps_version}" ]] {
+  log_error 'No obs-deps version found in buildspec.json.'
+  return 2
+}
+log_status 'Found obs-deps specification.'
+
+mkcd ${project_root:h}/obs-build-dependencies
+
+if [[ ! -f macos-deps-${deps_version}-${target##*-}.tar.xz ]] {
+  curl ${curl_opts} \
+    "https://github.com/obsproject/obs-deps/releases/download/${deps_version}/macos-deps-${deps_version}-${target##*-}.tar.xz" && \
+    log_status "Downloaded obs-deps for ${target}."
+} else {
+  log_status 'Found downloaded obs-deps.'
+}
+
+read -r artifact_checksum _ <<< "$(sha256sum macos-deps-${deps_version}-${target##*-}.tar.xz)"
+if [[ ${deps_hash} != ${artifact_checksum} ]] {
+  log_error "Checksum of downloaded obs-deps does not match specification.
+Expected : ${deps_hash}
+Actual   : ${artifact_checksum}"
+  return 2
+}
+log_status 'Checksum of downloaded obs-deps matches.'
+
+mkcd obs-plugin-deps
+XZ_OPT=-T0 tar -xzf ../macos-deps-${deps_version}-${target##*-}.tar.xz && log_status 'obs-deps extracted.'
+popd
+
+pushd ${project_root}
+log_info 'Setting up Qt...'
+read -r qt_version qt_hash <<< \
+  "$(jq -r --arg key "obs-deps-qt" --arg target "${target}" \
+    '.dependencies[$key][$target] | {version, hash} | join(" ")' \
+    ${buildspec_file})"
+
+if [[ -z "${qt_version}" ]] {
+  log_error 'No obs-deps version found in buildspec.json.'
+  return 2
+}
+log_status 'Found Qt specification.'
+
+mkcd ${project_root:h}/obs-build-dependencies
+
+if [[ ! -f macos-deps-qt-${deps_version}-${target##*-}.tar.xz ]] {
+  curl ${curl_opts} \
+    "https://github.com/obsproject/obs-deps/releases/download/${deps_version}/macos-deps-qt-${deps_version}-${target##*-}.tar.xz" && \
+    log_status "Downloaded Qt for ${target}"
+} else {
+  log_status 'Found downloaded Qt.'
+}
+
+read -r artifact_checksum _ <<< "$(sha256sum macos-deps-qt-${deps_version}-${target##*-}.tar.xz)"
+if [[ ${qt_hash} != ${artifact_checksum} ]] {
+  log_error "Checksum of downloaded Qt does not match specification.
+Expected : ${qt_hash}
+Actual   : ${artifact_checksum}"
+  return 2
+}
+log_status 'Checksum of downloaded Qt matches.'
+
+mkcd obs-plugin-deps
+XZ_OPT=-T0 tar -xzf ../macos-deps-qt-${qt_version}-${target##*-}.tar.xz && log_status 'Qt extracted.'
+
+xattr -r -d com.apple.quarantine *
+log_status 'Removed quarantine flag from downloaded dependencies...'
+popd
