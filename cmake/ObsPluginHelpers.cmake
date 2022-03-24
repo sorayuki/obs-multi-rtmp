@@ -95,14 +95,12 @@ macro(find_qt)
   endforeach()
 endmacro()
 
-find_qt(VERSION ${QT_VERSION} COMPONENTS Widgets Core)
-
 file(RELATIVE_PATH RELATIVE_INSTALL_PATH ${CMAKE_SOURCE_DIR}
      ${CMAKE_INSTALL_PREFIX})
 file(RELATIVE_PATH RELATIVE_BUILD_PATH ${CMAKE_SOURCE_DIR} ${CMAKE_BINARY_DIR})
 
 # Set up OS-specific environment and helper functions
-if(OS_MACOS)
+if(OS_POSIX)
   find_program(CCACHE_PROGRAM "ccache")
   set(CCACHE_SUPPORT
       ON
@@ -115,7 +113,9 @@ if(OS_MACOS)
     set(CMAKE_OBJCXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
     set(CMAKE_CUDA_COMPILER_LAUNCHER ${CCACHE_PROGRAM}) # CMake 3.9+
   endif()
+endif()
 
+if(OS_MACOS)
   set(CMAKE_OSX_ARCHITECTURES
       "x86_64"
       CACHE STRING
@@ -274,20 +274,7 @@ else()
   set(OBS_OUTPUT_DIR ${CMAKE_BINARY_DIR}/rundir)
 
   if(OS_POSIX)
-    find_program(CCACHE_PROGRAM "ccache")
-    set(CCACHE_SUPPORT
-        ON
-        CACHE BOOL "Enable ccache support")
-    mark_as_advanced(CCACHE_PROGRAM)
-    if(CCACHE_PROGRAM AND CCACHE_SUPPORT)
-      set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
-      set(CMAKE_C_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
-      set(CMAKE_OBJC_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
-      set(CMAKE_OBJCXX_COMPILER_LAUNCHER ${CCACHE_PROGRAM})
-      set(CMAKE_CUDA_COMPILER_LAUNCHER ${CCACHE_PROGRAM}) # CMake 3.9+
-    endif()
-
-    option(LINUX_PORTABLE "Build portable version (Linux)" OFF)
+    option(LINUX_PORTABLE "Build portable version (Linux)" ON)
     if(NOT LINUX_PORTABLE)
       set(OBS_LIBRARY_DESTINATION ${CMAKE_INSTALL_LIBDIR})
       set(OBS_PLUGIN_DESTINATION ${OBS_LIBRARY_DESTINATION}/obs-plugins)
