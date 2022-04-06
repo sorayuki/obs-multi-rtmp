@@ -16,3 +16,4 @@ if (( ! ${+commands[brew]} )) {
   return 2
 }
 brew bundle --file "${SCRIPT_HOME}/.Brewfile"
+rehash
