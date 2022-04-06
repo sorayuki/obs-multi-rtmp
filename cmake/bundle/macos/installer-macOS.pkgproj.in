@@ -696,33 +696,6 @@
 					<integer>3</integer>
 					<key>DICTIONARY</key>
 					<dict>
-						<key>IC_REQUIREMENT_FILES_CONDITION</key>
-						<integer>0</integer>
-						<key>IC_REQUIREMENT_FILES_DISK_TYPE</key>
-						<integer>0</integer>
-						<key>IC_REQUIREMENT_FILES_LIST</key>
-						<array>
-							<string>/Applications/OBS.app</string>
-						</array>
-						<key>IC_REQUIREMENT_FILES_SELECTOR</key>
-						<integer>0</integer>
-					</dict>
-					<key>IC_REQUIREMENT_CHECK_TYPE</key>
-					<integer>1</integer>
-					<key>IDENTIFIER</key>
-					<string>fr.whitebox.Packages.requirement.files</string>
-					<key>MESSAGE</key>
-					<array/>
-					<key>NAME</key>
-					<string>Files</string>
-					<key>STATE</key>
-					<true/>
-				</dict>
-				<dict>
-					<key>BEHAVIOR</key>
-					<integer>3</integer>
-					<key>DICTIONARY</key>
-					<dict>
 						<key>IC_REQUIREMENT_OS_DISK_TYPE</key>
 						<integer>1</integer>
 						<key>IC_REQUIREMENT_OS_DISTRIBUTION_TYPE</key>
