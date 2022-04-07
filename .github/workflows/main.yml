@@ -94,7 +94,7 @@ jobs:
           }
 
           print "::set-output name=ccacheDate::$(date +"%Y-%m-%d")"
-          print "::set-output name=commitHash::$(git rev-parse --short HEAD)"
+          print "::set-output name=commitHash::${"$(git rev-parse HEAD)"[0,9]}"
 
       - name: Restore Compilation Cache
         id: ccache-cache
@@ -190,7 +190,7 @@ jobs:
         id: setup
         run: |
           echo "::set-output name=ccacheDate::$(date +"%Y-%m-%d")"
-          echo "::set-output name=commitHash::$(git rev-parse --short HEAD)"
+          echo "::set-output name=commitHash::$(git rev-parse HEAD | cut -c1-9)"
 
       - name: Restore Compilation Cache
         id: ccache-cache
@@ -265,8 +265,8 @@ jobs:
         working-directory: ${{ github.workspace }}/plugin
         id: setup
         run: |
-          $CommitHash = git rev-parse --short HEAD
-          Write-Output "::set-output name=commitHash::${CommitHash}"
+          $CommitHash = git rev-parse HEAD
+          Write-Output "::set-output name=commitHash::$($CommitHash.SubString(0,9))"
 
       - name: Check for GitHub Labels
         id: seekingTesters
