@@ -8,6 +8,12 @@
 
 举报之后百度贴吧找我要软件著作权证明，累不爱。 
 
+# Installation Guide
+
+- **Linux**: Run the file `build_linux.sh`
+- **MacOS**: Run the file `build_macos.sh`
+- **Windows**: Run the file `installer_script/installer.nsi`
+
 
 # Announce
 
@@ -29,7 +35,7 @@ Recently an Baidu Tieba account 'maggot' is selling this plugin. Don't buy it.
 
 このツールに投げ銭したいならここはリンクです。（機能要求ではありません）
 
-If you regard this tool useful and want to doante for some, here is the link. (It's not for feature request.)
+If you regard this tool useful and want to donate for some, here is the link. (It's not for feature request.)
 
 ## [paypal / 贝宝](https://paypal.me/sorayuki0)
 
