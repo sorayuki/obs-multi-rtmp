@@ -197,9 +197,9 @@ jobs:
         uses: actions/cache@v2.1.7
         with:
           path: ${{ github.workspace }}/.ccache
-          key: macos-${{ matrix.arch }}-ccache-plugin-${{ steps.setup.outputs.ccacheDate }}
+          key: linux-${{ matrix.arch }}-ccache-plugin-${{ steps.setup.outputs.ccacheDate }}
           restore-keys: |
-            macos-${{ matrix.arch }}-ccache-plugin-
+            linux-${{ matrix.arch }}-ccache-plugin-
 
       - name: Check for GitHub Labels
         id: seekingTesters
