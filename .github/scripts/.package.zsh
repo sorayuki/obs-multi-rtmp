@@ -194,4 +194,4 @@ Usage: %B${functrace[1]%:*}%b <option> [<options>]
   }
 }
 
-package "${@}"
+package ${@}
