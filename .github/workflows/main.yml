@@ -43,6 +43,7 @@ jobs:
     name: 02 - macOS
     runs-on: macos-11
     strategy:
+      fail-fast: true
       matrix:
         arch: [x86_64, arm64, universal]
     if: always()
@@ -166,6 +167,7 @@ jobs:
     name: 02 - Linux
     runs-on: ubuntu-20.04
     strategy:
+      fail-fast: true
       matrix:
         arch: [x86_64]
     if: always()
@@ -242,6 +244,7 @@ jobs:
     name: 02 - Windows
     runs-on: windows-2022
     strategy:
+      fail-fast: true
       matrix:
         arch: [x86, x64]
     if: always()
