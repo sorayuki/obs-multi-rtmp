@@ -238,7 +238,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: ${{ env.PLUGIN_NAME }}-linux-${{ matrix.arch }}-${{ steps.setup.outputs.commitHash }}
-          path: ${{ github.workspace }}/plugin/release/${{ env.PLUGIN_NAME }}-*-Linux.*
+          path: ${{ github.workspace }}/plugin/release/${{ env.PLUGIN_NAME }}-*-linux.*
 
   windows_build:
     name: 02 - Windows
