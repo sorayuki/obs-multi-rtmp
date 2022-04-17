@@ -370,9 +370,9 @@ jobs:
           body_path: ${{ github.workspace }}/CHECKSUMS.txt
           files: |
             ${{ github.workspace }}/${{ env.PLUGIN_NAME }}-windows-x64-${{ steps.metadata.outputs.commitHash }}/*.zip
-            ${{ github.workspace }}/${{ env.PLUGIN_NAME }}-windows-x64-${{ steps.metadata.outputs.commitHash }}/*.exe
+            ${{ github.workspace }}/${{ env.PLUGIN_NAME }}-windows-x64-${{ steps.metadata.outputs.commitHash }}-installer/*.exe
             ${{ github.workspace }}/${{ env.PLUGIN_NAME }}-windows-x86-${{ steps.metadata.outputs.commitHash }}/*.zip
-            ${{ github.workspace }}/${{ env.PLUGIN_NAME }}-windows-x86-${{ steps.metadata.outputs.commitHash }}/*.exe
+            ${{ github.workspace }}/${{ env.PLUGIN_NAME }}-windows-x86-${{ steps.metadata.outputs.commitHash }}-installer/*.exe
             ${{ github.workspace }}/${{ env.PLUGIN_NAME }}-linux-x86_64-${{ steps.metadata.outputs.commitHash }}/*.deb
             ${{ github.workspace }}/${{ env.PLUGIN_NAME }}-macos-x86_64-${{ steps.metadata.outputs.commitHash }}/*.pkg
             ${{ github.workspace }}/${{ env.PLUGIN_NAME }}-macos-arm64-${{ steps.metadata.outputs.commitHash }}/*.pkg
