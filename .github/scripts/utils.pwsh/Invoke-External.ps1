@@ -14,7 +14,7 @@ function Invoke-External {
     }
 
     if ( ! ( Test-Path function:Log-Information ) ) {
-        . $PSScriptRoot/Utils-Logger.ps1
+        . $PSScriptRoot/Logger.ps1
     }
 
     $Command = $args[0]

@@ -4,7 +4,7 @@
             "version": "27.2.3",
             "repository": "https://github.com/obsproject/obs-studio.git",
             "branch": "master",
-            "hash": "13f2d7925ff49938e3b286a3b9a65d50c1491ec1"
+            "hash": "2ac9f83cb662692d34874ee1fd17ad7675597215"
         },
         "obs-deps": {
             "macos-x86_64": {

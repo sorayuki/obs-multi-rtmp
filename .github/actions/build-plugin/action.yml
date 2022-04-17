@@ -39,6 +39,7 @@ runs:
         )
 
         if [[ '${{ inputs.codesign }}' == 'true' ]] build_args+=(-s)
+        if (( ${+CI} && ${+RUNNER_DEBUG} )) build_args+=(--debug)
 
         ${{ inputs.workingDirectory }}/.github/scripts/build-macos.zsh ${build_args}
 
@@ -51,7 +52,11 @@ runs:
           -t linux-${{ inputs.target }}
         )
 
-        ${{ inputs.workingDirectory }}/.github/scripts/build-linux.sh ${build_args[@]}
+        if [[ -n "${CI}" && -n "${RUNNER_DEBUG}" ]]; then
+          build_args+=(--debug)
+        fi
+
+        ${{ inputs.workingDirectory }}/.github/scripts/build-linux.sh "${build_args[@]}"
 
     - name: Run Windows Build
       if: ${{ runner.os == 'Windows' }}
@@ -61,6 +66,12 @@ runs:
           Target = '${{ inputs.target }}'
           Configuration = '${{ inputs.config }}'
           CMakeGenerator = '${{ inputs.visualStudio }}'
+        }
+
+        if ( ( Test-Path env:CI ) -and ( Test-Path env:RUNNER_DEBUG ) ) {
+          $BuildArgs += @{
+            Debug = $true
+          }
         }
 
         ${{ inputs.workingDirectory }}/.github/scripts/Build-Windows.ps1 @BuildArgs

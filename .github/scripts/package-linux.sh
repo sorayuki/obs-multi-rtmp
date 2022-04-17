@@ -10,4 +10,4 @@ fi
 SCRIPT=$(readlink -f "${0}")
 SCRIPT_DIR=$(dirname "${SCRIPT}")
 
-zsh ${SCRIPT_DIR}/package-linux.zsh ${@}
+zsh ${SCRIPT_DIR}/package-linux.zsh "${@}"
