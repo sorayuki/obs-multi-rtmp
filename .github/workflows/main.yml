@@ -130,6 +130,7 @@ jobs:
         if: ${{ github.event_name != 'pull_request' && steps.setup.outputs.haveCodesignIdent == 'true' }}
         uses: apple-actions/import-codesign-certs@253ddeeac23f2bdad1646faac5c8c2832e800071
         with:
+          keychain-password: ${{ github.run_id }}
           p12-file-base64: ${{ secrets.MACOS_SIGNING_CERT }}
           p12-password: ${{ secrets.MACOS_SIGNING_CERT_PASSWORD }}
 
@@ -231,7 +232,6 @@ jobs:
           workingDirectory: ${{ github.workspace }}/plugin
           target: ${{ matrix.arch }}
           config: RelWithDebInfo
-          codesign: ${{ env.HAVE_CODESIGN_IDENTITY }}
 
       - name: Package Plugin
         uses: ./plugin/.github/actions/package-plugin
