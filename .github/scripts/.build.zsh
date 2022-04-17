@@ -111,6 +111,7 @@ Usage: %B${functrace[1]%:*}%b <option> [<options>]
       -v|--verbose) (( _verbosity += 1 )); shift ;;
       -h|--help) log_output ${_usage}; exit 0 ;;
       -V|--version) print -Pr "${_version}"; exit 0 ;;
+      --debug) _verbosity=3; shift ;;
       *) log_error "Unknown option: %B${1}%b"; log_output ${_usage}; exit 2 ;;
     }
   }
