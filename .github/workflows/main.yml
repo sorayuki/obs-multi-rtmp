@@ -1,13 +1,18 @@
-name: 'Build on Push and Tag'
+name: Plugin Build
 
 on:
   push:
-    paths-ignore: ['**.md']
-    branches: [master]
-    tags: ['*']
+    paths-ignore:
+      - '**.md'
+    branches:
+      - master
+    tags:
+      - '*'
   pull_request:
-    paths-ignore: ['**.md']
-    branches: [master]
+    paths-ignore:
+      - '**.md'
+    branches:
+      - master
 
 env:
   PLUGIN_NAME: 'obs-plugintemplate'
@@ -20,7 +25,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
         with:
-          submodules: 'recursive'
+          submodules: recursive
 
       - name: Install clang-format
         run: sudo apt-get install -y clang-format-12
@@ -39,7 +44,7 @@ jobs:
     runs-on: macos-11
     strategy:
       matrix:
-        arch: ['x86_64', 'arm64', 'universal']
+        arch: [x86_64, arm64, universal]
     if: always()
     needs: [clang_check]
     outputs:
@@ -55,16 +60,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
         with:
-          path: 'plugin'
-          submodules: 'recursive'
+          path: plugin
+          submodules: recursive
 
       - name: Checkout obs-studio
         uses: actions/checkout@v3
         with:
           repository: 'obsproject/obs-studio'
-          path: 'obs-studio'
+          path: obs-studio
           fetch-depth: 0
-          submodules: 'recursive'
+          submodules: recursive
 
       - name: Setup Environment
         id: setup
@@ -162,7 +167,7 @@ jobs:
     runs-on: ubuntu-20.04
     strategy:
       matrix:
-        arch: ['x86_64']
+        arch: [x86_64]
     if: always()
     needs: [clang_check]
     outputs:
@@ -174,16 +179,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
         with:
-          path: 'plugin'
-          submodules: 'recursive'
+          path: plugin
+          submodules: recursive
 
       - name: Checkout obs-studio
         uses: actions/checkout@v3
         with:
           repository: 'obsproject/obs-studio'
-          path: 'obs-studio'
+          path: obs-studio
           fetch-depth: 0
-          submodules: 'recursive'
+          submodules: recursive
 
       - name: Setup Environment
         working-directory: ${{ github.workspace }}/plugin
@@ -212,7 +217,7 @@ jobs:
           fi
 
       - name: Build Plugin
-        uses: ././plugin/.github/actions/build-plugin
+        uses: ./plugin/.github/actions/build-plugin
         with:
           workingDirectory: ${{ github.workspace }}/plugin
           target: ${{ matrix.arch }}
@@ -238,7 +243,7 @@ jobs:
     runs-on: windows-2022
     strategy:
       matrix:
-        arch: ['x86', 'x64']
+        arch: [x86, x64]
     if: always()
     needs: [clang_check]
     outputs:
@@ -250,16 +255,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
         with:
-          path: 'plugin'
-          submodules: 'recursive'
+          path: plugin
+          submodules: recursive
 
       - name: Checkout obs-studio
         uses: actions/checkout@v3
         with:
           repository: 'obsproject/obs-studio'
-          path: 'obs-studio'
+          path: obs-studio
           fetch-depth: 0
-          submodules: 'recursive'
+          submodules: recursive
 
       - name: Setup Environment
         working-directory: ${{ github.workspace }}/plugin
@@ -281,7 +286,7 @@ jobs:
               UseBasicParsing = $true
             }
 
-            (Invoke-RestMethod @Params).labels.name.contains("Seeking Testers")
+            (Invoke-RestMethod @Params).labels.name.contains('Seeking Testers')
           } catch {
             $false
           }
@@ -289,7 +294,7 @@ jobs:
           Write-Output "::set-output name=found::$(([string]${LabelFound}).ToLower())"
 
       - name: Build Plugin
-        uses: ././plugin/.github/actions/build-plugin
+        uses: ./plugin/.github/actions/build-plugin
         with:
           workingDirectory: ${{ github.workspace }}/plugin
           target: ${{ matrix.arch }}
@@ -312,12 +317,12 @@ jobs:
 
       - name: Package Plugin Installer
         if: ${{ startsWith(github.ref, 'refs/tags/') && github.event_name != 'pull_request' }}
-        uses: ././plugin/.github/actions/package-plugin
+        uses: ./plugin/.github/actions/package-plugin
         with:
           workingDirectory: ${{ github.workspace }}/plugin
           target: ${{ matrix.arch }}
           config: RelWithDebInfo
-          createInstaller: 'true'
+          createInstaller: true
 
       - name: Upload Installer Artifact
         if: ${{ startsWith(github.ref, 'refs/tags/') && github.event_name != 'pull_request' }}
