@@ -76,6 +76,8 @@ jobs:
         id: setup
         working-directory: ${{ github.workspace }}/plugin
         run: |
+          ## SETUP ENVIRONMENT SCRIPT
+          print '::group::Clean Homebrew Environment'
           typeset -a to_remove=()
 
           for formula (speexdsp curl php) {
@@ -83,7 +85,9 @@ jobs:
           }
 
           if (( #to_remove > 0 )) brew uninstall --ignore-dependencies ${to_remove}
+          print '::endgroup::'
 
+          print '::group::Set up code signing'
           if [[ '${{ secrets.MACOS_SIGNING_APPLICATION_IDENTITY }}' != '' && \
                 '${{ secrets.MACOS_SIGNING_INSTALLER_IDENTITY }}' != '' && \
                 '${{ secrets.MACOS_SIGNING_CERT }}' != '' ]] {
@@ -98,6 +102,7 @@ jobs:
           } else {
             print '::set-output name=haveNotarizationUser::false'
           }
+          print '::endgroup::'
 
           print "::set-output name=ccacheDate::$(date +"%Y-%m-%d")"
           print "::set-output name=commitHash::${"$(git rev-parse HEAD)"[0,9]}"
@@ -196,6 +201,7 @@ jobs:
         working-directory: ${{ github.workspace }}/plugin
         id: setup
         run: |
+          ## SETUP ENVIRONMENT SCRIPT
           echo "::set-output name=ccacheDate::$(date +"%Y-%m-%d")"
           echo "::set-output name=commitHash::$(git rev-parse HEAD | cut -c1-9)"
 
@@ -212,6 +218,7 @@ jobs:
         id: seekingTesters
         if: ${{ github.event_name == 'pull_request' }}
         run: |
+          ## GITHUB LABEL SCRIPT
           if [[ -n "$(curl -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" -s "${{ github.event.pull_request.url }}" | jq -e '.labels[] | select(.name == "Seeking Testers")')" ]]; then
             echo '::set-output name=found::true'
           else
@@ -273,14 +280,16 @@ jobs:
         working-directory: ${{ github.workspace }}/plugin
         id: setup
         run: |
-          $CommitHash = git rev-parse HEAD
-          Write-Output "::set-output name=commitHash::$($CommitHash.SubString(0,9))"
+          ## SETUP ENVIRONMENT SCRIPT
+          $CommitHash = (git rev-parse HEAD)[0..8] -join ''
+          Write-Output "::set-output name=commitHash::${CommitHash}"
 
       - name: Check for GitHub Labels
         id: seekingTesters
         working-directory: ${{ github.workspace }}/plugin
         if: ${{ github.event_name == 'pull_request' }}
         run: |
+          ## GITHUB LABEL SCRIPT
           $LabelFound = try {
             $Params = @{
               Authentication = 'Bearer'
@@ -347,6 +356,7 @@ jobs:
       - name: Get Metadata
         id: metadata
         run: |
+          ## METADATA SCRIPT
           echo "::set-output name=version::${GITHUB_REF/refs\/tags\//}"
           echo "::set-output name=date::$(date +"%Y-%m-%d")"
           echo '::set-output name=commitHash::${{ needs.macos_build.outputs.commitHash }}'
@@ -356,6 +366,7 @@ jobs:
 
       - name: Generate Checksums
         run: |
+          ## CHECKSUM GENERATION SCRIPT
           shopt -s extglob
           echo "### Checksums" > ${{ github.workspace }}/CHECKSUMS.txt
           for file in ${{ github.workspace }}/**/@(*.pkg|*.exe|*.deb|*.zip); do
