@@ -165,7 +165,11 @@ Usage: %B${functrace[1]%:*}%b <option> [<options>]
         -DCMAKE_FRAMEWORK_PATH="${project_root:h}/obs-build-dependencies/obs-plugin-deps/Frameworks"
       )
       ;;
-    linux-*) ;;
+    linux-*)
+      if (( ${+CI} )) {
+        cmake_args+=(-DCMAKE_INSTALL_PREFIX=/usr)
+      }
+      ;;
   }
 
   cmake -S . -B build_${target} -G Ninja ${cmake_args}
