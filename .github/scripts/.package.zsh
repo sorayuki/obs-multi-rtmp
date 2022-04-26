@@ -162,7 +162,7 @@ Usage: %B${functrace[1]%:*}%b <option> [<options>]
         "${project_root}/release/${output_name}"
     }
 
-    if (( ${+CODESIGN} + ${+NOTARIZE} > 1 )) {
+    if (( ${+CODESIGN} && ${+NOTARIZE} )) {
       check_xcnotary
 
       local _error=0
