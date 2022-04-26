@@ -15,5 +15,8 @@ if (( ! ${+commands[brew]} )) {
   log_error 'No Homebrew command found. Please install Homebrew (https://brew.sh)'
   return 2
 }
+
+# Temporary GitHub Actions fix
+if (( ${+CI} )) brew unlink git@2.35.1
 brew bundle --file "${SCRIPT_HOME}/.Brewfile"
 rehash
