@@ -41,7 +41,7 @@ jobs:
 
   macos_build:
     name: 02 - macOS
-    runs-on: macos-11
+    runs-on: macos-12
     strategy:
       fail-fast: true
       matrix:
