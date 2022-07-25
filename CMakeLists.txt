@@ -28,7 +28,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/plugin-main.c)
 find_package(libobs REQUIRED)
 find_package(obs-frontend-api REQUIRED)
 include(cmake/ObsPluginHelpers.cmake)
-find_qt(VERSION ${QT_VERSION} COMPONENTS Widgets Core)
+find_qt(COMPONENTS Widgets Core)
 
 configure_file(src/plugin-macros.h.in
                ${CMAKE_SOURCE_DIR}/src/plugin-macros.generated.h)
