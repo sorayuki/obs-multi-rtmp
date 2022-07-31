@@ -16,7 +16,5 @@ if (( ! ${+commands[brew]} )) {
   return 2
 }
 
-# Temporary GitHub Actions fix
-if (( ${+CI} )) brew unlink git@2.35.1
-brew bundle --file "${SCRIPT_HOME}/.Brewfile"
+brew bundle --file "${SCRIPT_HOME}/.Brewfile" --no-upgrade
 rehash
