@@ -25,14 +25,12 @@ if (( ! ${+target} )) {
   return 2
 }
 
-if [[ ! -r ${buildspec_file} ]] {
-  log_error \
-    'No buildspec.json found. Please create a build specification for your project.' \
-    'A buildspec.json.template file is provided in the repository to get you started.'
-  return 2
-}
-
 log_info 'Setting up OBS-Studio...'
+
+local obs_version
+local obs_repo
+local obs_branch
+local obs_hash
 
 read -r obs_version obs_repo obs_branch obs_hash <<< \
   "$(jq -r --arg key "obs-studio" \
@@ -47,59 +45,78 @@ if [[ -z ${obs_version} ]] {
 pushd
 mkcd ${project_root:h}/obs-studio
 
-if [[ -d .git ]] {
-  git config advice.detachedHead false
-  git config remote.pluginbuild.url "${obs_repo:-https://github.com/obsproject/obs-studio.git}"
-  git config remote.pluginbuild.fetch "+refs/heads/${obs_branch:-master}:refs/remotes/origin/${obs_branch:-master}"
+if (( ! (${skips[(Ie)all]} + ${skips[(Ie)unpack]}) )) {
+  if [[ -d .git ]] {
+    git config advice.detachedHead false
+    git config remote.pluginbuild.url "${obs_repo:-https://github.com/obsproject/obs-studio.git}"
+    git config remote.pluginbuild.fetch "+refs/heads/${obs_branch:-master}:refs/remotes/origin/${obs_branch:-master}"
 
-  git rev-parse -q --verify "${obs_hash}^{commit}" > /dev/null || git fetch pluginbuild
-  git checkout ${obs_branch:-master} -B ${product_name}
-  git reset --hard "${obs_hash}"
-  log_status 'Found existing obs-studio repository.'
-} else {
-  git clone "${obs_repo:-https://github.com/obsproject/obs-studio.git}" "${PWD}"
-  git config advice.detachedHead false
-  git checkout -f "${obs_hash}" --
-  git checkout ${obs_branch:-master} -b ${product_name}
-  log_status 'obs-studio checked out.'
+    git rev-parse -q --verify "${obs_hash}^{commit}" > /dev/null || git fetch pluginbuild
+    git checkout ${obs_branch:-master} -B ${product_name}
+    git reset --hard "${obs_hash}"
+    log_status 'Found existing obs-studio repository.'
+  } else {
+    git clone "${obs_repo:-https://github.com/obsproject/obs-studio.git}" "${PWD}"
+    git config advice.detachedHead false
+    git checkout -f "${obs_hash}" --
+    git checkout ${obs_branch:-master} -b ${product_name}
+    log_status 'obs-studio checked out.'
+  }
+
+  git submodule foreach --recursive git submodule sync
+  git submodule update --init --recursive
 }
 
-git submodule foreach --recursive git submodule sync
-git submodule update --init --recursive
+if (( ! (${skips[(Ie)all]} + ${skips[(Ie)build]}) )) {
+  log_info 'Configuring obs-studio...'
 
-log_info 'Configuring obs-studio...'
+  local -a cmake_args=(
+    -DCMAKE_BUILD_TYPE=${BUILD_CONFIG:-Release}
+    -DQT_VERSION=${QT_VERSION}
+    -DENABLE_PLUGINS=OFF
+    -DENABLE_UI=OFF
+    -DENABLE_SCRIPTING=OFF
+    -DCMAKE_INSTALL_PREFIX="${project_root:h}/obs-build-dependencies/plugin-deps-${OBS_DEPS_VERSION}-qt${QT_VERSION}-${target##*-}"
+    -DCMAKE_PREFIX_PATH="${project_root:h}/obs-build-dependencies/plugin-deps-${OBS_DEPS_VERSION}-qt${QT_VERSION}-${target##*-}"
+  )
 
-local -a cmake_args=(
-  -DCMAKE_BUILD_TYPE=${BUILD_CONFIG:-Release}
-  -DENABLE_PLUGINS=OFF
-  -DENABLE_UI=OFF
-  -DENABLE_SCRIPTING=OFF
-  -DCMAKE_INSTALL_PREFIX="${project_root:h}/obs-build-dependencies/obs-plugin-deps"
-  -DCMAKE_PREFIX_PATH="${project_root:h}/obs-build-dependencies/obs-plugin-deps"
-)
+  if (( _loglevel == 0 )) cmake_args+=(-Wno_deprecated -Wno-dev --log-level=ERROR)
+  if (( _loglevel > 2 )) cmake_args+=(--debug-output)
 
-if (( _loglevel == 0 )) cmake_args+=(-Wno_deprecated -Wno-dev --log-level=ERROR)
+  local num_procs
 
-case ${target} {
-  macos-*)
-    cmake_args+=(
-      -DCMAKE_OSX_ARCHITECTURES=${${target##*-}//universal/x86_64;arm64}
-      -DCMAKE_OSX_DEPLOYMENT_TARGET=${MACOSX_DEPLOYMENT_TARGET:-10.15}
-    )
-    ;;
-  linux-*)
-    cmake_args+=(
-      -DENABLE_PIPEWIRE=OFF
-    )
-    ;;
+  case ${target} {
+    macos-*)
+      autoload -Uz read_codesign
+      if (( ${+CODESIGN} )) {
+        read_codesign
+      }
+
+      cmake_args+=(
+        -DCMAKE_OSX_ARCHITECTURES=${${target##*-}//universal/x86_64;arm64}
+        -DCMAKE_OSX_DEPLOYMENT_TARGET=${DEPLOYMENT_TARGET:-10.15}
+        -DOBS_CODESIGN_LINKER=ON
+        -DOBS_BUNDLE_CODESIGN_IDENTITY="${CODESIGN_IDENT:--}"
+      )
+      num_procs=$(( $(sysctl -n hw.ncpu) + 1 ))
+      ;;
+    linux-*)
+      cmake_args+=(
+        -DENABLE_PIPEWIRE=OFF
+      )
+      num_procs=$(( $(nproc) + 1 ))
+      ;;
+  }
+
+  log_debug "Attempting to configure OBS with CMake arguments: ${cmake_args}"
+  cmake -S . -B plugin_build_${target##*-} -G ${generator} ${cmake_args}
+
+  log_info 'Building libobs and obs-frontend-api...'
+  local -a cmake_args=()
+  if (( _loglevel > 1 )) cmake_args+=(--verbose)
+  if [[ ${generator} == 'Unix Makefiles' ]] cmake_args+=(--parallel ${num_procs})
+  cmake --build plugin_build_${target##*-} --config ${BUILD_CONFIG:-Release} ${cmake_args} -t obs-frontend-api
+  cmake --install plugin_build_${target##*-} --config ${BUILD_CONFIG:-Release} --component obs_libraries ${cmake_args}
 }
 
-cmake -S . -B plugin_build_${target##*-} -G Ninja ${cmake_args}
-
-log_info 'Building libobs and obs-frontend-api...'
-local -a cmake_args=()
-if (( _loglevel > 1 )) cmake_args+=(--verbose)
-
-cmake --build plugin_build_${target##*-} --config ${BUILD_CONFIG:-Release} ${cmake_args} -t obs-frontend-api
-cmake --install plugin_build_${target##*-} --config ${BUILD_CONFIG:-Release} --component obs_libraries ${cmake_args}
 popd

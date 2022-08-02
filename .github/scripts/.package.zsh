@@ -12,9 +12,9 @@ setopt NO_PUSHD_IGNORE_DUPS
 setopt FUNCTION_ARGZERO
 
 ## Enable for script debugging
-#setopt WARN_CREATE_GLOBAL
-#setopt WARN_NESTED_VAR
-#setopt XTRACE
+# setopt WARN_CREATE_GLOBAL
+# setopt WARN_NESTED_VAR
+# setopt XTRACE
 
 autoload -Uz is-at-least && if ! is-at-least 5.2; then
   print -u2 -PR "%F{1}${funcstack[1]##*/}:%f Running on Zsh version %B${ZSH_VERSION}%b, but Zsh %B5.2%b is the minimum supported version. Upgrade Zsh to fix this issue."
@@ -42,7 +42,7 @@ package() {
   autoload -Uz set_loglevel log_info log_error log_output check_${host_os}
 
   local -i _verbosity=1
-  local -r _version='0.0.1'
+  local -r _version='1.0.0'
   local -r -a _valid_targets=(
     macos-x86_64
     macos-arm64
@@ -66,6 +66,7 @@ Usage: %B${functrace[1]%:*}%b <option> [<options>]
  -----------------------------------------------------------------------------
   %B-q | --quiet%b                      Quiet (error output only)
   %B-v | --verbose%b                    Verbose (more detailed output)
+  %B--debug%b                           Debug (very detailed and added output)
 
 %F{yellow} General options%f
  -----------------------------------------------------------------------------
@@ -107,8 +108,8 @@ Usage: %B${functrace[1]%:*}%b <option> [<options>]
         BUILD_CONFIG=${2}
         shift 2
         ;;
-      -s|--codesign) CODESIGN=1; shift ;;
-      -n|--notarize) NOTARIZE=1; shift ;;
+      -s|--codesign) typeset -g CODESIGN=1; shift ;;
+      -n|--notarize) typeset -g NOTARIZE=1; typeset -g CODESIGN=1; shift ;;
       -q|--quiet) (( _verbosity -= 1 )) || true; shift ;;
       -v|--verbose) (( _verbosity += 1 )); shift ;;
       -h|--help) log_output ${_usage}; exit 0 ;;
@@ -123,11 +124,13 @@ Usage: %B${functrace[1]%:*}%b <option> [<options>]
 
   check_${host_os}
 
+  local product_name
+  local product_version
   read -r product_name product_version <<< \
     "$(jq -r '. | {name, version} | join(" ")' ${project_root}/buildspec.json)"
 
   if [[ ${host_os} == 'macos' ]] {
-    autoload -Uz check_packages check_xcnotary read_codesign read_codesign_installer read_codesign_pass
+    autoload -Uz check_packages read_codesign read_codesign_installer read_codesign_pass
 
     local output_name="${product_name}-${product_version}-${host_os}-${target##*-}.pkg"
 
@@ -136,7 +139,7 @@ Usage: %B${functrace[1]%:*}%b <option> [<options>]
       return 2
     }
 
-    if [[ ! -f ${project_root}/build_${target}/installer-macos.generated.pkgproj ]] {
+    if [[ ! -f ${project_root}/build_${target##*-}/installer-macos.generated.pkgproj ]] {
       log_error 'Packages project file not found. Run the build script or the CMake build and install procedures first.'
       return 2
     }
@@ -147,7 +150,7 @@ Usage: %B${functrace[1]%:*}%b <option> [<options>]
     pushd ${project_root}
     packagesbuild \
       --build-folder ${project_root}/release \
-      ${project_root}/build_${target}/installer-macos.generated.pkgproj
+      ${project_root}/build_${target##*-}/installer-macos.generated.pkgproj
 
     if (( ${+CODESIGN} )) {
       read_codesign_installer
@@ -163,25 +166,17 @@ Usage: %B${functrace[1]%:*}%b <option> [<options>]
     }
 
     if (( ${+CODESIGN} && ${+NOTARIZE} )) {
-      check_xcnotary
-
-      local _error=0
-      if [[ -f "${project_root}/release/${output_name}" ]] {
-        xcnotary precheck "${project_root}/release/${output_name}" || _error=1
-      } else {
+      if [[ ! -f "${project_root}/release/${output_name}" ]] {
         log_error "No package for notarization found."
         return 2
       }
 
-      if (( ! _error )) {
-        read_codesign_installer
-        read_codesign_pass
+      read_codesign_installer
+      read_codesign_pass
 
-        xcnotary notarize "${project_root}/release/${output_name}" \
-          --developer-account "${CODESIGN_IDENT_USER}" \
-          --developer-password-keychain-item "OBS-Codesign-Password" \
-          --provider "${CODESIGN_IDENT_SHORT}"
-      }
+      xcrun notarytool submit "${project_root}/release/${output_name}" \
+        --keychain-profile "OBS-Codesign-Password" --wait
+      xcrun stapler staple "${project_root}/release/${output_name}"
     }
     popd
   } elif [[ ${host_os} == 'linux' ]] {
@@ -189,7 +184,7 @@ Usage: %B${functrace[1]%:*}%b <option> [<options>]
     if (( _loglevel > 1 )) cmake_args+=(--verbose)
 
     pushd ${project_root}
-    cmake --build build_${target} --config ${BUILD_CONFIG:-RelWithDebInfo} -t package ${cmake_args}
+    cmake --build build_${target##*-} --config ${BUILD_CONFIG:-RelWithDebInfo} -t package ${cmake_args}
     popd
   }
 }

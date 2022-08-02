@@ -44,7 +44,7 @@ function Invoke-GitCheckout {
     }
 
     if ( ! ( Test-Path function:Log-Information ) ) {
-        . $PSScriptRoot/Utils-Logger.ps1
+        . $PSScriptRoot/Logger.ps1
     }
 
     if ( ! ( Test-Path function:Invoke-External ) ) {

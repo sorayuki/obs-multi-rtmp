@@ -20,7 +20,7 @@ env:
 jobs:
   clang_check:
     name: 01 - Code Format Check
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -28,7 +28,7 @@ jobs:
           submodules: recursive
 
       - name: Install clang-format
-        run: sudo apt-get install -y clang-format-12
+        run: sudo apt-get install -y clang-format-13
 
       - name: Run clang-format
         run: ./.github/scripts/check-format.sh && ./.github/scripts/check-changes.sh
@@ -171,7 +171,7 @@ jobs:
 
   linux_build:
     name: 02 - Linux
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: true
       matrix:
@@ -346,7 +346,7 @@ jobs:
 
   make-release:
     name: 03 - Create and upload release
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
     needs: [macos_build, linux_build, windows_build]
     defaults:

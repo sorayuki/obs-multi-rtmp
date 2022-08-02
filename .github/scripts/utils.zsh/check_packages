@@ -32,6 +32,7 @@ if (( ! ${+commands[packagesbuild]} )) {
     curl ${curl_opts} ${packages_url}
   }
 
+  local image_checksum
   read -r image_checksum _ <<< "$(sha256sum Packages.dmg)"
 
   if [[ ${packages_hash} != ${image_checksum} ]] {

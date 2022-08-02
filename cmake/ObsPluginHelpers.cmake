@@ -189,9 +189,10 @@ if(OS_MACOS)
                                                       "x86_64;arm64")
 
   set(CMAKE_OSX_DEPLOYMENT_TARGET
-      "10.13"
+      "10.15"
       CACHE STRING "OBS deployment target for macOS - 10.15+ required")
-  set_property(CACHE CMAKE_OSX_DEPLOYMENT_TARGET PROPERTY STRINGS 10.15 11 12)
+  set_property(CACHE CMAKE_OSX_DEPLOYMENT_TARGET PROPERTY STRINGS 10.15 11.0
+                                                          12.0 13.0)
 
   set(OBS_BUNDLE_CODESIGN_IDENTITY
       "-"
@@ -267,15 +268,22 @@ if(OS_MACOS)
               COMPONENT obs_plugins
               NAMELINK_COMPONENT ${target}_Development)
 
+    if(${QT_VERSION} EQUAL 5)
+      set(_QT_FW_VERSION "${QT_VERSION}")
+    else()
+      set(_QT_FW_VERSION "A")
+    endif()
+
     set(_COMMAND
         "${CMAKE_INSTALL_NAME_TOOL} \\
-      -change ${CMAKE_PREFIX_PATH}/lib/QtWidgets.framework/Versions/${QT_VERSION}/QtWidgets @rpath/QtWidgets.framework/Versions/${QT_VERSION}/QtWidgets \\
-      -change ${CMAKE_PREFIX_PATH}/lib/QtCore.framework/Versions/${QT_VERSION}/QtCore @rpath/QtCore.framework/Versions/${QT_VERSION}/QtCore \\
-      -change ${CMAKE_PREFIX_PATH}/lib/QtGui.framework/Versions/${QT_VERSION}/QtGui @rpath/QtGui.framework/Versions/${QT_VERSION}/QtGui \\
+      -change ${CMAKE_PREFIX_PATH}/lib/QtWidgets.framework/Versions/${QT_VERSION}/QtWidgets @rpath/QtWidgets.framework/Versions/${_QT_FW_VERSION}/QtWidgets \\
+      -change ${CMAKE_PREFIX_PATH}/lib/QtCore.framework/Versions/${QT_VERSION}/QtCore @rpath/QtCore.framework/Versions/${_QT_FW_VERSION}/QtCore \\
+      -change ${CMAKE_PREFIX_PATH}/lib/QtGui.framework/Versions/${QT_VERSION}/QtGui @rpath/QtGui.framework/Versions/${_QT_FW_VERSION}/QtGui \\
       \\\"\${CMAKE_INSTALL_PREFIX}/${target}.plugin/Contents/MacOS/${target}\\\""
     )
     install(CODE "execute_process(COMMAND /bin/sh -c \"${_COMMAND}\")"
             COMPONENT obs_plugins)
+    unset(_QT_FW_VERSION)
 
     if(NOT XCODE)
       set(_COMMAND
@@ -283,7 +291,7 @@ if(OS_MACOS)
           --sign \\\"${OBS_BUNDLE_CODESIGN_IDENTITY}\\\" \\
           --options runtime \\
           --entitlements \\\"${CMAKE_CURRENT_FUNCTION_LIST_DIR}/bundle/macOS/entitlements.plist\\\" \\
-          \\\"${CMAKE_INSTALL_PREFIX}/${target}.plugin\\\"")
+          \\\"\${CMAKE_INSTALL_PREFIX}/${target}.plugin\\\"")
       install(CODE "execute_process(COMMAND /bin/sh -c \"${_COMMAND}\")"
               COMPONENT obs_plugins)
     endif()

@@ -11,93 +11,86 @@ function Setup-Host {
         . $PSScriptRoot/Install-BuildDependencies.ps1
     }
 
-    Install-BuildDependencies -WingetFile "${ScriptHome}/.Wingetfile"
-
-    if ( $script:Target -eq '' ) { $script:Target = $script:HostArchitecture }
-
-    Push-Location -Stack BuildTemp
-    Log-Information 'Setting up obs-deps...'
-    $DepsVersion = $BuildSpec.dependencies.'obs-deps'."windows-${script:Target}".version
-    $DepsHash = $BuildSpec.dependencies.'obs-deps'."windows-${script:Target}".hash
-
-    if ( ${DepsVersion} -eq '' ) {
-        throw 'No obs-deps version found in buildspec.json.'
-    }
-    Log-Status 'Found obs-deps specification.'
-
-    Ensure-Location -Path "$(Resolve-Path -Path "${ProjectRoot}/..")/obs-build-dependencies"
-
-    if ( ! ( Test-Path -Path "windows-deps-${DepsVersion}-${script:Target}.zip" ) ) {
-        $Params = @{
-            UserAgent = 'NativeHost'
-            Uri = "https://github.com/obsproject/obs-deps/releases/download/win-${DepsVersion}/windows-deps-${DepsVersion}-${script:Target}.zip"
-            OutFile = "windows-deps-${DepsVersion}-${script:Target}.zip"
-            UseBasicParsing = $true
-            ErrorAction = 'Stop'
-        }
-
-        Invoke-WebRequest @Params
-        Log-Status "Downloaded obs-deps for ${script:Target}."
-    } else {
-        Log-Status 'Found downloaded obs-deps.'
-    }
-
-    $FileHash = Get-FileHash -Path "windows-deps-${DepsVersion}-${script:Target}.zip" -Algorithm SHA256
-
-    if ( $FileHash.Hash.ToLower() -ne $DepsHash ) {
-        throw "Checksum mismatch of obs-deps download. Expected '${DepsHash}', found '$(${FileHash}.Hash.ToLower())'"
-    }
-    Log-Status 'Checksum of downloaded obs-deps matches.'
-
-    Ensure-Location -Path "plugin-deps-${Target}"
-
     if ( ! ( Test-Path function:Expand-ArchiveExt ) ) {
         . $PSScriptRoot/Expand-ArchiveExt.ps1
     }
 
-    Log-Information 'Extracting obs-deps...'
-    Expand-ArchiveExt -Path "../windows-deps-${DepsVersion}-${script:Target}.zip" -DestinationPath . -Force
-    Pop-Location -Stack BuildTemp
+    Install-BuildDependencies -WingetFile "${ScriptHome}/.Wingetfile"
 
-    Push-Location -Stack BuildTemp
-    Log-Information 'Setting up Qt...'
-    $QtVersion = $BuildSpec.dependencies.'obs-deps-qt'."windows-${script:Target}".version
-    $QtHash = $BuildSpec.dependencies.'obs-deps-qt'."windows-${script:Target}".hash
+    if ( $script:Target -eq '' ) { $script:Target = $script:HostArchitecture }
 
-    if ( ${QtVersion} -eq '' ) {
-        throw 'No Qt version found in buildspec.json.'
-    }
-    Log-Status 'Found Qt specification.'
+    $script:QtVersion = $BuildSpec.platformConfig."windows-${script:Target}".qtVersion
+    $script:VisualStudioVersion = $BuildSpec.platformConfig."windows-${script:Target}".visualStudio
+    $script:PlatformSDK = $BuildSpec.platformConfig."windows-${script:Target}".platformSDK
 
-    Ensure-Location -Path "$(Resolve-Path -Path "${ProjectRoot}/..")/obs-build-dependencies"
+    if ( ! ( ( $script:SkipAll ) -or ( $script:SkipDeps ) ) ) {
+        ('prebuilt', "qt${script:QtVersion}") | ForEach-Object {
+            $_Dependency = $_
+            $_Version = $BuildSpec.dependencies."${_Dependency}".version
+            $_BaseUrl = $BuildSpec.dependencies."${_Dependency}".baseUrl
+            $_Label = $BuildSpec.dependencies."${_Dependency}".label
+            $_Hash = $BuildSpec.dependencies."${_Dependency}".hashes."windows-${script:Target}"
 
-    if ( ! ( Test-Path -Path "windows-deps-qt-${DepsVersion}-${script:Target}.zip" ) ) {
-        $Params = @{
-            UserAgent = 'NativeHost'
-            Uri = "https://cdn-fastly.obsproject.com/downloads/windows-deps-qt-${DepsVersion}-${script:Target}.zip"
-            OutFile = "windows-deps-qt-${DepsVersion}-${script:Target}.zip"
-            UseBasicParsing = $true
-            ErrorAction = 'Stop'
+            if ( $BuildSpec.dependencies."${_Dependency}".PSobject.Properties.Name -contains "pdb-hashes" ) {
+                $_PdbHash = $BuildSpec.dependencies."${_Dependency}".'pdb-hashes'."$windows-${script:Target}"
+            }
+
+            if ( $_Version -eq '' ) {
+                throw "No ${_Dependency} spec found in ${script:BuildSpecFile}."
+            }
+
+            Log-Information "Setting up ${_Label}..."
+
+            Push-Location -Stack BuildTemp
+            Ensure-Location -Path "$(Resolve-Path -Path "${ProjectRoot}/..")/obs-build-dependencies"
+
+            switch -wildcard ( $_Dependency ) {
+                prebuilt {
+                    $_Filename = "windows-deps-${_Version}-${script:Target}.zip"
+                    $_Uri = "${_BaseUrl}/${_Version}/${_Filename}"
+                    $_Target = "plugin-deps-${_Version}-qt${script:QtVersion}-${script:Target}"
+                    $script:DepsVersion = ${_Version}
+                }
+                "qt*" {
+                    $_Filename = "windows-deps-qt${script:QtVersion}-${_Version}-${script:Target}.zip"
+                    $_Uri = "${_BaseUrl}/${_Version}/${_Filename}"
+                    $_Target = "plugin-deps-${_Version}-qt${script:QtVersion}-${script:Target}"
+                }
+            }
+
+            if ( ! ( Test-Path -Path $_Filename ) ) {
+                $Params = @{
+                    UserAgent = 'NativeHost'
+                    Uri = $_Uri
+                    OutFile = $_Filename
+                    UseBasicParsing = $true
+                    ErrorAction = 'Stop'
+                }
+
+                Invoke-WebRequest @Params
+                Log-Status "Downloaded ${_Label} for ${script:Target}."
+            } else {
+                Log-Status "Found downloaded ${_Label}."
+            }
+
+            $_FileHash = Get-FileHash -Path $_Filename -Algorithm SHA256
+
+            if ( $_FileHash.Hash.ToLower() -ne $_Hash ) {
+                throw "Checksum of downloaded ${_Label} does not match specification. Expected '${_Hash}', 'found $(${_FileHash}.Hash.ToLower())'"
+            }
+            Log-Status "Checksum of downloaded ${_Label} matches."
+
+            if ( ! ( ( $script:SkipAll ) -or ( $script:SkipUnpack ) ) ) {
+                Push-Location -Stack BuildTemp
+                Ensure-Location -Path $_Target
+
+                Expand-ArchiveExt -Path "../${_Filename}" -DestinationPath . -Force
+
+                Pop-Location -Stack BuildTemp
+            }
+            Pop-Location -Stack BuildTemp
         }
-
-        Invoke-WebRequest @Params
-        Log-Status "Downloaded Qt for ${script:Target}."
-    } else {
-        Log-Status 'Found downloaded Qt.'
     }
-
-    $FileHash = Get-FileHash -Path "windows-deps-qt-${DepsVersion}-${script:Target}.zip" -Algorithm SHA256
-
-    if ( $FileHash.Hash.ToLower() -ne ${QtHash} ) {
-        throw "Checksum mismatch of Qt download. Expected '${QtHash}', found '$(${FileHash}.Hash.ToLower())'"
-    }
-    Log-Status 'Checksum of downloaded Qt matches.'
-
-    Ensure-Location -Path "plugin-deps-${Target}"
-
-    Log-Information 'Extracting Qt...'
-    Expand-ArchiveExt -Path "../windows-deps-qt-${DepsVersion}-${script:Target}.zip" -DestinationPath . -Force
-    Pop-Location -Stack BuildTemp
 }
 
 function Get-HostArchitecture {

@@ -66,8 +66,8 @@ if(OS_WINDOWS)
 
   # -- macOS specific build settings and tasks --
 elseif(OS_MACOS)
-  configure_file(cmake/bundle/macos/installer-macOS.pkgproj.in
-                 ${CMAKE_BINARY_DIR}/installer-macOS.generated.pkgproj)
+  configure_file(cmake/bundle/macos/installer-macos.pkgproj.in
+                 ${CMAKE_BINARY_DIR}/installer-macos.generated.pkgproj)
 
   set(MACOSX_PLUGIN_GUI_IDENTIFIER "${MACOS_BUNDLEID}")
   set(MACOSX_PLUGIN_BUNDLE_VERSION "${CMAKE_PROJECT_VERSION}")

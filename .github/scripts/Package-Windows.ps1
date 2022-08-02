@@ -49,8 +49,8 @@ function Package {
     $RemoveArgs = @{
         ErrorAction = 'SilentlyContinue'
         Path = @(
-            "${ProjectRoot}/release/${ProductName}-${ProductVersion}-windows-*.zip"
-            "${ProjectRoot}/release/${ProductName}-${ProductVersion}-windows-*.exe"
+            "${ProjectRoot}/release/${ProductName}-*-windows-*.zip"
+            "${ProjectRoot}/release/${ProductName}-*-windows-*.exe"
         )
     }
 

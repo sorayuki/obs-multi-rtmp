@@ -3,8 +3,8 @@ autoload -Uz is-at-least log_info log_error log_status read_codesign
 local macos_version=$(sw_vers -productVersion)
 
 log_info 'Checking macOS version...'
-if ! is-at-least 10.15.0 "${macos_version}"; then
-  log_error "Minimum required macOS version is 10.15, but running on macOS ${macos_version}"
+if ! is-at-least 11.0 "${macos_version}"; then
+  log_error "Minimum required macOS version is 11.0, but running on macOS ${macos_version}"
   return 2
 else
   log_status "macOS ${macos_version} is recent"
@@ -16,5 +16,5 @@ if (( ! ${+commands[brew]} )) {
   return 2
 }
 
-brew bundle --file "${SCRIPT_HOME}/.Brewfile" --no-upgrade
+brew bundle --file "${SCRIPT_HOME}/.Brewfile"
 rehash

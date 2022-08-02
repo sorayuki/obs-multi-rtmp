@@ -17,6 +17,8 @@ if (( ! ${+CODESIGN_IDENT} )) {
   read_codesign
 }
 
+local codesign_ident_short=$(print "${CODESIGN_IDENT}" | /usr/bin/sed -En 's/.+\((.+)\)/\1/p')
+
 if (( ! ${+CODESIGN_IDENT_USER} )) {
   read_codesign_user
 }
@@ -26,6 +28,6 @@ if (( ! ${+CODESIGN_IDENT_PASS} )) {
   read -s CODESIGN_IDENT_PASS'?Apple Developer ID password: '
 }
 
+print ''
 log_info 'Setting up notarization keychain...'
-xcrun altool --store-password-in-keychain-item 'OBS-Codesign-Password' -u "${CODESIGN_IDENT_USER}" -p "${CODESIGN_IDENT_PASS}"
-typeset -g CODESIGN_IDENT_SHORT=$(print "${CODESIGN_IDENT}" | /usr/bin/sed -En 's/.+\((.+)\)/\1/p')
+xcrun notarytool store-credentials 'OBS-Codesign-Password' --apple-id "${CODESIGN_IDENT_USER}" --team-id "${codesign_ident_short}" --password "${CODESIGN_IDENT_PASS}"
