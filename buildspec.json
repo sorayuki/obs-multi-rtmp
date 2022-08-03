@@ -75,7 +75,7 @@
             "platformSDK": "10.0.18363.657"
         },
         "linux-x86_64": {
-            "qtVersion": 5
+            "qtVersion": 6
         }
     },
     "name": "obs-plugintemplate",
