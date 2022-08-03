@@ -66,13 +66,13 @@
         },
         "windows-x64": {
             "qtVersion": 6,
-            "visualStudio": "Visual Studio 16 2019",
-            "platformSDK": "10.0.18363.657"
+            "visualStudio": "Visual Studio 17 2022",
+            "platformSDK": "10.0.20348.0"
         },
         "windows-x86": {
             "qtVersion": 6,
-            "visualStudio": "Visual Studio 16 2019",
-            "platformSDK": "10.0.18363.657"
+            "visualStudio": "Visual Studio 17 2022",
+            "platformSDK": "10.0.20348.0"
         },
         "linux-x86_64": {
             "qtVersion": 6
