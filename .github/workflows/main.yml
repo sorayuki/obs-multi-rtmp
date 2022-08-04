@@ -343,7 +343,6 @@ jobs:
           name: ${{ env.PLUGIN_NAME }}-windows-${{ matrix.arch }}-${{ steps.setup.outputs.commitHash }}-installer
           path: ${{ github.workspace }}/plugin/release/${{ env.PLUGIN_NAME }}-*.exe
 
-
   make-release:
     name: 03 - Create and upload release
     runs-on: ubuntu-22.04
@@ -358,8 +357,6 @@ jobs:
         run: |
           ## METADATA SCRIPT
           echo "::set-output name=version::${GITHUB_REF/refs\/tags\//}"
-          echo "::set-output name=date::$(date +"%Y-%m-%d")"
-          echo '::set-output name=commitHash::${{ needs.macos_build.outputs.commitHash }}'
 
       - name: Download build artifacts
         uses: actions/download-artifact@v3
@@ -378,16 +375,12 @@ jobs:
         uses: softprops/action-gh-release@1e07f4398721186383de40550babbdf2b84acfc5
         with:
           draft: false
-          prerelease: false
+          prerelease: ${{ contains(steps.metadata.outputs.version, 'rc') || contains(steps.metadata.outputs.version, 'beta') }}
           tag_name: ${{ steps.metadata.outputs.version }}
-          name: "${{ env.PLUGIN_NAME }} Build ${{ steps.metadata.outputs.version }}"
+          name: "${{ env.PLUGIN_NAME }} ${{ steps.metadata.outputs.version }}"
           body_path: ${{ github.workspace }}/CHECKSUMS.txt
           files: |
-            ${{ github.workspace }}/${{ env.PLUGIN_NAME }}-windows-x64-${{ steps.metadata.outputs.commitHash }}/*.zip
-            ${{ github.workspace }}/${{ env.PLUGIN_NAME }}-windows-x64-${{ steps.metadata.outputs.commitHash }}-installer/*.exe
-            ${{ github.workspace }}/${{ env.PLUGIN_NAME }}-windows-x86-${{ steps.metadata.outputs.commitHash }}/*.zip
-            ${{ github.workspace }}/${{ env.PLUGIN_NAME }}-windows-x86-${{ steps.metadata.outputs.commitHash }}-installer/*.exe
-            ${{ github.workspace }}/${{ env.PLUGIN_NAME }}-linux-x86_64-${{ steps.metadata.outputs.commitHash }}/*.deb
-            ${{ github.workspace }}/${{ env.PLUGIN_NAME }}-macos-x86_64-${{ steps.metadata.outputs.commitHash }}/*.pkg
-            ${{ github.workspace }}/${{ env.PLUGIN_NAME }}-macos-arm64-${{ steps.metadata.outputs.commitHash }}/*.pkg
-            ${{ github.workspace }}/${{ env.PLUGIN_NAME }}-macos-universal-${{ steps.metadata.outputs.commitHash }}/*.pkg
+            ${{ github.workspace }}/**/*.zip
+            ${{ github.workspace }}/**/*.exe
+            ${{ github.workspace }}/**/*.deb
+            ${{ github.workspace }}/**/*.pkg
