@@ -40,11 +40,15 @@ if ($depdir -ceq "") {
     break script
 }
 
-Remove-Item -Recurse -Force output
+if ([System.IO.Directory]::Exists("output")) {
+    Remove-Item -Recurse -Force output
+}
 mkdir output
 Foreach($portable in @("ON", "OFF")) {
     Foreach($dir in @("build_x64", "dist")) {
-        Remove-Item -Recurse -Force $dir
+        if ([System.IO.Directory]::Exists($dir)) {
+            Remove-Item -Recurse -Force $dir
+        }
     }
     cmake -DQTDIR="${depdir}" -G "Visual Studio 17 2022" -A x64 -B build_x64 -S . -DPORTABLE_MODE="${portable}" -DCMAKE_INSTALL_PREFIX=dist
     if ($LASTEXITCODE -gt 0) {
