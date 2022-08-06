@@ -61,10 +61,11 @@ build() {
   local -r -a _valid_configs=(Debug RelWithDebInfo Release MinSizeRel)
   if [[ ${host_os} == 'macos' ]] {
     local -r -a _valid_generators=(Xcode Ninja 'Unix Makefiles')
+    local generator="${${CI:+Ninja}:-Xcode}"
   } else {
     local -r -a _valid_generators=(Ninja 'Unix Makefiles')
+    local generator='Ninja'
   }
-  local generator='Ninja'
   local -r _usage="
 Usage: %B${functrace[1]%:*}%b <option> [<options>]
 
@@ -197,7 +198,7 @@ Usage: %B${functrace[1]%:*}%b <option> [<options>]
     )
 
     if (( _loglevel == 0 )) cmake_args+=(-Wno_deprecated -Wno-dev --log-level=ERROR)
-    if (( _logLevel > 2 )) cmake_args+=(--debug-output)
+    if (( _loglevel > 2 )) cmake_args+=(--debug-output)
 
     local num_procs
 
