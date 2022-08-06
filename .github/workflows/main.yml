@@ -23,16 +23,10 @@ jobs:
       - uses: actions/checkout@v2
 
       - name: build
-        run: githubci\build.bat
+        run: powershell githubci\build.ps1
       
       - name: Upload a Build Artifact
         uses: actions/upload-artifact@v2.2.0
         with:
           name: obs-multi-rtmp
-          path: installer
-
-      - name: Upload another Build Artifact
-        uses: actions/upload-artifact@v2.2.0
-        with:
-          name: obs-multi-rtmp
-          path: portable
+          path: output

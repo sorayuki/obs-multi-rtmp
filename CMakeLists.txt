@@ -10,7 +10,7 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt5 COMPONENTS Widgets REQUIRED)
+find_package(Qt6 COMPONENTS Widgets REQUIRED)
 
 set(LIB_OBS libobs)
 
@@ -105,7 +105,7 @@ target_link_directories(obs-multi-rtmp PRIVATE
     ${OBS_BIN_DIR}
 )
 target_link_libraries(obs-multi-rtmp PRIVATE
-    Qt5::Widgets
+    Qt6::Widgets
     ${LIB_OBS}
     obs-frontend-api
 )

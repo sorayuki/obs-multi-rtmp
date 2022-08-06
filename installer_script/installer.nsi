@@ -40,9 +40,6 @@ Page directory "" "" onDirPageLeave
 Page instfiles
 
 Section
-SetOutPath "$INSTDIR\bin\32bit"
-File "plugins\obs-multi-rtmp\bin\32bit\obs-multi-rtmp.dll"
-
 SetOutPath "$INSTDIR\bin\64bit"
 File "plugins\obs-multi-rtmp\bin\64bit\obs-multi-rtmp.dll"
 
