@@ -18,8 +18,8 @@ elseif(${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
   set(OS_POSIX OFF)
 endif()
 
-# Old-Style plugin detected, find "modern" libobs variant instead and set global
-# include directories to fix "bad" plugin behaviour
+# Old-Style plugin detected, find "modern" libobs variant instead and set global include directories
+# to fix "bad" plugin behaviour
 if(DEFINED LIBOBS_INCLUDE_DIR AND NOT TARGET OBS::libobs)
   message(
     DEPRECATION
@@ -46,10 +46,8 @@ endif()
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE
       "RelWithDebInfo"
-      CACHE STRING
-            "OBS build type [Release, RelWithDebInfo, Debug, MinSizeRel]" FORCE)
-  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Release RelWithDebInfo
-                                               Debug MinSizeRel)
+      CACHE STRING "OBS build type [Release, RelWithDebInfo, Debug, MinSizeRel]" FORCE)
+  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Release RelWithDebInfo Debug MinSizeRel)
 endif()
 
 if(NOT QT_VERSION)
@@ -61,8 +59,7 @@ endif()
 
 macro(find_qt)
   set(multiValueArgs COMPONENTS COMPONENTS_WIN COMPONENTS_MAC COMPONENTS_LINUX)
-  cmake_parse_arguments(FIND_QT "" "${oneValueArgs}" "${multiValueArgs}"
-                        ${ARGN})
+  cmake_parse_arguments(FIND_QT "" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
   set(QT_NO_CREATE_VERSIONLESS_TARGETS ON)
   find_package(
     Qt5
@@ -95,10 +92,7 @@ macro(find_qt)
       else()
         set(FALLBACK_QT_VERSION 6)
       endif()
-      message(
-        WARNING
-          "Qt${QT_VERSION} was not found, falling back to Qt${FALLBACK_QT_VERSION}"
-      )
+      message(WARNING "Qt${QT_VERSION} was not found, falling back to Qt${FALLBACK_QT_VERSION}")
 
       if(TARGET Qt${FALLBACK_QT_VERSION}::Core)
         set(_QT_VERSION
@@ -138,20 +132,18 @@ macro(find_qt)
     list(APPEND FIND_QT_COMPONENTS_LINUX "GuiPrivate")
   endif()
 
-  foreach(_COMPONENT IN LISTS FIND_QT_COMPONENTS FIND_QT_COMPONENTS_WIN
-                              FIND_QT_COMPONENTS_MAC FIND_QT_COMPONENTS_LINUX)
+  foreach(_COMPONENT IN LISTS FIND_QT_COMPONENTS FIND_QT_COMPONENTS_WIN FIND_QT_COMPONENTS_MAC
+                              FIND_QT_COMPONENTS_LINUX)
     if(NOT TARGET Qt::${_COMPONENT} AND TARGET Qt${_QT_VERSION}::${_COMPONENT})
 
       add_library(Qt::${_COMPONENT} INTERFACE IMPORTED)
-      set_target_properties(
-        Qt::${_COMPONENT} PROPERTIES INTERFACE_LINK_LIBRARIES
-                                     "Qt${_QT_VERSION}::${_COMPONENT}")
+      set_target_properties(Qt::${_COMPONENT} PROPERTIES INTERFACE_LINK_LIBRARIES
+                                                         "Qt${_QT_VERSION}::${_COMPONENT}")
     endif()
   endforeach()
 endmacro()
 
-file(RELATIVE_PATH RELATIVE_INSTALL_PATH ${CMAKE_SOURCE_DIR}
-     ${CMAKE_INSTALL_PREFIX})
+file(RELATIVE_PATH RELATIVE_INSTALL_PATH ${CMAKE_SOURCE_DIR} ${CMAKE_INSTALL_PREFIX})
 file(RELATIVE_PATH RELATIVE_BUILD_PATH ${CMAKE_SOURCE_DIR} ${CMAKE_BINARY_DIR})
 
 # Set up OS-specific environment and helper functions
@@ -183,16 +175,13 @@ endif()
 if(OS_MACOS)
   set(CMAKE_OSX_ARCHITECTURES
       "x86_64"
-      CACHE STRING
-            "OBS build architecture for macOS - x86_64 required at least")
-  set_property(CACHE CMAKE_OSX_ARCHITECTURES PROPERTY STRINGS x86_64 arm64
-                                                      "x86_64;arm64")
+      CACHE STRING "OBS build architecture for macOS - x86_64 required at least")
+  set_property(CACHE CMAKE_OSX_ARCHITECTURES PROPERTY STRINGS x86_64 arm64 "x86_64;arm64")
 
   set(CMAKE_OSX_DEPLOYMENT_TARGET
       "10.15"
       CACHE STRING "OBS deployment target for macOS - 10.15+ required")
-  set_property(CACHE CMAKE_OSX_DEPLOYMENT_TARGET PROPERTY STRINGS 10.15 11.0
-                                                          12.0 13.0)
+  set_property(CACHE CMAKE_OSX_DEPLOYMENT_TARGET PROPERTY STRINGS 10.15 11.0 12.0 13.0)
 
   set(OBS_BUNDLE_CODESIGN_IDENTITY
       "-"
@@ -206,10 +195,9 @@ if(OS_MACOS)
 
   # Xcode configuration
   if(XCODE)
-    # Tell Xcode to pretend the linker signed binaries so that editing with
-    # install_name_tool preserves ad-hoc signatures. This option is supported by
-    # codesign on macOS 11 or higher. See CMake Issue 21854:
-    # https://gitlab.kitware.com/cmake/cmake/-/issues/21854
+    # Tell Xcode to pretend the linker signed binaries so that editing with install_name_tool
+    # preserves ad-hoc signatures. This option is supported by codesign on macOS 11 or higher. See
+    # CMake Issue 21854: https://gitlab.kitware.com/cmake/cmake/-/issues/21854
 
     set(CMAKE_XCODE_GENERATE_SCHEME ON)
     if(OBS_CODESIGN_LINKER)
@@ -279,10 +267,8 @@ if(OS_MACOS)
       -change ${CMAKE_PREFIX_PATH}/lib/QtWidgets.framework/Versions/${QT_VERSION}/QtWidgets @rpath/QtWidgets.framework/Versions/${_QT_FW_VERSION}/QtWidgets \\
       -change ${CMAKE_PREFIX_PATH}/lib/QtCore.framework/Versions/${QT_VERSION}/QtCore @rpath/QtCore.framework/Versions/${_QT_FW_VERSION}/QtCore \\
       -change ${CMAKE_PREFIX_PATH}/lib/QtGui.framework/Versions/${QT_VERSION}/QtGui @rpath/QtGui.framework/Versions/${_QT_FW_VERSION}/QtGui \\
-      \\\"\${CMAKE_INSTALL_PREFIX}/${target}.plugin/Contents/MacOS/${target}\\\""
-    )
-    install(CODE "execute_process(COMMAND /bin/sh -c \"${_COMMAND}\")"
-            COMPONENT obs_plugins)
+      \\\"\${CMAKE_INSTALL_PREFIX}/${target}.plugin/Contents/MacOS/${target}\\\"")
+    install(CODE "execute_process(COMMAND /bin/sh -c \"${_COMMAND}\")" COMPONENT obs_plugins)
     unset(_QT_FW_VERSION)
 
     if(NOT XCODE)
@@ -292,23 +278,20 @@ if(OS_MACOS)
           --options runtime \\
           --entitlements \\\"${CMAKE_CURRENT_FUNCTION_LIST_DIR}/bundle/macOS/entitlements.plist\\\" \\
           \\\"\${CMAKE_INSTALL_PREFIX}/${target}.plugin\\\"")
-      install(CODE "execute_process(COMMAND /bin/sh -c \"${_COMMAND}\")"
-              COMPONENT obs_plugins)
+      install(CODE "execute_process(COMMAND /bin/sh -c \"${_COMMAND}\")" COMPONENT obs_plugins)
     endif()
 
     set_target_properties(
       ${target}
-      PROPERTIES
-        BUNDLE ON
-        BUNDLE_EXTENSION "plugin"
-        OUTPUT_NAME ${target}
-        MACOSX_BUNDLE_INFO_PLIST
-        "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/bundle/macOS/Plugin-Info.plist.in"
-        XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER
-        "${MACOSX_PLUGIN_GUI_IDENTIFIER}"
-        XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "${OBS_BUNDLE_CODESIGN_IDENTITY}"
-        XCODE_ATTRIBUTE_CODE_SIGN_ENTITLEMENTS
-        "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/bundle/macOS/entitlements.plist")
+      PROPERTIES BUNDLE ON
+                 BUNDLE_EXTENSION "plugin"
+                 OUTPUT_NAME ${target}
+                 MACOSX_BUNDLE_INFO_PLIST
+                 "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/bundle/macOS/Plugin-Info.plist.in"
+                 XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "${MACOSX_PLUGIN_GUI_IDENTIFIER}"
+                 XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY "${OBS_BUNDLE_CODESIGN_IDENTITY}"
+                 XCODE_ATTRIBUTE_CODE_SIGN_ENTITLEMENTS
+                 "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/bundle/macOS/entitlements.plist")
 
     add_custom_command(
       TARGET ${target}
@@ -326,13 +309,11 @@ if(OS_MACOS)
     if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/data)
       file(GLOB_RECURSE _DATA_FILES "${CMAKE_CURRENT_SOURCE_DIR}/data/*")
       foreach(_DATA_FILE IN LISTS _DATA_FILES)
-        file(RELATIVE_PATH _RELATIVE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/data/
-             ${_DATA_FILE})
+        file(RELATIVE_PATH _RELATIVE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/data/ ${_DATA_FILE})
         get_filename_component(_RELATIVE_PATH ${_RELATIVE_PATH} PATH)
         target_sources(${target} PRIVATE ${_DATA_FILE})
-        set_source_files_properties(
-          ${_DATA_FILE} PROPERTIES MACOSX_PACKAGE_LOCATION
-                                   Resources/${_RELATIVE_PATH})
+        set_source_files_properties(${_DATA_FILE} PROPERTIES MACOSX_PACKAGE_LOCATION
+                                                             Resources/${_RELATIVE_PATH})
         string(REPLACE "\\" "\\\\" _GROUP_NAME ${_RELATIVE_PATH})
         source_group("Resources\\${_GROUP_NAME}" FILES ${_DATA_FILE})
       endforeach()
@@ -356,8 +337,7 @@ else()
     else()
       set(OBS_LIBRARY_DESTINATION bin/${_ARCH_SUFFIX}bit)
       set(OBS_PLUGIN_DESTINATION obs-plugins/${_ARCH_SUFFIX}bit)
-      set(CMAKE_INSTALL_RPATH
-          "$ORIGIN/" "${CMAKE_INSTALL_PREFIX}/${OBS_LIBRARY_DESTINATION}")
+      set(CMAKE_INSTALL_RPATH "$ORIGIN/" "${CMAKE_INSTALL_PREFIX}/${OBS_LIBRARY_DESTINATION}")
       set(OBS_DATA_DESTINATION "data")
     endif()
 
@@ -365,8 +345,7 @@ else()
       set(CPACK_PACKAGE_NAME "${CMAKE_PROJECT_NAME}")
       set(CPACK_DEBIAN_PACKAGE_MAINTAINER "${LINUX_MAINTAINER_EMAIL}")
       set(CPACK_PACKAGE_VERSION "${CMAKE_PROJECT_VERSION}")
-      set(CPACK_PACKAGE_FILE_NAME
-          "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-linux-x86_64")
+      set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-linux-x86_64")
 
       set(CPACK_GENERATOR "DEB")
       set(CPACK_DEBIAN_PACKAGE_DEPENDS
@@ -396,8 +375,7 @@ else()
 
     install(
       TARGETS ${target}
-      RUNTIME DESTINATION "${OBS_PLUGIN_DESTINATION}"
-              COMPONENT ${target}_Runtime
+      RUNTIME DESTINATION "${OBS_PLUGIN_DESTINATION}" COMPONENT ${target}_Runtime
       LIBRARY DESTINATION "${OBS_PLUGIN_DESTINATION}"
               COMPONENT ${target}_Runtime
               NAMELINK_COMPONENT ${target}_Development)
@@ -445,8 +423,7 @@ else()
       POST_BUILD
       COMMAND
         "${CMAKE_COMMAND}" -DCMAKE_INSTALL_PREFIX=${OBS_OUTPUT_DIR}
-        -DCMAKE_INSTALL_COMPONENT=obs_rundir
-        -DCMAKE_INSTALL_CONFIG_NAME=$<CONFIG> -P
+        -DCMAKE_INSTALL_COMPONENT=obs_rundir -DCMAKE_INSTALL_CONFIG_NAME=$<CONFIG> -P
         ${CMAKE_CURRENT_BINARY_DIR}/cmake_install.cmake
       COMMENT "Installing to plugin rundir"
       VERBATIM)
@@ -496,8 +473,7 @@ else()
         POST_BUILD
         COMMAND
           "${CMAKE_COMMAND}" -DCMAKE_INSTALL_PREFIX=${OBS_BUILD_DIR}/rundir
-          -DCMAKE_INSTALL_COMPONENT=obs_testing
-          -DCMAKE_INSTALL_CONFIG_NAME=$<CONFIG> -P
+          -DCMAKE_INSTALL_COMPONENT=obs_testing -DCMAKE_INSTALL_CONFIG_NAME=$<CONFIG> -P
           ${CMAKE_CURRENT_BINARY_DIR}/cmake_install.cmake
         COMMENT "Installing to OBS test directory"
         VERBATIM)
