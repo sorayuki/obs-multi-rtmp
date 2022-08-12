@@ -26,7 +26,7 @@ if ( $PSVersionTable.PSVersion -lt '7.0.0' ) {
 
 function Build {
     trap {
-        Pop-Location -Stack BuildTemp
+        Pop-Location -Stack BuildTemp -ErrorAction 'SilentlyContinue'
         Write-Error $_
         exit 2
     }
@@ -54,7 +54,7 @@ function Build {
     Setup-Host
 
     if ( $CmakeGenerator -eq '' ) {
-        $CmakeGenerator = $VisualStudioVersion
+        $CmakeGenerator = $script:VisualStudioVersion
     }
 
     (Get-Content -Path ${ProjectRoot}/CMakeLists.txt -Raw) `

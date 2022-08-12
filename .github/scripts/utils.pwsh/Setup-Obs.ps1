@@ -52,7 +52,7 @@ function Setup-Obs {
         $DepsPath = "plugin-deps-${script:DepsVersion}-qt${script:QtVersion}-${script:Target}"
 
         $CmakeArgs = @(
-            '-G', $script:CmakeGenerator
+            '-G', $CmakeGenerator
             "-DCMAKE_SYSTEM_VERSION=${script:PlatformSDK}"
             "-DCMAKE_GENERATOR_PLATFORM=$(if (${script:Target} -eq "x86") { "Win32" } else { "x64" })"
             "-DCMAKE_BUILD_TYPE=${script:Configuration}"
