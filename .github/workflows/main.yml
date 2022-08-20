@@ -109,7 +109,7 @@ jobs:
 
       - name: Restore Compilation Cache
         id: ccache-cache
-        uses: actions/cache@v2.1.7
+        uses: actions/cache@v3
         with:
           path: ${{ github.workspace }}/.ccache
           key: macos-${{ matrix.arch }}-ccache-plugin-${{ steps.setup.outputs.ccacheDate }}
@@ -208,7 +208,7 @@ jobs:
 
       - name: Restore Compilation Cache
         id: ccache-cache
-        uses: actions/cache@v2.1.7
+        uses: actions/cache@v3
         with:
           path: ${{ github.workspace }}/.ccache
           key: linux-${{ matrix.arch }}-ccache-plugin-${{ steps.setup.outputs.ccacheDate }}
