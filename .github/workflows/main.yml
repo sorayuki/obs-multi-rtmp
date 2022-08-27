@@ -6,6 +6,7 @@ on:
       - '**.md'
     branches:
       - master
+      - main
     tags:
       - '*'
   pull_request:
@@ -13,6 +14,7 @@ on:
       - '**.md'
     branches:
       - master
+      - main
 
 env:
   PLUGIN_NAME: 'obs-plugintemplate'
