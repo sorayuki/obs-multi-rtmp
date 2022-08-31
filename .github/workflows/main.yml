@@ -255,7 +255,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        arch: [x86, x64]
+        arch: [x64]
     if: always()
     needs: [clang_check]
     outputs:
