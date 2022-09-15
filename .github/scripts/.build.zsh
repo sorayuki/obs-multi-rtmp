@@ -57,6 +57,7 @@ build() {
     macos-arm64
     macos-universal
     linux-x86_64
+    linux-aarch64
   )
   local -r -a _valid_configs=(Debug RelWithDebInfo Release MinSizeRel)
   if [[ ${host_os} == 'macos' ]] {

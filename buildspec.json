@@ -76,6 +76,9 @@
         },
         "linux-x86_64": {
             "qtVersion": 6
+        },
+        "linux-aarch64": {
+            "qtVersion": 6
         }
     },
     "name": "obs-plugintemplate",

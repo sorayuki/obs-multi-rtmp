@@ -48,6 +48,7 @@ package() {
     macos-arm64
     macos-universal
     linux-x86_64
+    linux-aarch64
   )
   local -r -a _valid_configs=(Debug RelWithDebInfo Release MinSizeRel)
   local -r _usage="
