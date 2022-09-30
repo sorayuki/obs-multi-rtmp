@@ -59,7 +59,7 @@ function Build {
 
     (Get-Content -Path ${ProjectRoot}/CMakeLists.txt -Raw) `
         -replace "project\((.*) VERSION (.*)\)", "project(${ProductName} VERSION ${ProductVersion})" `
-        | Out-File -Path ${ProjectRoot}/CMakeLists.txt
+        | Out-File -Path ${ProjectRoot}/CMakeLists.txt -NoNewline
 
     Setup-Obs
 
