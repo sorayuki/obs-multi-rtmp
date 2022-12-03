@@ -12,23 +12,22 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt6 COMPONENTS Widgets REQUIRED)
 
-set(LIB_OBS libobs)
-
+if (CMAKE_SIZEOF_VOID_P EQUAL 4)
+    set(PLAT "32bit")
+    set(LINK_PLAT "x86")
+elseif (CMAKE_SIZEOF_VOID_P EQUAL 8)
+    set(PLAT "64bit")
+    set(LINK_PLAT "x64")
+else ()
+    message(FATAL_ERROR "Unsupported Architecture!")
+endif ()
 
 # build obs lib
 if (WIN32)
     # Windows
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    set(LIB_OBS libobs)
 
-    if (CMAKE_SIZEOF_VOID_P EQUAL 4)
-        set(PLAT "32bit")
-        set(LINK_PLAT "x86")
-    elseif (CMAKE_SIZEOF_VOID_P EQUAL 8)
-        set(PLAT "64bit")
-        set(LINK_PLAT "x64")
-    else ()
-        message(FATAL_ERROR "Unsupported Architecture!")
-    endif ()
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
     if (NOT DEFINED OBS_SRC_DIR)
         set(OBS_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/obs-src")
@@ -65,17 +64,44 @@ if (WIN32)
         "/def:${CMAKE_CURRENT_BINARY_DIR}/obs-frontend-api.def"
         "/out:${CMAKE_CURRENT_BINARY_DIR}/obs-frontend-api.lib"
     )
+    set(LIBOBS_DIR ${CMAKE_CURRENT_BINARY_DIR}) 
 elseif (APPLE)
     # macOS
     find_library(_LIB_OBS "${LIB_OBS}.0.dylib" PATHS ${OBS_BIN_DIR} REQUIRED)
     set(LIB_OBS "${_LIB_OBS}")
 elseif (UNIX)
     # Linux
-    find_package(LibObs REQUIRED)
+    find_package(libobs REQUIRED)
+
+    # locate obs
+    execute_process(COMMAND "which" "obs" 
+        OUTPUT_VARIABLE OBS_BIN_FILE 
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    message("=== OBS executable located in " ${OBS_BIN_FILE})
+    # locate libobs
+    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/tmpscript.sh "#!/bin/sh\n")
+    file(APPEND ${CMAKE_CURRENT_BINARY_DIR}/tmpscript.sh "readelf -d \"${OBS_BIN_FILE}\" | grep RUNPATH | grep -Po \"(?<=\\[)[^]]+\"")
+    execute_process(COMMAND "sh" ${CMAKE_CURRENT_BINARY_DIR}/tmpscript.sh
+        OUTPUT_VARIABLE LIBOBS_DIR 
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    message("=== OBS libraries located in " ${LIBOBS_DIR})
+
+    # locate obs headers
+    find_path(OBS_SRC_DIR NAMES obs.h obs-module.h obs-frontend-api.h HINTS /usr/include/obs REQUIRED)
+    message("=== OBS headers located in " ${OBS_SRC_DIR})
 else ()
     message(FATAL_ERROR "Unsupported OS!")
 endif ()
 
+# find library
+find_library(LIB_OBS obs HINTS ${LIBOBS_DIR} REQUIRED)
+find_library(LIB_OBSFE obs-frontend-api HINTS ${LIBOBS_DIR} REQUIRED)
+
+# find headers
+find_path(OBS_INC_DIR NAMES obs.h obs-module.h HINTS "${OBS_SRC_DIR}" "${OBS_SRC_DIR}/libobs" REQUIRED)
+find_path(OBS_FEINC_DIR NAMES obs-frontend-api.h HINTS "${OBS_SRC_DIR}" "${OBS_SRC_DIR}/UI/obs-frontend-api" REQUIRED)
 
 # build plugin
 add_library(obs-multi-rtmp SHARED
@@ -97,8 +123,8 @@ if (WIN32)
     )
 endif ()
 target_include_directories(obs-multi-rtmp PRIVATE
-    "${OBS_SRC_DIR}/libobs"
-    "${OBS_SRC_DIR}/UI/obs-frontend-api"
+    "${OBS_INC_DIR}"
+    "${OBS_FEINC_DIR}"
 )
 target_link_directories(obs-multi-rtmp PRIVATE
     "${CMAKE_CURRENT_BINARY_DIR}"
@@ -107,44 +133,61 @@ target_link_directories(obs-multi-rtmp PRIVATE
 target_link_libraries(obs-multi-rtmp PRIVATE
     Qt6::Widgets
     ${LIB_OBS}
-    obs-frontend-api
+    ${LIB_OBSFE}
 )
 
-if (WIN32)
-    if (${PORTABLE_MODE})
-        install(TARGETS obs-multi-rtmp RUNTIME
-            DESTINATION "obs-plugins/${PLAT}"
-        )
-        install(DIRECTORY locale
-            DESTINATION "data/obs-plugins/obs-multi-rtmp"
-        )
-    else ()
+
+if (${PORTABLE_MODE})
+    install(TARGETS obs-multi-rtmp RUNTIME
+        DESTINATION "obs-plugins/${PLAT}"
+    )
+    install(DIRECTORY locale
+        DESTINATION "data/obs-plugins/obs-multi-rtmp"
+    )
+else()
+    if (WIN32)
         install(TARGETS obs-multi-rtmp RUNTIME
             DESTINATION "plugins/obs-multi-rtmp/bin/${PLAT}"
         )
         install(DIRECTORY locale
             DESTINATION "plugins/obs-multi-rtmp/data"
         )
+    elseif (APPLE)
+        set_target_properties(obs-multi-rtmp PROPERTIES
+            PREFIX ""
+            SUFFIX ".so"
+        )
+
+        install(TARGETS obs-multi-rtmp LIBRARY
+            DESTINATION "obs-studio/plugins/obs-multi-rtmp/bin"
+        )
+        install(DIRECTORY locale
+            DESTINATION "obs-studio/plugins/obs-multi-rtmp/data"
+        )
+    elseif (UNIX)
+        set_target_properties(obs-multi-rtmp PROPERTIES PREFIX "")
+
+        # guess directories
+        find_path(PLG_SODIR 
+                "obs-outputs.so"
+            HINTS
+                "${LIBOBS_DIR}/obs-plugins"
+            REQUIRED
+        )
+        find_path(PLG_DATADIR 
+                "obs-outputs/locale/en-US.ini"
+            HINTS
+                "/usr/share/obs/obs-plugins"
+            REQUIRED
+        )
+
+        message("Install plugin to ${PLG_SODIR} and ${PLG_DATADIR}")
+
+        install(TARGETS obs-multi-rtmp LIBRARY
+            DESTINATION ${PLG_SODIR}
+        )
+        install(DIRECTORY locale
+            DESTINATION ${PLG_DATADIR}/obs-multi-rtmp
+        )
     endif ()
-elseif (APPLE)
-    set_target_properties(obs-multi-rtmp PROPERTIES
-        PREFIX ""
-        SUFFIX ".so"
-    )
-
-    install(TARGETS obs-multi-rtmp LIBRARY
-        DESTINATION "obs-studio/plugins/obs-multi-rtmp/bin"
-    )
-    install(DIRECTORY locale
-        DESTINATION "obs-studio/plugins/obs-multi-rtmp/data"
-    )
-elseif (UNIX)
-    set_target_properties(obs-multi-rtmp PROPERTIES PREFIX "")
-
-    install(TARGETS obs-multi-rtmp LIBRARY
-        DESTINATION "lib/obs-plugins"
-    )
-    install(DIRECTORY locale
-        DESTINATION "share/obs/obs-plugins/obs-multi-rtmp"
-    )
-endif ()
+endif()
