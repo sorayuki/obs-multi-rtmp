@@ -61,18 +61,19 @@ obs-studio 26.1.1
 
 # よくあるご質問
 
-**Q: どうして OBS 25.0 以降じゃなくてダメなの？**
+**Q: 同時配信のドックウインドウはなくなった。ドックをリセットしても効かない**
 
-A: 古いバージョンの RTMP 配信モジュールはスレッドセーフじゃないため、複数配信の時クラッシュする可能性があります。
+A: たまに発生するバッグかどうかわかりませんが、以下の手順でドックを一回完全にリセットする。
 
-詳しいはこのコミットに参照してください: 
+1. ヘルプメニュー　→　ログファイル　→　ログファイルを表示
+2. OBSを終了する
+3. 呼び出すウインドウで、AppData\Roaming\obs-studio\logsとかが表示している。obs-studio に移行
+4. global.ini を開く
+5. DockState=XXXXXXXX（←長い文字列） を探す
+6. そのラインを削除して、セーブする
 
-https://github.com/obsproject/obs-studio/commit/2b131d212fc0e5a6cd095b502072ddbedc54ab52 
+そうしたら治ると思います。
 
-
-**Q: どうして OBS 本体が配信したことない時このプラグインは使えないでしょうか？**
-
-A: このプラグインは OBS 本体のエンコーダーと共有している。しかし、OBS は初めての配信を開始した前エンコーダーの作成しない。
 
 
 # How to Build (Windows)
@@ -92,6 +93,19 @@ A: このプラグインは OBS 本体のエンコーダーと共有している
 
 3. Compile
 
+# How to Build (Ubuntu)
+
+1. Install obs-studio via APT.  
+Sorry but I didn't make it installed successfully via flatpak in my computer and network.
+3. Install build tools.  
+```apt install build-essential cmake mesa-common-dev qt6-base-dev```
+1. Clone this repository or download the source archive and extract.
+2. In the source Code folder, use cmake to do the stuff.  
+```
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+sudo cmake --install build
+```
 
 # Donate
 
