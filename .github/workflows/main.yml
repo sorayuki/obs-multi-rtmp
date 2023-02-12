@@ -356,6 +356,8 @@ jobs:
     defaults:
       run:
         shell: bash
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v3
