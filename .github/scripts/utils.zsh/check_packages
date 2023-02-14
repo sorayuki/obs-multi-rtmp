@@ -1,0 +1,52 @@
+if (( ! ${+commands[packagesbuild]} )) {
+  autoload -Uz log_info log_status mkcd
+
+  if (( ! ${+commands[curl]} )) {
+    log_error 'curl not found. Please install curl.'
+    return 2
+  }
+
+  if (( ! ${+project_root} )) {
+    log_error "'project_root' not set. Please set before running ${0}."
+    return 2
+  }
+
+  local -a curl_opts=()
+  if (( ! ${+CI} )) {
+    curl_opts+=(--progress-bar)
+  } else {
+    curl_opts+=(--show-error --silent)
+  }
+  curl_opts+=(--location -O ${@})
+
+  log_info 'Installing Packages.app...'
+
+  pushd
+  mkcd ${project_root:h}/obs-build-dependencies
+
+  local packages_url='http://s.sudre.free.fr/Software/files/Packages.dmg'
+  local packages_hash='6afdd25386295974dad8f078b8f1e41cabebd08e72d970bf92f707c7e48b16c9'
+
+  if [[ ! -f Packages.dmg ]] {
+    log_status 'Download Packages.app'
+    curl ${curl_opts} ${packages_url}
+  }
+
+  local image_checksum
+  read -r image_checksum _ <<< "$(sha256sum Packages.dmg)"
+
+  if [[ ${packages_hash} != ${image_checksum} ]] {
+    log_error "Checksum mismatch of Packages.app download.
+Expected : ${packages_hash}
+Actual   : ${image_checksum}"
+    return 2
+  }
+
+  hdiutil attach -noverify Packages.dmg &> /dev/null && log_status 'Packages.dmg image mounted.'
+
+  log_info 'Installing Packages.app...'
+  packages_volume=$(hdiutil info -plist | grep '<string>/Volumes/Packages' | sed 's/.*<string>\(\/Volumes\/[^<]*\)<\/string>/\1/')
+
+  sudo installer -pkg "${packages_volume}/packages/Packages.pkg" -target / && rehash
+  hdiutil detach ${packages_volume} &> /dev/null && log_status 'Packages.dmg image unmounted.'
+}

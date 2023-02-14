@@ -55,6 +55,7 @@ public:
         layout->setColumnStretch(1, 1);
 
         int currow = 0;
+        int curcol = 0;
         {
             layout->addWidget(new QLabel(obs_module_text("StreamingName"), this), currow, 0);
             layout->addWidget(name_ = new QLineEdit("", this), currow, 1);
@@ -98,26 +99,26 @@ public:
                     auto gp = new QGroupBox(obs_module_text("VideoSettings"), this);
                     sub_grid->addWidget(gp, 0, 0, 2, 1);
                     auto encLayout = new QGridLayout(gp);
-                    int currow = 0;
+                    currow = 0;
                     {
-                        int curcol = 0;
+                        curcol = 0;
                         encLayout->addWidget(new QLabel(obs_module_text("Encoder"), gp), currow, curcol++);
                         encLayout->addWidget(venc_ = new QComboBox(gp), currow, curcol++);
                     }
                     ++currow;
                     {
-                        int curcol = 0;
+                        curcol = 0;
                         encLayout->addWidget(new QLabel(obs_module_text("VideoResolution"), gp), currow, curcol++);
                         encLayout->addWidget(v_resolution_ = new QLineEdit("", gp), currow, curcol++);
                         v_resolution_->setPlaceholderText(obs_module_text("SameAsOBSNow"));
                     }
                     ++currow;
                     {
-                        int curcol = 0;
+                        curcol = 0;
                         encLayout->addWidget(new QLabel(obs_module_text("Bitrate"), gp), currow, curcol++);
                         auto c = new QGridLayout(gp);
                         {
-                            int curcol = 0;
+                            curcol = 0;
                             c->addWidget(v_bitrate_ = new QLineEdit("", gp), 0, curcol++);
                             c->addWidget(new QLabel("kbps", gp), 0, curcol++);
                             c->setColumnStretch(0, 1);
@@ -127,11 +128,11 @@ public:
                     }
                     ++currow;
                     {
-                        int curcol = 0;
+                        curcol = 0;
                         encLayout->addWidget(new QLabel(obs_module_text("KeyFrame"), gp), currow, curcol++);
                         auto c = new QGridLayout(gp);
                         {
-                            int curcol = 0;
+                            curcol = 0;
                             c->addWidget(v_keyframe_sec_ = new QLineEdit("", gp), 0, curcol++);
                             c->addWidget(new QLabel(obs_module_text("UnitSecond"), gp), 0, curcol++);
                             c->setColumnStretch(0, 1);
@@ -141,7 +142,7 @@ public:
                     }
                     ++currow;
                     {
-                        int curcol = 0;
+                        curcol = 0;
                         encLayout->addWidget(new QLabel(obs_module_text("BFrames"), gp), currow, curcol++);
                         encLayout->addWidget(v_bframes_ = new QLineEdit("2", gp), currow, curcol++);
                     }
@@ -163,19 +164,19 @@ public:
                     auto gp = new QGroupBox(obs_module_text("AudioSettings"), this);
                     sub_grid->addWidget(gp, 0, 1, 1, 1);
                     auto encLayout = new QGridLayout(gp);
-                    int currow = 0;
+                    currow = 0;
                     {
-                        int curcol = 0;
+                        curcol = 0;
                         encLayout->addWidget(new QLabel(obs_module_text("Encoder"), gp), currow, curcol++);
                         encLayout->addWidget(aenc_ = new QComboBox(gp), currow, curcol++);
                     }
                     ++currow;
                     {
-                        int curcol = 0;
+                        curcol = 0;
                         encLayout->addWidget(new QLabel(obs_module_text("Bitrate"), gp), currow, curcol++);
                         auto c = new QGridLayout(gp);
                         {
-                            int curcol = 0;
+                            curcol = 0;
                             c->addWidget(a_bitrate_ = new QLineEdit(gp), 0, curcol++);
                             c->addWidget(new QLabel(obs_module_text("kbps")), 0, curcol++);
                             c->setColumnStretch(0, 1);
@@ -185,7 +186,7 @@ public:
                     }
                     ++currow;
                     {
-                        int curcol = 0;
+                        curcol = 0;
                         encLayout->addWidget(new QLabel(obs_module_text("AudioMixerID"), gp), currow, curcol++);
                         encLayout->addWidget(a_mixer_ = new QComboBox(gp), currow, curcol++);
 

@@ -1,0 +1,14 @@
+autoload -Uz log_debug log_warning
+
+if (( ${+commands[ccache]} )) {
+  log_debug "Found ccache at ${commands[ccache]}"
+
+  if (( ${+CI} )) {
+    ccache --set-config=cache_dir="${GITHUB_WORKSPACE:-${HOME}}/.ccache"
+    ccache --set-config=max_size="${CCACHE_SIZE:-500M}"
+    ccache --set-config=compression=true
+    ccache -z > /dev/null
+  }
+} else {
+  log_warning "No ccache found on the system"
+}

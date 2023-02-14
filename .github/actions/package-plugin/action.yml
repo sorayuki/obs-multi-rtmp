@@ -1,0 +1,99 @@
+name: 'Package plugin'
+description: 'Packages the plugin for specified architecture and build config.'
+inputs:
+  target:
+    description: 'Build target for dependencies'
+    required: true
+  config:
+    description: 'Build configuration'
+    required: false
+    default: 'Release'
+  codesign:
+    description: 'Enable codesigning (macOS only)'
+    required: false
+    default: 'false'
+  notarize:
+    description: 'Enable notarization (macOS only)'
+    required: false
+    default: 'false'
+  codesignIdent:
+    description: 'Developer ID for application codesigning (macOS only)'
+    required: false
+    default: '-'
+  installerIdent:
+    description: 'Developer ID for installer package codesigning (macOS only)'
+    required: false
+    default: ''
+  codesignUser:
+    description: 'Apple ID username for notarization (macOS only)'
+    required: false
+    default: ''
+  codesignPass:
+    description: 'Apple ID password for notarization (macOS only)'
+    required: false
+    default: ''
+  createInstaller:
+    description: 'Create InnoSetup installer (Windows only)'
+    required: false
+    default: 'false'
+  workingDirectory:
+    description: 'Working directory for packaging'
+    required: false
+    default: ${{ github.workspace }}
+runs:
+  using: 'composite'
+  steps:
+    - name: Run macOS packaging
+      if: ${{ runner.os == 'macOS' }}
+      shell: zsh {0}
+      env:
+        CODESIGN_IDENT: ${{ inputs.codesignIdent }}
+        CODESIGN_IDENT_INSTALLER: ${{ inputs.installerIdent }}
+        CODESIGN_IDENT_USER: ${{ inputs.codesignUser }}
+        CODESIGN_IDENT_PASS: ${{ inputs.codesignPass }}
+      run: |
+        package_args=(
+          -c ${{ inputs.config }}
+          -t macos-${{ inputs.target }}
+        )
+
+        if [[ '${{ inputs.codesign }}' == 'true' ]] package_args+=(-s)
+        if [[ '${{ inputs.notarize }}' == 'true' ]] package_args+=(-n)
+        if (( ${+CI} && ${+RUNNER_DEBUG} )) build_args+=(--debug)
+
+        ${{ inputs.workingDirectory }}/.github/scripts/package-macos.zsh ${package_args}
+
+    - name: Run Linux packaging
+      if: ${{ runner.os == 'Linux' }}
+      shell: bash
+      run: |
+        package_args=(
+          -c ${{ inputs.config }}
+          -t linux-${{ inputs.target }}
+        )
+        if [[ -n "${CI}" && -n "${RUNNER_DEBUG}" ]]; then
+          build_args+=(--debug)
+        fi
+
+        ${{ inputs.workingDirectory }}/.github/scripts/package-linux.sh "${package_args[@]}"
+
+    - name: Run Windows packaging
+      if: ${{ runner.os == 'Windows' }}
+      shell: pwsh
+      run: |
+        $PackageArgs = @{
+          Target = '${{ inputs.target }}'
+          Configuration = '${{ inputs.config }}'
+        }
+
+        if ( '${{ inputs.createInstaller }}' -eq 'true' ) {
+          $PackageArgs += @{BuildInstaller = $true}
+        }
+
+        if ( ( Test-Path env:CI ) -and ( Test-Path env:RUNNER_DEBUG ) ) {
+          $BuildArgs += @{
+            Debug = $true
+          }
+        }
+
+        ${{ inputs.workingDirectory }}/.github/scripts/Package-Windows.ps1 @PackageArgs

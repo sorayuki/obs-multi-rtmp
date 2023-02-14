@@ -1,0 +1,77 @@
+name: 'Setup and build plugin'
+description: 'Builds the plugin for specified architecture and build config.'
+inputs:
+  target:
+    description: 'Build target for dependencies'
+    required: true
+  config:
+    description: 'Build configuration'
+    required: false
+    default: 'Release'
+  codesign:
+    description: 'Enable codesigning (macOS only)'
+    required: false
+    default: 'false'
+  codesignIdent:
+    description: 'Developer ID for application codesigning (macOS only)'
+    required: false
+    default: '-'
+  visualStudio:
+    description: 'Visual Studio version (Windows only)'
+    required: false
+    default: 'Visual Studio 16 2019'
+  workingDirectory:
+    description: 'Working directory for packaging'
+    required: false
+    default: ${{ github.workspace }}
+runs:
+  using: 'composite'
+  steps:
+    - name: Run macOS Build
+      if: ${{ runner.os == 'macOS' }}
+      shell: zsh {0}
+      env:
+        CODESIGN_IDENT: ${{ inputs.codesignIdent }}
+      run: |
+        build_args=(
+          -c ${{ inputs.config }}
+          -t macos-${{ inputs.target }}
+        )
+
+        if [[ '${{ inputs.codesign }}' == 'true' ]] build_args+=(-s)
+        if (( ${+CI} && ${+RUNNER_DEBUG} )) build_args+=(--debug)
+
+        ${{ inputs.workingDirectory }}/.github/scripts/build-macos.zsh ${build_args}
+
+    - name: Run Linux Build
+      if: ${{ runner.os == 'Linux' }}
+      shell: bash
+      run: |
+        build_args=(
+          -c ${{ inputs.config }}
+          -t linux-${{ inputs.target }}
+        )
+
+        if [[ -n "${CI}" && -n "${RUNNER_DEBUG}" ]]; then
+          build_args+=(--debug)
+        fi
+
+        ${{ inputs.workingDirectory }}/.github/scripts/build-linux.sh "${build_args[@]}"
+
+    - name: Run Windows Build
+      if: ${{ runner.os == 'Windows' }}
+      shell: pwsh
+      run: |
+        $BuildArgs = @{
+          Target = '${{ inputs.target }}'
+          Configuration = '${{ inputs.config }}'
+          CMakeGenerator = '${{ inputs.visualStudio }}'
+        }
+
+        if ( ( Test-Path env:CI ) -and ( Test-Path env:RUNNER_DEBUG ) ) {
+          $BuildArgs += @{
+            Debug = $true
+          }
+        }
+
+        ${{ inputs.workingDirectory }}/.github/scripts/Build-Windows.ps1 @BuildArgs

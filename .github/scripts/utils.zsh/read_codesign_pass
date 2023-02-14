@@ -1,0 +1,33 @@
+##############################################################################
+# Apple Developer credentials necessary:
+#
+#   + Signing for distribution and notarization require an active Apple
+#     Developer membership
+#   + An Apple Development identity is needed for code signing
+#     (i.e. 'Apple Development: YOUR APPLE ID (PROVIDER)')
+#   + Your Apple developer ID is needed for notarization
+#   + An app-specific password is necessary for notarization from CLI
+#   + This password will be stored in your macOS keychain under the identifier
+#     'OBS-Codesign-Password'with access Apple's 'altool' only.
+##############################################################################
+
+autoload -Uz read_codesign read_codesign_user log_info
+
+if (( ! ${+CODESIGN_IDENT} )) {
+  read_codesign
+}
+
+local codesign_ident_short=$(print "${CODESIGN_IDENT}" | /usr/bin/sed -En 's/.+\((.+)\)/\1/p')
+
+if (( ! ${+CODESIGN_IDENT_USER} )) {
+  read_codesign_user
+}
+
+log_info 'Setting up password for notarization keychain...'
+if (( ! ${+CODESIGN_IDENT_PASS} )) {
+  read -s CODESIGN_IDENT_PASS'?Apple Developer ID password: '
+}
+
+print ''
+log_info 'Setting up notarization keychain...'
+xcrun notarytool store-credentials 'OBS-Codesign-Password' --apple-id "${CODESIGN_IDENT_USER}" --team-id "${codesign_ident_short}" --password "${CODESIGN_IDENT_PASS}"

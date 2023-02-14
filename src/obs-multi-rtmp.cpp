@@ -185,7 +185,6 @@ public:
     void visibleToggled(bool visible)
     {
         dockVisible_ = visible;
-        return;
 
         if (visible == false
             && reopenShown_ == false
@@ -199,6 +198,8 @@ public:
                 this
             ).exec();
         }
+        
+        return;
     }
 
     bool event(QEvent *event) override

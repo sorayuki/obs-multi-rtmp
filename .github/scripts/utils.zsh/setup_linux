@@ -1,0 +1,62 @@
+autoload -Uz log_error log_status log_info mkcd
+
+if (( ! ${+project_root} )) {
+  log_error "'project_root' not set. Please set before running ${0}."
+  return 2
+}
+
+if (( ! ${+target} )) {
+  log_error "'target' not set. Please set before running ${0}."
+  return 2
+}
+
+pushd ${project_root}
+
+typeset -g QT_VERSION
+read -r QT_VERSION <<< \
+  "$(jq -r --arg target "${target}" \
+    '.platformConfig[$target] | { qtVersion } | join(" ")' \
+    ${project_root}/buildspec.json)"
+
+if (( ! (${skips[(Ie)all]} + ${skips[(Ie)deps]}) )) {
+  log_info 'Installing obs build dependencies...'
+
+  sudo apt-get install -y \
+    build-essential \
+    libcurl4-openssl-dev \
+    libavcodec-dev libavdevice-dev libavfilter-dev libavformat-dev libavutil-dev \
+    libswresample-dev libswscale-dev \
+    libjansson-dev \
+    libx11-xcb-dev \
+    libgles2-mesa-dev \
+    libwayland-dev \
+    libpulse-dev
+
+  local -a _qt_packages=()
+
+  if (( QT_VERSION == 5 )) {
+    _qt_packages+=(
+      qtbase5-dev
+      libqt5svg5-dev
+      qtbase5-private-dev
+      libqt5x11extras5-dev
+    )
+  } elif (( QT_VERSION == 6 )) {
+    _qt_packages+=(
+      qt6-base-dev
+      libqt6svg6-dev
+      qt6-base-private-dev
+    )
+  } else {
+    log_error "Unsupported Qt version '${QT_VERSION}' specified."
+    return 2
+  }
+
+  sudo apt-get install -y ${_qt_packages}
+}
+
+local deps_version
+read -r deps_version <<< \
+  "$(jq -r '.dependencies.prebuilt.version' ${buildspec_file})"
+
+typeset -g OBS_DEPS_VERSION=${deps_version}
