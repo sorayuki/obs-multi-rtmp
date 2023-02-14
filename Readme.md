@@ -39,3 +39,8 @@ If you regard this tool useful and want to doante for some, here is the link. (I
 
 ## wechat / 微信
 ![wechat](./docs/wechat.jpg)
+
+## Build
+
+Windows
+> .\.github\scripts\Build-Windows.ps1
