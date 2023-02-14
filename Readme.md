@@ -43,4 +43,7 @@ If you regard this tool useful and want to doante for some, here is the link. (I
 ## Build
 
 Windows
-> .\.github\scripts\Build-Windows.ps1
+> .github\scripts\Build-Windows.ps1
+
+macOS
+> .github/scripts/build-macos.zsh
