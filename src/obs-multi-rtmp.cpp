@@ -86,7 +86,7 @@ public:
             innerLayout->addWidget(label2, 1, 0, 1, 1);
             auto btnFeed = new QPushButton(u8"支持", cr);
             innerLayout->addWidget(btnFeed, 1, 1, 1, 1);
-            QObject::connect(btnFeed, &QPushButton::clicked, [this]() {
+            QObject::connect(btnFeed, &QPushButton::clicked, []() {
                 const char redbagpng[] = 
                     "iVBORw0KGgoAAAANSUhEUgAAAJgAAACXAQMAAADTWgC3AAAABlBMVEUAAAD///+l2Z/dAAAAAWJLR0Q"
                     "AiAUdSAAAAAlwSFlzAAAuIwAALiMBeKU/dgAAAWtJREFUSMe1lk2OgzAMhY1YZJkj5CbkYkggcTG4SY"
