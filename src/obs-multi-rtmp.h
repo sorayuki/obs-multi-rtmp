@@ -2,11 +2,10 @@
 
 #include <functional>
 
-class GlobalService
-{
+class GlobalService {
 public:
-    ~GlobalService() {}
-    virtual bool RunInUIThread(std::function<void()> task) = 0;
+	~GlobalService() {}
+	virtual bool RunInUIThread(std::function<void()> task) = 0;
 };
 
-GlobalService& GetGlobalService();
+GlobalService &GetGlobalService();
