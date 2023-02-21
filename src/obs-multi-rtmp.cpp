@@ -86,6 +86,21 @@ public:
             innerLayout->addWidget(label2, 1, 0, 1, 1);
             auto btnFeed = new QPushButton(u8"支持", cr);
             innerLayout->addWidget(btnFeed, 1, 1, 1, 1);
+            auto startAll = new QPushButton(u8"开始所有", cr);
+            innerLayout->addWidget(startAll, 2, 0, 1, 1);
+            auto stopAll = new QPushButton(u8"停止所有", cr);
+            innerLayout->addWidget(stopAll, 2, 1, 1, 1);
+            QObject::connect(startAll, &QPushButton::clicked, [this]() {
+                for (auto x : GetAllPushWidgets())
+                    if(!x->StartStreaming())
+                    {
+                        break;
+                    }
+                });
+            QObject::connect(stopAll, &QPushButton::clicked, [this]() {
+                for (auto x : GetAllPushWidgets())
+                    x->StopStreaming();
+                });
             QObject::connect(btnFeed, &QPushButton::clicked, [this]() {
                 const char redbagpng[] = 
                     "iVBORw0KGgoAAAANSUhEUgAAAJgAAACXAQMAAADTWgC3AAAABlBMVEUAAAD///+l2Z/dAAAAAWJLR0Q"
@@ -314,7 +329,7 @@ bool obs_module_load()
                 x->OnOBSEvent(event);
 
             if (event == obs_frontend_event::OBS_FRONTEND_EVENT_EXIT)
-            {
+            {   
                 mainwin->SaveConfig();
             }
             else if (event == obs_frontend_event::OBS_FRONTEND_EVENT_PROFILE_CHANGED)
