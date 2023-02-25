@@ -1,20 +1,21 @@
 name: Plugin Build
 
 on:
-  push:
-    paths-ignore:
-      - '**.md'
-    branches:
-      - master
-      - main
-    tags:
-      - '*'
-  pull_request:
-    paths-ignore:
-      - '**.md'
-    branches:
-      - master
-      - main
+  #push:
+  #  paths-ignore:
+  #    - '**.md'
+  #  branches:
+  #    - master
+  #    - main
+  #  tags:
+  #    - '*'
+  #pull_request:
+  #  paths-ignore:
+  #    - '**.md'
+  #  branches:
+  #    - master
+  #    - main
+  workflow_dispatch:
 
 env:
   PLUGIN_NAME: 'obs-multi-rtmp'
