@@ -12,8 +12,6 @@ public:
     {
         auto thiz = static_cast<IOBSOutputEventHanlder*>(x);
         thiz->OnStarting();
-        
-        UNUSED_PARAMETER(param);
     }
 
     virtual void OnStarted() {}
@@ -21,8 +19,6 @@ public:
     {
         auto thiz = static_cast<IOBSOutputEventHanlder*>(x);
         thiz->OnStarted();
-        
-        UNUSED_PARAMETER(param);
     }
 
     virtual void OnStopping() {}
@@ -30,24 +26,20 @@ public:
     {
         auto thiz = static_cast<IOBSOutputEventHanlder*>(x);
         thiz->OnStopping();
-        
-        UNUSED_PARAMETER(param);
     }
 
-    virtual void OnStopped(int code) { UNUSED_PARAMETER(code); }
+    virtual void OnStopped(int code) {}
     static void OnOutputStopped(void* x, calldata_t* param)
     {
         auto thiz = static_cast<IOBSOutputEventHanlder*>(x);
         thiz->OnStopped(calldata_int(param, "code"));
     }
-	
+
     virtual void OnReconnect() {}
     static void OnOutputReconnect(void* x, calldata_t* param)
     {
         auto thiz = static_cast<IOBSOutputEventHanlder*>(x);
         thiz->OnReconnect();
-        
-        UNUSED_PARAMETER(param);
     }
 
     virtual void OnReconnected() {}
@@ -55,8 +47,6 @@ public:
     {
         auto thiz = static_cast<IOBSOutputEventHanlder*>(x);
         thiz->OnReconnected();
-        
-        UNUSED_PARAMETER(param);
     }
 
     virtual void onDeactive() {}
@@ -64,8 +54,6 @@ public:
     {
         auto thiz = static_cast<IOBSOutputEventHanlder*>(x);
         thiz->onDeactive();
-        
-        UNUSED_PARAMETER(param);
     }
 
     void SetAsHandler(obs_output_t* output)
@@ -252,12 +240,12 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
             if (venc_id.empty())
             {
                 venc = obs_output_get_video_encoder(stream_out);
-                obs_encoder_get_ref(venc);
+                obs_encoder_addref(venc);
             }
             if (aenc_id.empty())
             {
                 aenc = obs_output_get_audio_encoder(stream_out, 0);
-                obs_encoder_get_ref(aenc);
+                obs_encoder_addref(aenc);
             }
 
             obs_output_release(stream_out);
