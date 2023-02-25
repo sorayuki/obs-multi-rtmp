@@ -41,10 +41,11 @@ Page instfiles
 
 Section
 SetOutPath "$INSTDIR\bin\64bit"
-File "plugins\obs-multi-rtmp\bin\64bit\obs-multi-rtmp.dll"
+File "release\obs-plugins\64bit\obs-multi-rtmp.dll"
+File "release\obs-plugins\64bit\obs-multi-rtmp.pdb"
 
 SetOutPath "$INSTDIR\data\locale"
-File "plugins\obs-multi-rtmp\data\locale\*.ini"
+File "release\data\obs-plugins\obs-multi-rtmp\locale\*.ini"
 SectionEnd
 
 Section "Uninstaller"
