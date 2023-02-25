@@ -29,7 +29,7 @@ function Setup-Obs {
     $ObsHash = $BuildSpec.dependencies.'obs-studio'.hash
 
     if ( $ObsVersion -eq '' ) {
-        throw 'No obs-studio version found in buildspec.json.'
+        throw 'No obs-studio version found in buildspec-win.json.'
     }
 
     Push-Location -Stack BuildTemp

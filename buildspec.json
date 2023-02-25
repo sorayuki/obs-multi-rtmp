@@ -1,53 +1,29 @@
 {
     "dependencies": {
         "obs-studio": {
-            "version": "28.0.1",
+            "version": "29.0.2",
             "repository": "https://github.com/obsproject/obs-studio.git",
             "branch": "master",
-            "hash": "e8dc70d0eef4503378d6ac300e680215eb5c9379"
+            "hash": "0fb8bb4b1e18ee1c870c48d35ab5b598af3b59e9"
         },
         "prebuilt": {
-            "version": "2022-08-02",
+            "version": "2022-11-21",
             "baseUrl": "https://github.com/obsproject/obs-deps/releases/download",
             "label": "Pre-built obs-deps",
             "hashes": {
-                "macos-x86_64": "7637e52305e6fc53014b5aabd583f1a4490b1d97450420e977cae9a336a29525",
-                "macos-arm64": "755e0fa69b17a3ae444e1befa9d91d77e3cafe628fbd1c6333686091826595cd",
-                "macos-universal": "de057e73e6fe0825664c258ca2dd6798c41ae580bf4d896e1647676a4941934a",
-                "windows-x64": "2192d8ce780c4281b807cd457994963669e5202659ecd92f19b54c3e7d0c1915",
-                "windows-x86": "9f8582ab5891b000869d6484ea591add9fbac9f1c91b56c7b85fdfd56a261c1b"
-            }
-        },
-        "qt5": {
-            "version": "2022-08-02",
-            "baseUrl": "https://github.com/obsproject/obs-deps/releases/download",
-            "label": "Pre-built Qt5",
-            "hashes": {
-                "macos-x86_64": "3d0381a52b0e4d49967936c4357f79ac711f43564329304a6db5c90edadd2697",
-                "macos-arm64": "f4b32548c0530f121956bf0a9a70c36ecbbfca81073d39c396a1759baf2a05c3",
-                "macos-universal": "9a6cf3b9a6c9efee6ba10df649202e8075e99f3c54ae88dc9a36dbc9d7471c1e",
-                "windows-x64": "6488a33a474f750d5a4a268a5e20c78bb40799d99136a1b7ce3365a843cb2fd7",
-                "windows-x86": "a916e09b0a874036801deab2c8a7ec14fdf5d268aa5511eac5bf40727e0c4e33"
-            },
-            "pdb-hashes": {
-                "windows-x64": "e0e5070143fcad9311a68ce5685d8ba8f34f581ed6942b7a92d360f94ca1ba11",
-                "windows-x86": "36642d1052aa461964f46c17610477b0d9b9defbe2d745ccaacb85f805c1bec2"
+                "macos-x86_64": "ed0a145e88496f8975da14a07939dbe5633e60510aada34509a4aef64a66e438",
+                "macos-arm64": "f397dc524e5ee7f85684f0b9661c45957446e28d166fcd6dfacf895c9d4d2521",
+                "macos-universal": "a1f27fbfe1452a9331d7d468aaa38e67b71d1a89a2f049e6061308d98ad3e630"
             }
         },
         "qt6": {
-            "version": "2022-08-02",
+            "version": "2022-11-21",
             "baseUrl": "https://github.com/obsproject/obs-deps/releases/download",
             "label": "Pre-built Qt6",
             "hashes": {
-                "macos-x86_64": "a83f72a11023b03b6cb2dc365f0a66ad9df31163bbb4fe2df32d601856a9fad3",
-                "macos-arm64": "2f30af90c049670a5660656adbb440668aa1b0567f75a5f29e1def9108928403",
-                "macos-universal": "252e6684f43ab9c6f262c73af739e2296ce391b998da2c4ee04c254aaa07db18",
-                "windows-x64": "e5509b54196a3f935250cc4b9c54160c8e588fd0f92bc078a2a64f9d9e2e4e93",
-                "windows-x86": "24fc03bef153a0e027c1479e42eb08097a4ea1d70a4710825be0783d0626cb0d"
-            },
-            "pdb-hashes": {
-                "windows-x64": "60e5b1d2bc4d7c431bc05f14e3b1e85e088788c372fa85f58717cd6c49555a46",
-                "windows-x86": "f34d1a89fc85d92913bd6c7f75ec5c28471d74db708c98161100bc8b75f8fc63"
+                "macos-x86_64": "c5ed7bc9f6e802910ec539066bcf0a8d64100fafce568071f264c88c22c5859b",
+                "macos-arm64": "1ce472fd1e28f947456b72b1d7ab929d6e93cb774c2928e22eca9bb751b12ccf",
+                "macos-universal": "873f7c9c9f7fcee740a79c075b32a505c932c816d928807fa16f3439c610fbfd"
             }
         }
     },
@@ -63,16 +39,6 @@
         "macos-universal": {
             "qtVersion": 6,
             "deploymentTarget": "10.15"
-        },
-        "windows-x64": {
-            "qtVersion": 6,
-            "visualStudio": "Visual Studio 17 2022",
-            "platformSDK": "10.0.20348.0"
-        },
-        "windows-x86": {
-            "qtVersion": 6,
-            "visualStudio": "Visual Studio 17 2022",
-            "platformSDK": "10.0.20348.0"
         },
         "linux-x86_64": {
             "qtVersion": 6

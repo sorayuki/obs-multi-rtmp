@@ -27,7 +27,7 @@ function Package {
 
     $ScriptHome = $PSScriptRoot
     $ProjectRoot = Resolve-Path -Path "$PSScriptRoot/../.."
-    $BuildSpecFile = "${ProjectRoot}/buildspec.json"
+    $BuildSpecFile = "${ProjectRoot}/buildspec-win.json"
 
     $UtilityFunctions = Get-ChildItem -Path $PSScriptRoot/utils.pwsh/*.ps1 -Recurse
 

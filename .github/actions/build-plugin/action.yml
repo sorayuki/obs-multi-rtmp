@@ -19,7 +19,7 @@ inputs:
   visualStudio:
     description: 'Visual Studio version (Windows only)'
     required: false
-    default: 'Visual Studio 16 2019'
+    default: 'Visual Studio 17 2022'
   workingDirectory:
     description: 'Working directory for packaging'
     required: false

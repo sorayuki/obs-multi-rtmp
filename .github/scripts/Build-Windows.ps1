@@ -4,7 +4,7 @@ param(
     [string] $Configuration = 'RelWithDebInfo',
     [ValidateSet('x86', 'x64')]
     [string] $Target,
-    [ValidateSet('Visual Studio 17 2022', 'Visual Studio 16 2019')]
+    [ValidateSet('Visual Studio 17 2022', 'Visual Studio 16 2019', 'Visual Studio 17 2022')]
     [string] $CMakeGenerator,
     [switch] $SkipAll,
     [switch] $SkipBuild,
@@ -33,7 +33,7 @@ function Build {
 
     $ScriptHome = $PSScriptRoot
     $ProjectRoot = Resolve-Path -Path "$PSScriptRoot/../.."
-    $BuildSpecFile = "${ProjectRoot}/buildspec.json"
+    $BuildSpecFile = "${ProjectRoot}/buildspec-win.json"
 
     $UtilityFunctions = Get-ChildItem -Path $PSScriptRoot/utils.pwsh/*.ps1 -Recurse
 
@@ -47,7 +47,7 @@ function Build {
     $ProductVersion = $BuildSpec.version
 
     $script:DepsVersion = ''
-    $script:QtVersion = '5'
+    $script:QtVersion = '6'
     $script:VisualStudioVersion = ''
     $script:PlatformSDK = '10.0.18363.657'
 
