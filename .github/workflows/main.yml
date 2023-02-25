@@ -349,7 +349,7 @@ jobs:
   make-release:
     name: 03 - Create and upload release
     runs-on: ubuntu-22.04
-    if: github.event_name == 'push' && contains(github.ref, 'refs/tags/')
+    if: github.event_name == 'workflow_dispatch' && contains(github.ref, 'refs/tags/')
     # needs: [macos_build, linux_build, windows_build]
     needs: [macos_build, windows_build]
     defaults:
