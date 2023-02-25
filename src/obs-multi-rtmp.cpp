@@ -71,6 +71,21 @@ public:
                 delete pushwidget;
         });
         layout_->addWidget(addButton_);
+        startAllButton_ = new QPushButton("Start all streams", container_);
+        layout_->addWidget(startAllButton_);
+        stopAllButton_ = new QPushButton("Stop all streams", container_);
+        layout_->addWidget(stopAllButton_);
+        QObject::connect(startAllButton_, &QPushButton::clicked, [this]() {
+            for (auto x : GetAllPushWidgets())
+                if (!x->StartStreaming())
+                {
+                    break;
+                }
+        });
+        QObject::connect(stopAllButton_, &QPushButton::clicked, [this]() {
+            for (auto x : GetAllPushWidgets())
+                x->StopStreaming();
+        });
 
         // donate
         if (std::string("\xe5\xa4\x9a\xe8\xb7\xaf\xe6\x8e\xa8\xe6\xb5\x81") == obs_module_text("Title"))
@@ -86,21 +101,7 @@ public:
             innerLayout->addWidget(label2, 1, 0, 1, 1);
             auto btnFeed = new QPushButton(u8"支持", cr);
             innerLayout->addWidget(btnFeed, 1, 1, 1, 1);
-            auto startAll = new QPushButton(u8"开始所有", cr);
-            innerLayout->addWidget(startAll, 2, 0, 1, 1);
-            auto stopAll = new QPushButton(u8"停止所有", cr);
-            innerLayout->addWidget(stopAll, 2, 1, 1, 1);
-            QObject::connect(startAll, &QPushButton::clicked, [this]() {
-                for (auto x : GetAllPushWidgets())
-                    if(!x->StartStreaming())
-                    {
-                        break;
-                    }
-                });
-            QObject::connect(stopAll, &QPushButton::clicked, [this]() {
-                for (auto x : GetAllPushWidgets())
-                    x->StopStreaming();
-                });
+            
             QObject::connect(btnFeed, &QPushButton::clicked, [this]() {
                 const char redbagpng[] = 
                     "iVBORw0KGgoAAAANSUhEUgAAAJgAAACXAQMAAADTWgC3AAAABlBMVEUAAAD///+l2Z/dAAAAAWJLR0Q"
@@ -184,8 +185,7 @@ public:
             label->setOpenExternalLinks(true);
             layout_->addWidget(label);
         }
-
-
+        
         // load config
         LoadConfig();
 
@@ -297,6 +297,8 @@ private:
     QScrollArea* scroll_ = 0;
     QGridLayout* layout_ = 0;
     QPushButton* addButton_ = 0;
+    QPushButton* startAllButton_ = 0;
+    QPushButton* stopAllButton_ = 0;
 };
 
 OBS_DECLARE_MODULE()
