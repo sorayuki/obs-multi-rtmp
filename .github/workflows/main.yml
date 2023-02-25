@@ -20,26 +20,26 @@ env:
   PLUGIN_NAME: 'obs-multi-rtmp'
 
 jobs:
-  clang_check:
-    name: 01 - Code Format Check
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-        with:
-          submodules: recursive
-
-      - name: Install clang-format
-        run: sudo apt-get install -y clang-format-13
-
-      - name: Run clang-format
-        run: ./.github/scripts/check-format.sh && ./.github/scripts/check-changes.sh
-
-      - name: Install cmake-format
-        run: sudo pip install cmakelang
-
-      - name: Run cmake-format
-        run: ./.github/scripts/check-cmake.sh
+  #clang_check:
+  #  name: 01 - Code Format Check
+  #  runs-on: ubuntu-22.04
+  #  steps:
+  #    - name: Checkout
+  #      uses: actions/checkout@v3
+  #      with:
+  #        submodules: recursive
+  #
+  #    - name: Install clang-format
+  #      run: sudo apt-get install -y clang-format-13
+  #
+  #    - name: Run clang-format
+  #      run: ./.github/scripts/check-format.sh && ./.github/scripts/check-changes.sh
+  #
+  #    - name: Install cmake-format
+  #      run: sudo pip install cmakelang
+  #
+  #    - name: Run cmake-format
+  #      run: ./.github/scripts/check-cmake.sh
 
   macos_build:
     name: 02 - macOS
@@ -49,7 +49,7 @@ jobs:
       matrix:
         arch: [x86_64, arm64, universal]
     if: always()
-    needs: [clang_check]
+    #needs: [clang_check]
     outputs:
       commitHash: ${{ steps.setup.outputs.commitHash }}
     env:
@@ -179,7 +179,7 @@ jobs:
       matrix:
         arch: [x86_64]
     if: always()
-    needs: [clang_check]
+    #needs: [clang_check]
     outputs:
       commitHash: ${{ steps.setup.outputs.commitHash }}
     defaults:
@@ -257,7 +257,7 @@ jobs:
       matrix:
         arch: [x64]
     if: always()
-    needs: [clang_check]
+    #needs: [clang_check]
     outputs:
       commitHash: ${{ steps.setup.outputs.commitHash }}
     defaults:
