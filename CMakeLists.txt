@@ -1,4 +1,6 @@
 cmake_minimum_required(VERSION 3.16...3.21)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Change obs-plugintemplate to your plugin's name in a machine-readable format (e.g.:
 # obs-myawesomeplugin) and set
@@ -18,11 +20,15 @@ set(MACOS_BUNDLEID "com.sorayuki.${CMAKE_PROJECT_NAME}")
 
 # Add your custom source files here - header files are optional and only required for visibility
 # e.g. in Xcode or Visual Studio
-target_sources(${CMAKE_PROJECT_NAME} PRIVATE ./src/obs-multi-rtmp.cpp ./src/edit-widget.cpp
-                                             ./src/push-widget.cpp)
-
-target_sources(${CMAKE_PROJECT_NAME} PRIVATE ./src/obs-multi-rtmp.h ./src/pch.h ./src/edit-widget.h
-                                             ./src/push-widget.h)
+target_sources(${CMAKE_PROJECT_NAME} PRIVATE 
+	./src/pch.h
+	./src/obs-multi-rtmp.h
+	./src/obs-multi-rtmp.cpp 
+	./src/edit-widget.h
+	./src/edit-widget.cpp
+	./src/push-widget.h
+	./src/push-widget.cpp
+)
 
 # Import libobs as main plugin dependency
 find_package(libobs REQUIRED)

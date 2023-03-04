@@ -60,9 +60,11 @@ public:
         layout_ = new QGridLayout(container_);
         layout_->setAlignment(Qt::AlignmentFlag::AlignTop);
 
+        int currow = 0;
+
         // init widget
-        addButton_ = new QPushButton(obs_module_text("Btn.NewTarget"), container_);
-        QObject::connect(addButton_, &QPushButton::clicked, [this]() {
+        auto addButton = new QPushButton(obs_module_text("Btn.NewTarget"), container_);
+        QObject::connect(addButton, &QPushButton::clicked, [this]() {
             auto pushwidget = createPushWidget(QJsonObject(), container_);
             layout_->addWidget(pushwidget);
             if (pushwidget->ShowEditDlg())
@@ -70,22 +72,7 @@ public:
             else
                 delete pushwidget;
         });
-        layout_->addWidget(addButton_);
-        startAllButton_ = new QPushButton("Start all streams", container_);
-        layout_->addWidget(startAllButton_);
-        stopAllButton_ = new QPushButton("Stop all streams", container_);
-        layout_->addWidget(stopAllButton_);
-        QObject::connect(startAllButton_, &QPushButton::clicked, [this]() {
-            for (auto x : GetAllPushWidgets())
-                if (!x->StartStreaming())
-                {
-                    break;
-                }
-        });
-        QObject::connect(stopAllButton_, &QPushButton::clicked, [this]() {
-            for (auto x : GetAllPushWidgets())
-                x->StopStreaming();
-        });
+        layout_->addWidget(addButton);
 
         // donate
         if (std::string("\xe5\xa4\x9a\xe8\xb7\xaf\xe6\x8e\xa8\xe6\xb5\x81") == obs_module_text("Title"))
@@ -185,6 +172,25 @@ public:
             label->setOpenExternalLinks(true);
             layout_->addWidget(label);
         }
+
+        // start all, stop all
+        auto allBtnContainer = new QWidget(this);
+        auto allBtnLayout = new QHBoxLayout();
+        auto startAllButton = new QPushButton(obs_module_text("Btn.StartAll"), allBtnContainer);
+        allBtnLayout->addWidget(startAllButton);
+        auto stopAllButton = new QPushButton(obs_module_text("Btn.StopAll"), allBtnContainer);
+        allBtnLayout->addWidget(stopAllButton);
+        allBtnContainer->setLayout(allBtnLayout);
+        layout_->addWidget(allBtnContainer);
+
+        QObject::connect(startAllButton, &QPushButton::clicked, [this]() {
+            for (auto x : GetAllPushWidgets())
+                x->StartStreaming();
+        });
+        QObject::connect(stopAllButton, &QPushButton::clicked, [this]() {
+            for (auto x : GetAllPushWidgets())
+                x->StopStreaming();
+        });
         
         // load config
         LoadConfig();
@@ -295,9 +301,6 @@ private:
     QWidget* container_ = 0;
     QScrollArea* scroll_ = 0;
     QGridLayout* layout_ = 0;
-    QPushButton* addButton_ = 0;
-    QPushButton* startAllButton_ = 0;
-    QPushButton* stopAllButton_ = 0;
 };
 
 OBS_DECLARE_MODULE()

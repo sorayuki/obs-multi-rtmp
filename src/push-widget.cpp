@@ -1,6 +1,7 @@
 #include "pch.h"
 #include <regex>
 #include <optional>
+#include <format>
 #include "push-widget.h"
 #include "edit-widget.h"
 
@@ -94,13 +95,11 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
 
     QPushButton* btn_ = 0;
     QLabel* name_ = 0;
-    QLabel* fps_ = 0;
-    QLabel* bps_ = 0;
     QLabel* msg_ = 0;
 
     using clock = std::chrono::steady_clock;
+    clock::time_point begin_time_;
     clock::time_point last_info_time_;
-    uint64_t total_second_ = 0;
     uint64_t total_frames_ = 0;
     uint64_t total_bytes_ = 0;
     QTimer* timer_ = 0;
@@ -324,6 +323,52 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
             return false;
     }
 
+    void UpdateStreamStatus() {
+        if (!output_)
+            return;
+
+        static const char* units[] = {
+            "bps", "Kbps", "Mbps", "Gbps", "Tbps", "Pbps", "Ebps", "Zbps", "Ybps"
+        };
+
+        auto new_bytes = obs_output_get_total_bytes(output_);
+        auto new_frames = obs_output_get_total_frames(output_);
+        auto now = clock::now();
+
+        auto interval = std::chrono::duration_cast<std::chrono::duration<double>>(now - last_info_time_).count();
+        if (interval > 0)
+        {
+            auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(now - begin_time_).count();
+            auto strDuration = std::format("{:%T}", std::chrono::seconds((int)std::round(duration)));
+            auto strFps = std::format("{} FPS", (int)std::round((new_frames - total_frames_) / interval));
+
+            auto bps = (new_bytes - total_bytes_) * 8 / interval;
+            auto strBps = [&]()-> std::string {
+                if (bps > 0)
+                {
+                    int unitMaxIndex = sizeof(units) / sizeof(*units);
+                    int unitIndex = static_cast<int>(log10(bps) / 3);
+                    if (unitIndex >= unitMaxIndex)
+                        unitIndex = unitMaxIndex - 1;
+                    auto strVal = std::format("{:f}", bps / pow(1000, unitIndex)).substr(0, 4);
+                    if (!strVal.empty() && strVal.back() == '.')
+                        strVal.pop_back();
+                    return strVal + " " + units[unitIndex];
+                }
+                else
+                {
+                    return "0 bps";
+                }
+            }();
+            
+            msg_->setText((strDuration + "  " + strBps + "  " + strFps).c_str());
+        }
+
+        total_frames_ = new_frames;
+        total_bytes_ = new_bytes;
+        last_info_time_ = now;
+    }
+
 public:
     PushWidgetImpl(QJsonObject conf, QWidget* parent = 0)
         : QWidget(parent)
@@ -334,57 +379,11 @@ public:
         timer_ = new QTimer(this);
         timer_->setInterval(std::chrono::milliseconds(1000));
         QObject::connect(timer_, &QTimer::timeout, [this]() {
-            if (!output_)
-                return;
-            
-            auto new_bytes = obs_output_get_total_bytes(output_);
-            auto new_frames = obs_output_get_total_frames(output_);
-            auto now = clock::now();
-           
-            auto intervalms = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_info_time_).count();
-           
-            if (intervalms > 0)
-            {
-                total_second_++;
-                auto hour = std::to_string(total_second_ / 3600);
-                if (stoi(hour) < 10)
-                {
-                    hour = "0" + hour;
-                }
-                auto minute = std::to_string(total_second_ % 3600 / 60);
-                if (stoi(minute) < 10)
-                {
-                    minute = "0" + minute;
-                }
-                auto second = std::to_string(total_second_ % 60);
-                if (stoi(second) < 10)
-                {
-                    second = "0" + second;
-                }
-                auto bytes = (new_bytes - total_bytes_) * 1000 / intervalms;
-                auto bytes_text = std::to_string(bytes) + "b/s";
-                if (bytes / 1024 / 1024 > 0) {
-                    float temp_bytes = float(bytes) / 1024 / 1024;
-                    bytes_text = std::to_string(temp_bytes).substr(0, std::to_string(temp_bytes).find(".") + 3) + "Mb/s";
-                }
-                else if (bytes / 1024 > 0) {
-                    float temp_bytes = float(bytes) / 1024;
-                    bytes_text = std::to_string(temp_bytes).substr(0, std::to_string(temp_bytes).find(".")+3) + "Kb/s";
-                }
-                auto text = hour + ":" + minute + ":" + second + "   " + std::to_string((new_frames - total_frames_) * 1000 / intervalms) + " FPS";
-                fps_->setText(text.c_str());
-                bps_->setText(bytes_text.c_str());
-            }
-
-            total_frames_ = new_frames;
-            total_bytes_ = new_bytes;
-            last_info_time_ = now;
+            UpdateStreamStatus();
         });
 
         auto layout = new QGridLayout(this);
-        layout->addWidget(name_ = new QLabel(obs_module_text("NewStreaming"), this), 0, 0, 1, 2);
-        layout->addWidget(fps_ = new QLabel(u8"", this), 0, 2);
-        layout->addWidget(bps_ = new QLabel(u8"", this), 0, 1);
+        layout->addWidget(name_ = new QLabel(obs_module_text("NewStreaming"), this), 0, 0, 1, 3);
         layout->addWidget(btn_ = new QPushButton(obs_module_text("Btn.Start"), this), 1, 0);
         QObject::connect(btn_, &QPushButton::clicked, [this]() {
             StartStop();
@@ -423,52 +422,55 @@ public:
         ReleaseOutput();
     }
     bool StartStreaming() override {
-        if (IsRunning() == false) {
-            // recreate output
-            ReleaseOutput();
+        if (IsRunning() == false)
+            return true;
 
-            if (output_ == nullptr)
-            {
-                output_ = obs_output_create("rtmp_output", "multi-output", nullptr, nullptr);
-                SetAsHandler(output_);
-            }
+        // recreate output
+        ReleaseOutput();
 
-            if (output_) {
-                isUseDelay_ = false;
+        if (output_ == nullptr)
+        {
+            output_ = obs_output_create("rtmp_output", "multi-output", nullptr, nullptr);
+            SetAsHandler(output_);
+        }
 
-                auto profileConfig = obs_frontend_get_profile_config();
-                if (profileConfig) {
-                    bool useDelay = config_get_bool(profileConfig, "Output", "DelayEnable");
-                    bool preserveDelay = config_get_bool(profileConfig, "Output", "DelayPreserve");
-                    int delaySec = config_get_int(profileConfig, "Output", "DelaySec");
-                    obs_output_set_delay(output_,
-                        useDelay ? delaySec : 0,
-                        preserveDelay ? OBS_OUTPUT_DELAY_PRESERVE : 0
-                    );
+        if (output_) {
+            isUseDelay_ = false;
 
-                    if (useDelay && delaySec > 0)
-                        isUseDelay_ = true;
-                }
-            }
+            auto profileConfig = obs_frontend_get_profile_config();
+            if (profileConfig) {
+                bool useDelay = config_get_bool(profileConfig, "Output", "DelayEnable");
+                bool preserveDelay = config_get_bool(profileConfig, "Output", "DelayPreserve");
+                int delaySec = config_get_int(profileConfig, "Output", "DelaySec");
+                obs_output_set_delay(output_,
+                    useDelay ? delaySec : 0,
+                    preserveDelay ? OBS_OUTPUT_DELAY_PRESERVE : 0
+                );
 
-            if (!PrepareOutputService())
-            {
-                SetMsg(obs_module_text("Error.CreateRtmpService"));
-                return false;
-            }
-
-            if (!PrepareOutputEncoders())
-            {
-                SetMsg(obs_module_text("Error.CreateEncoder"));
-                return false;
-            }
-
-            if (!obs_output_start(output_))
-            {
-                SetMsg(obs_module_text("Error.StartOutput"));
-                return false;
+                if (useDelay && delaySec > 0)
+                    isUseDelay_ = true;
             }
         }
+
+        if (!PrepareOutputService())
+        {
+            SetMsg(obs_module_text("Error.CreateRtmpService"));
+            return false;
+        }
+
+        if (!PrepareOutputEncoders())
+        {
+            SetMsg(obs_module_text("Error.CreateEncoder"));
+            return false;
+        }
+
+        if (!obs_output_start(output_))
+        {
+            SetMsg(obs_module_text("Error.StartOutput"));
+            return false;
+        }
+            
+            return true;
     }
     void StopStreaming() override {
         if (IsRunning() == true && output_ != nullptr)
@@ -521,12 +523,11 @@ public:
 
     void ResetInfo()
     {
-        total_second_ = 0;
+        begin_time_ = clock::now();
         total_frames_ = 0;
         total_bytes_ = 0;
         last_info_time_ = clock::now();
-        fps_->setText("");
-        bps_->setText("");
+        msg_->setText("");
     }
 
     bool IsRunning()
@@ -666,6 +667,8 @@ public:
     void OnReconnect() override
     {
         GetGlobalService().RunInUIThread([this]() {
+            timer_->stop();
+
             remove_btn_->setEnabled(false);
             btn_->setText(obs_module_text("Status.Stop"));
             btn_->setEnabled(true);
@@ -681,13 +684,15 @@ public:
             btn_->setEnabled(true);
             SetMsg(obs_module_text("Status.Streaming"));
 
-            ResetInfo();
+            timer_->start();
         });
     }
 
     void OnStopping() override
     {
         GetGlobalService().RunInUIThread([this]() {
+            timer_->stop();
+
             remove_btn_->setEnabled(false);
             btn_->setText(obs_module_text("Status.Stop"));
             btn_->setEnabled(true);
