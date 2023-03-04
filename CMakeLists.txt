@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16...3.21)
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Change obs-plugintemplate to your plugin's name in a machine-readable format (e.g.:

@@ -1,7 +1,6 @@
 #include "pch.h"
 #include <regex>
 #include <optional>
-#include <format>
 #include "push-widget.h"
 #include "edit-widget.h"
 
@@ -324,6 +323,8 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     }
 
     void UpdateStreamStatus() {
+        using namespace std::chrono;
+
         if (!output_)
             return;
 
@@ -338,9 +339,19 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         auto interval = std::chrono::duration_cast<std::chrono::duration<double>>(now - last_info_time_).count();
         if (interval > 0)
         {
-            auto duration = std::chrono::duration_cast<std::chrono::duration<double>>(now - begin_time_).count();
-            auto strDuration = std::format("{:%T}", std::chrono::seconds((int)std::round(duration)));
-            auto strFps = std::format("{} FPS", (int)std::round((new_frames - total_frames_) / interval));
+            auto duration = now - begin_time_;
+            auto hh = duration_cast<hours>(duration);
+            duration -= hh;
+            auto mm = duration_cast<minutes>(duration);
+            duration -= mm;
+            auto ss = duration_cast<seconds>(duration);
+            duration -= ss;
+
+            char strDuration[64] = { 0 };
+            sprintf_s(strDuration, sizeof(strDuration) - 1, "%02d:%02d:%02d", (int)hh.count(), (int)mm.count(), (int)ss.count());
+
+            char strFps[32] = { 0 };
+            sprintf_s(strFps, sizeof(strFps - 1), "%d FPS", (int)std::round((new_frames - total_frames_) / interval));
 
             auto bps = (new_bytes - total_bytes_) * 8 / interval;
             auto strBps = [&]()-> std::string {
@@ -350,7 +361,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
                     int unitIndex = static_cast<int>(log10(bps) / 3);
                     if (unitIndex >= unitMaxIndex)
                         unitIndex = unitMaxIndex - 1;
-                    auto strVal = std::format("{:f}", bps / pow(1000, unitIndex)).substr(0, 4);
+                    auto strVal = std::to_string(bps / pow(1000, unitIndex)).substr(0, 4);
                     if (!strVal.empty() && strVal.back() == '.')
                         strVal.pop_back();
                     return strVal + " " + units[unitIndex];
@@ -361,7 +372,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
                 }
             }();
             
-            msg_->setText((strDuration + "  " + strBps + "  " + strFps).c_str());
+            msg_->setText((std::string(strDuration) + "  " + strBps + "  " + strFps).c_str());
         }
 
         total_frames_ = new_frames;
