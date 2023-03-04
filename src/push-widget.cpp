@@ -348,10 +348,10 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
             duration -= ss;
 
             char strDuration[64] = { 0 };
-            sprintf_s(strDuration, sizeof(strDuration) - 1, "%02d:%02d:%02d", (int)hh.count(), (int)mm.count(), (int)ss.count());
+            sprintf(strDuration, "%02d:%02d:%02d", (int)hh.count(), (int)mm.count(), (int)ss.count());
 
             char strFps[32] = { 0 };
-            sprintf_s(strFps, sizeof(strFps - 1), "%d FPS", (int)std::round((new_frames - total_frames_) / interval));
+            sprintf(strFps, "%d FPS", (int)std::round((new_frames - total_frames_) / interval));
 
             auto bps = (new_bytes - total_bytes_) * 8 / interval;
             auto strBps = [&]()-> std::string {
