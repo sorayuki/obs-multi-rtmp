@@ -5,7 +5,7 @@ public:
     virtual ~PushWidget() {}
     virtual QJsonObject Config() = 0;
     virtual bool ShowEditDlg() = 0;
-    virtual bool StartStreaming() = 0;
+    virtual void StartStreaming() = 0;
     virtual void StopStreaming() = 0;
     virtual void OnOBSEvent(obs_frontend_event ev) = 0;
 };
