@@ -1,7 +1,7 @@
 #define MyAppName "@CMAKE_PROJECT_NAME@"
 #define MyAppVersion "@CMAKE_PROJECT_VERSION@"
 #define MyAppPublisher "@PLUGIN_AUTHOR@"
-#define MyAppURL "http://www.mywebsite.com"
+#define MyAppURL "@PLUGIN_WEBSITE@"
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application.
