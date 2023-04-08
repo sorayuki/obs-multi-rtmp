@@ -499,7 +499,7 @@ else()
     # Setup Linux-specific CPack values for "deb" package generation
     if(OS_LINUX)
       set(CPACK_PACKAGE_NAME "${CMAKE_PROJECT_NAME}")
-      set(CPACK_DEBIAN_PACKAGE_MAINTAINER "${LINUX_MAINTAINER_EMAIL}")
+      set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Unofficial")
       set(CPACK_PACKAGE_VERSION "${CMAKE_PROJECT_VERSION}")
       set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-linux-x86_64")
 
