@@ -13,6 +13,7 @@ class EditOutputWidgetImpl : public EditOutputWidget
     QLineEdit* rtmp_pass_ = 0;
 
     QComboBox* venc_ = 0;
+    QComboBox* v_scene_ = 0;
     QLineEdit* v_bitrate_ = 0;
     QLineEdit* v_keyframe_sec_ = 0;
     QLineEdit* v_bframes_ = 0;
@@ -103,6 +104,12 @@ public:
                         int curcol = 0;
                         encLayout->addWidget(new QLabel(obs_module_text("Encoder"), gp), currow, curcol++);
                         encLayout->addWidget(venc_ = new QComboBox(gp), currow, curcol++);
+                    }
+                    ++currow;
+                    {
+                        int curcol = 0;
+                        encLayout->addWidget(new QLabel(obs_module_text("Scene"), gp), currow, curcol++);
+                        encLayout->addWidget(v_scene_ = new QComboBox(gp), currow, curcol++);
                     }
                     ++currow;
                     {
@@ -218,6 +225,8 @@ public:
         setLayout(layout);
 
         LoadEncoders();
+        LoadScenes();
+
         LoadConfig();
         ConnectWidgetSignals();
         UpdateUI();
@@ -253,11 +262,31 @@ public:
             aenc_->addItem(obs_encoder_get_display_name(x.c_str()), x.c_str());
     }
 
+    void LoadScenes()
+    {
+        v_scene_->addItem(obs_module_text("SameAsOBS"), "");
+        
+        using EnumParam = std::vector<std::string>;
+        std::vector<std::string> scenes;
+        obs_enum_scenes([](void* p, obs_source_t* src) {
+            auto scenes = (EnumParam*)p;
+            auto name = obs_source_get_name(src);
+            if (name && *name)
+                scenes->emplace_back(name);
+            return true;
+        }, &scenes);
+
+        for(auto& x: scenes) {
+            v_scene_->addItem(x.c_str(), x.c_str());
+        }
+    }
+
     void UpdateUI()
     {
         auto ve = venc_->currentData();
         if (ve.isValid() && ve.toString() == "")
         {
+            v_scene_->setEnabled(false);
             v_bitrate_->setText(obs_module_text("SameAsOBS"));
             v_bitrate_->setEnabled(false);
             v_resolution_->setText(obs_module_text("SameAsOBS"));
@@ -270,6 +299,7 @@ public:
         }
         else
         {
+            v_scene_->setEnabled(true);
             v_bitrate_->setEnabled(true);
             v_resolution_->setEnabled(true);
             v_keyframe_sec_->setEnabled(true);
@@ -301,6 +331,8 @@ public:
         conf_["rtmp-pass"] = rtmp_pass_->text();
         conf_["v-enc"] = venc_->currentData().toString();
         conf_["a-enc"] = aenc_->currentData().toString();
+        if (v_scene_->isEnabled())
+            conf_["v-scene"] = v_scene_->currentText();
         if (v_bitrate_->isEnabled())
             try { conf_["v-bitrate"] = std::stod(tostdu8(v_bitrate_->text())); } catch(...) {}
         if (v_keyframe_sec_->isEnabled())
@@ -338,6 +370,13 @@ public:
         QJsonUtil::IfGet(conf_, "rtmp-pass", [&](QString rtmppass) {
             rtmp_pass_->setText(rtmppass);
             return rtmppass;
+        });
+
+        QJsonUtil::IfGet(conf_, "v-scene", [&](QString sceneName) {
+            auto idx = v_scene_->findData(sceneName);
+            if (idx >= 0)
+                v_scene_->setCurrentIndex(idx);
+            return sceneName;
         });
 
         QJsonUtil::IfGet(conf_, "v-enc", [&](QString encid) {
