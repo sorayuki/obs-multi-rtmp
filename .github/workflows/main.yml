@@ -172,83 +172,83 @@ jobs:
           name: ${{ env.PLUGIN_NAME }}-macos-${{ matrix.arch }}-${{ steps.setup.outputs.commitHash }}
           path: ${{ github.workspace }}/plugin/release/${{ env.PLUGIN_NAME }}-*-macos-${{ matrix.arch }}.pkg
 
-#  linux_build:
-#    name: 02 - Linux
-#    runs-on: ubuntu-22.04
-#    strategy:
-#      fail-fast: true
-#      matrix:
-#        arch: [x86_64]
-#    if: always()
-#    #needs: [clang_check]
-#    outputs:
-#      commitHash: ${{ steps.setup.outputs.commitHash }}
-#    defaults:
-#      run:
-#        shell: bash
-#    steps:
-#      - name: Checkout
-#        uses: actions/checkout@v3
-#        with:
-#          path: plugin
-#          submodules: recursive
-#  
-#      - name: Checkout obs-studio
-#        uses: actions/checkout@v3
-#        with:
-#          repository: 'obsproject/obs-studio'
-#          path: obs-studio
-#          fetch-depth: 0
-#          submodules: recursive
-#  
-#      - name: Setup Environment
-#        working-directory: ${{ github.workspace }}/plugin
-#        id: setup
-#        run: |
-#          ## SETUP ENVIRONMENT SCRIPT
-#          echo "ccacheDate=$(date +"%Y-%m-%d")" >> $GITHUB_OUTPUT
-#          echo "commitHash=$(git rev-parse HEAD | cut -c1-9)" >> $GITHUB_OUTPUT
-#  
-#      - name: Restore Compilation Cache
-#        id: ccache-cache
-#        uses: actions/cache@v3
-#        with:
-#          path: ${{ github.workspace }}/.ccache
-#          key: linux-${{ matrix.arch }}-ccache-plugin-${{ steps.setup.outputs.ccacheDate }}
-#          restore-keys: |
-#            linux-${{ matrix.arch }}-ccache-plugin-
-#  
-#      - name: Check for GitHub Labels
-#        id: seekingTesters
-#        if: ${{ github.event_name == 'pull_request' }}
-#        run: |
-#          ## GITHUB LABEL SCRIPT
-#          if [[ -n "$(curl -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" -s "${{ github.event.pull_request.url }}" | jq -e '.labels[] | select(.name == "Seeking Testers")')" ]]; then
-#            echo 'found=true' >> $GITHUB_OUTPUT
-#          else
-#            echo 'found=false' >> $GITHUB_OUTPUT
-#          fi
-#  
-#      - name: Build Plugin
-#        uses: ./plugin/.github/actions/build-plugin
-#        with:
-#          workingDirectory: ${{ github.workspace }}/plugin
-#          target: ${{ matrix.arch }}
-#          config: RelWithDebInfo
-#  
-#      - name: Package Plugin
-#        uses: ./plugin/.github/actions/package-plugin
-#        with:
-#          workingDirectory: ${{ github.workspace }}/plugin
-#          target: ${{ matrix.arch }}
-#          config: RelWithDebInfo
-#  
-#      - name: Upload Build Artifact
-#        if: ${{ success() && (github.event_name != 'pull_request' || steps.seekingTesters.outputs.found == 'true') }}
-#        uses: actions/upload-artifact@v3
-#        with:
-#          name: ${{ env.PLUGIN_NAME }}-linux-${{ matrix.arch }}-${{ steps.setup.outputs.commitHash }}
-#          path: ${{ github.workspace }}/plugin/release/${{ env.PLUGIN_NAME }}-*-linux-${{ matrix.arch }}.*
+  linux_build:
+    name: 02 - Linux
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: true
+      matrix:
+        arch: [x86_64]
+    if: always()
+    #needs: [clang_check]
+    outputs:
+      commitHash: ${{ steps.setup.outputs.commitHash }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          path: plugin
+          submodules: recursive
+  
+      - name: Checkout obs-studio
+        uses: actions/checkout@v3
+        with:
+          repository: 'obsproject/obs-studio'
+          path: obs-studio
+          fetch-depth: 0
+          submodules: recursive
+  
+      - name: Setup Environment
+        working-directory: ${{ github.workspace }}/plugin
+        id: setup
+        run: |
+          ## SETUP ENVIRONMENT SCRIPT
+          echo "ccacheDate=$(date +"%Y-%m-%d")" >> $GITHUB_OUTPUT
+          echo "commitHash=$(git rev-parse HEAD | cut -c1-9)" >> $GITHUB_OUTPUT
+  
+      - name: Restore Compilation Cache
+        id: ccache-cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ github.workspace }}/.ccache
+          key: linux-${{ matrix.arch }}-ccache-plugin-${{ steps.setup.outputs.ccacheDate }}
+          restore-keys: |
+            linux-${{ matrix.arch }}-ccache-plugin-
+  
+      - name: Check for GitHub Labels
+        id: seekingTesters
+        if: ${{ github.event_name == 'pull_request' }}
+        run: |
+          ## GITHUB LABEL SCRIPT
+          if [[ -n "$(curl -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" -s "${{ github.event.pull_request.url }}" | jq -e '.labels[] | select(.name == "Seeking Testers")')" ]]; then
+            echo 'found=true' >> $GITHUB_OUTPUT
+          else
+            echo 'found=false' >> $GITHUB_OUTPUT
+          fi
+  
+      - name: Build Plugin
+        uses: ./plugin/.github/actions/build-plugin
+        with:
+          workingDirectory: ${{ github.workspace }}/plugin
+          target: ${{ matrix.arch }}
+          config: RelWithDebInfo
+  
+      - name: Package Plugin
+        uses: ./plugin/.github/actions/package-plugin
+        with:
+          workingDirectory: ${{ github.workspace }}/plugin
+          target: ${{ matrix.arch }}
+          config: RelWithDebInfo
+  
+      - name: Upload Build Artifact
+        if: ${{ success() && (github.event_name != 'pull_request' || steps.seekingTesters.outputs.found == 'true') }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.PLUGIN_NAME }}-linux-${{ matrix.arch }}-${{ steps.setup.outputs.commitHash }}
+          path: ${{ github.workspace }}/plugin/release/${{ env.PLUGIN_NAME }}-*-linux-${{ matrix.arch }}.*
 
   windows_build:
     name: 02 - Windows
@@ -350,8 +350,8 @@ jobs:
     name: 03 - Create and upload release
     runs-on: ubuntu-22.04
     if: github.event_name == 'workflow_dispatch' && contains(github.ref, 'refs/tags/')
-    # needs: [macos_build, linux_build, windows_build]
-    needs: [macos_build, windows_build]
+    needs: [macos_build, linux_build, windows_build]
+    # needs: [macos_build, windows_build]
     defaults:
       run:
         shell: bash
