@@ -8,27 +8,27 @@ class IOBSOutputEventHanlder
 {
 public:
     virtual void OnStarting() {}
-    static void OnOutputStarting(void* x, calldata_t* param)
+    static void OnOutputStarting(void* x, calldata_t*)
     {
         auto thiz = static_cast<IOBSOutputEventHanlder*>(x);
         thiz->OnStarting();
     }
 
     virtual void OnStarted() {}
-    static void OnOutputStarted(void* x, calldata_t* param)
+    static void OnOutputStarted(void* x, calldata_t*)
     {
         auto thiz = static_cast<IOBSOutputEventHanlder*>(x);
         thiz->OnStarted();
     }
 
     virtual void OnStopping() {}
-    static void OnOutputStopping(void* x, calldata_t* param)
+    static void OnOutputStopping(void* x, calldata_t*)
     {
         auto thiz = static_cast<IOBSOutputEventHanlder*>(x);
         thiz->OnStopping();
     }
    
-    virtual void OnStopped(int code) {}
+    virtual void OnStopped(int) {}
     static void OnOutputStopped(void* x, calldata_t* param)
     {
         auto thiz = static_cast<IOBSOutputEventHanlder*>(x);
@@ -36,21 +36,21 @@ public:
     }
 
     virtual void OnReconnect() {}
-    static void OnOutputReconnect(void* x, calldata_t* param)
+    static void OnOutputReconnect(void* x, calldata_t*)
     {
         auto thiz = static_cast<IOBSOutputEventHanlder*>(x);
         thiz->OnReconnect();
     }
 
     virtual void OnReconnected() {}
-    static void OnOutputReconnected(void* x, calldata_t* param)
+    static void OnOutputReconnected(void* x, calldata_t*)
     {
         auto thiz = static_cast<IOBSOutputEventHanlder*>(x);
         thiz->OnReconnected();
     }
 
     virtual void onDeactive() {}
-    static void OnOutputDeactive(void* x, calldata_t* param)
+    static void OnOutputDeactive(void* x, calldata_t*)
     {
         auto thiz = static_cast<IOBSOutputEventHanlder*>(x);
         thiz->onDeactive();
@@ -241,12 +241,12 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
             if (venc_id.empty())
             {
                 venc = obs_output_get_video_encoder(stream_out);
-                obs_encoder_addref(venc);
+                venc = obs_encoder_get_ref(venc);
             }
             if (aenc_id.empty())
             {
                 aenc = obs_output_get_audio_encoder(stream_out, 0);
-                obs_encoder_addref(aenc);
+                aenc = obs_encoder_get_ref(aenc);
             }
 
             obs_output_release(stream_out);

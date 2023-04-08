@@ -1,13 +1,20 @@
 *~
 .DS_Store
+/out/
 /build/
 /build_*/
 /release/
 /installer/Output/
+bin/Debug
+obj/Debug
+bin/Release
+obj/Release
 
-.vscode
-.idea
+.vscode/
+.vs/
+.idea/
 
 # ignore generated files
 *.generated.*
 **/.Brewfile.lock.json
+*.bak
