@@ -651,7 +651,7 @@ else()
         COMPONENT obs_plugins)
 
       install(
-        DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data
+        DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data/
         DESTINATION $<CONFIG>/${OBS_DATA_DESTINATION}/${destination}
         USE_SOURCE_PERMISSIONS
         COMPONENT obs_rundir
