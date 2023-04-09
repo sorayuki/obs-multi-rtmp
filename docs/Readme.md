@@ -76,36 +76,9 @@ A: たまに発生するバッグかどうかわかりませんが、以下の�
 
 
 
-# How to Build (Windows)
+# How to Build
 
-1. Prepare environment
-   1. Put official release OBS 26.1.2 into obs-bin directory. 
-   2. Extract OBS source code of same version as binary to obs-src
-   3. Download Qt that obs-bin uses. Which can be found in CI\install-qt-win.cmd
-
-2. Configure
-   Use cmake to configure this project. must use VS2019 or higher. 
-   cmake's QTDIR variable is set to the path of QT in the same version as obs uses. 
-   
-   Set CMAKE_BUILD_TYPE to Release. 
-
-   > Notice: debug version of this plugin only works with debug version of OBS, which means you must build OBS from source.
-
-3. Compile
-
-# How to Build (Ubuntu)
-
-1. Install obs-studio via APT.  
-Sorry but I didn't make it installed successfully via flatpak in my computer and network.
-3. Install build tools.  
-```apt install build-essential cmake mesa-common-dev qt6-base-dev```
-1. Clone this repository or download the source archive and extract.
-2. In the source Code folder, use cmake to do the stuff.  
-```
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build
-sudo cmake --install build
-```
+Refer the continuous integration script.
 
 # Donate
 
