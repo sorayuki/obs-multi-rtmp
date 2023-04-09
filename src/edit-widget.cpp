@@ -126,7 +126,7 @@ public:
                         {
                             int curcol = 0;
                             c->addWidget(v_bitrate_ = new QLineEdit("", gp), 0, curcol++);
-                            c->addWidget(new QLabel("kbps", gp), 0, curcol++);
+                            c->addWidget(new QLabel(obs_module_text("kbps"), gp), 0, curcol++);
                             c->setColumnStretch(0, 1);
                             c->setColumnStretch(1, 0);
                         }
