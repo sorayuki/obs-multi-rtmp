@@ -18,16 +18,18 @@ Recently an Baidu Tieba account 'maggot' is selling this plugin. Don't buy it.
 
 # お知らせ
 
-このプラグインは無料ソフトです。
+本プラグインは無償で提供されるものです。
 
-最近百度Tiebaで有料でこのソフトを提供する人があります。注意してください。
+最近、Baidu Tiebaに「maggot」というアカウント名のユーザーがこのプラグインを販売する行為をしています。
+
+決して購入はしないでください。
 
 
 # Donate
 
 如果你觉得这个工具很有用想要捐赠，这里是链接。注意：这不是提需求的渠道。
 
-このツールに投げ銭したいならここはリンクです。（機能要求ではありません）
+このツールの開発に支援もとい投げ銭をしたいと思った方は以下のリンクからお願いします。(機能のリクエストは受け付けていません)
 
 If you regard this tool useful and want to doante for some, here is the link. (It's not for feature request.)
 
