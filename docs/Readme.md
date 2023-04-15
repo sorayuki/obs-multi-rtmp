@@ -12,8 +12,7 @@
 
 # OBS 同時配信プラグイン
 
-本プラグインは、複数サイトに同時配信のため作ったものです。
-
+本プラグインは複数のサイトで同時配信を行なうために作ってみた物です。
 
 # スクリーンショット
 
@@ -22,77 +21,76 @@
 
 # ダウンロード
 
-[Windows版リリースページへ](https://github.com/sorayuki/obs-multi-rtmp/releases/)
+[Windows版リリースページ](https://github.com/sorayuki/obs-multi-rtmp/releases/)
 
-[macOS版リリースページへ](https://github.com/kilinbox/obs-multi-rtmp/releases) (非公式)
+[macOS版リリースページ](https://github.com/kilinbox/obs-multi-rtmp/releases) (非公式)
 
 
 # Windows版インストール手順
 
-## インストーラーを利用する場合
+## インストーラーを使用する場合
 
-インストーラーを利用してください。目標フォルダを変更しないで。
+そのままインストールを実行してください。インストール先のフォルダーは変更をしないでください。
 
-## Portableの場合
+## ポータブル版の場合
 
-アーカイブを　C:\Program Files\obs-studio　に解凍してください。
+圧縮ファイルを展開後に「C:\Program Files\obs-studio」へファイルを配置してください。
 
 ## アンインストール
 
-インストーラーを利用してアンインストールもできます。
+インストーラーを使用してアンインストールが行えます。
 
-インストーラーはこのプラグインを正しくリムーブしなかった場合、```C:\ProgramData\obs-studio\plugins\obs-multi-rtmp```フォルダを削除して済みます。
+インストーラーでこのプラグインが正しく削除できなかった場合は、「C:\ProgramData\obs-studio\plugins\obs-multi-rtmp」のフォルダーを削除で消す事ができます。ファイル名を指定して実行で「%programdata%」と入力すると対象のフォルダーを開く事ができます。
 
-ProgramDataは普段に非表示ので注意してください。
+「ProgramData」は通常だと非表示になっているのでご注意ください。
 
-# macOS版インストール手順
+# macOS版のインストール手順
 
 [kilinboxさんのページ](https://www.kilinbox.net/2021/01/obs-multi-rtmp.html)
 
 
-# 要求環境(Windows版)
+# インストール要件 (Windows版)
 
-OBS-Studio バージョン 26.1.1 以降
-また、OBS-Studio 本体は QT 5.15.2 と共にビルドしたバージョン
+OBS-Studio バージョン 26.1.1以降または、OBS-Studio本体をQT 5.15.2と共にビルドをしたバージョン
 
-確認済：
-obs-studio 26.1.1
+動作を確認済みのバージョン:
+OBS-Studio 26.1.1
 
 
-# よくあるご質問
+# よくある質問 (FAQ)
 
-**Q: 同時配信のドックウインドウはなくなった。ドックをリセットしても効かない**
+**Q: 同時配信のドックウィンドウが表示されなくなりました。ドックをリセットしても変りません。**
 
-A: たまに発生するバッグかどうかわかりませんが、以下の手順でドックを一回完全にリセットする。
+A: たまに発生するバグのようです。原因は不明ですが、以下の手順でドックをリセットする事が可能です。
 
-1. ヘルプメニュー　→　ログファイル　→　ログファイルを表示
+1. ヘルプ　→　ログファイル　→　ログファイルを表示
 2. OBSを終了する
-3. 呼び出すウインドウで、AppData\Roaming\obs-studio\logsとかが表示している。obs-studio に移行
-4. global.ini を開く
-5. DockState=XXXXXXXX（←長い文字列） を探す
-6. そのラインを削除して、セーブする
+3. AppData\Roaming\obs-studio\logsの格納先を開く(ファイル名を指定して実行で「%appdata%」と入力すると対象のフォルダーを開く事ができます)
+4. global.iniをテキストエディタで開く
+5. DockState=XXXXXXXX(長い文字列になっています)を探す
+6. その行を削除をし、保存をする
 
-そうしたら治ると思います。
+の手順で直ると思います。
 
 
 
-# How to Build
+# ビルド方法
 
-Refer the continuous integration script.
+断続的インテグレーションのスクリプトをご参照ください。
 
-# Donate
+# 寄付 / Donate
 
 如果你觉得这个工具很有用想要捐赠，这里是链接。注意：这不是提需求的渠道。
 
-このツールに投げ銭したいならここはリンクです。（機能要求ではありません）
+このツールの開発に支援もとい投げ銭をしたいと思った方は以下のリンクからお願いします。(機能のリクエストは受け付けていません)
 
 If you regard this tool useful and want to doante for some, here is the link. (It's not for feature request.)
 
-## paypal / 贝宝
-[paypal / 贝宝](https://paypal.me/sorayuki0)
+## PayPal / 贝宝
+[PayPal / 贝宝](https://paypal.me/sorayuki0)
 
-## alipay or wechat / 支付宝或微信
+## AliPay または WeChat / 支付宝或微信
 
-[alipay](./zhi.png) 
+[AliPay](./zhi.png) 
 
-[wechat](./wechat.jpg)
+[WeChat](./wechat.jpg)
