@@ -166,7 +166,7 @@ public:
         }
         else
         {
-            auto label = new QLabel(u8"<p>This plugin provided free. <br>Author: SoraYuki (<a href=\"https://paypal.me/sorayuki0\">donate</a>) </p>", container_);
+            auto label = new QLabel(u8"<p>This plugin is provided for free. <br>Author: SoraYuki (<a href=\"https://paypal.me/sorayuki0\">donate</a>) </p>", container_);
             label->setTextFormat(Qt::RichText);
             label->setTextInteractionFlags(Qt::TextBrowserInteraction);
             label->setOpenExternalLinks(true);
