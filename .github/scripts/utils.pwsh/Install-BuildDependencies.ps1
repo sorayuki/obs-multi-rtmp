@@ -17,8 +17,12 @@ function Install-BuildDependencies {
     if ( ! ( Test-Path function:Log-Warning ) ) {
         . $PSScriptRoot/Logger.ps1
     }
-    
-    $Host64Bit = [System.Environment]::Is64BitOperatingSystem
+
+    $Prefixes = @{
+        'x64' = ${Env:ProgramFiles}
+        'x86' = ${Env:ProgramFiles(x86)}
+        'arm64' = ${Env:ProgramFiles(arm)}
+    }
 
     $Paths = $Env:Path -split [System.IO.Path]::PathSeparator
 
@@ -28,14 +32,15 @@ function Install-BuildDependencies {
         $WingetOptions += '--silent'
     }
 
+    Log-Group 'Check Windows build requirements'
     Get-Content $WingetFile | ForEach-Object {
-        $_, $Package, $_, $Path, $_, $Binary = ([regex]::Split($_, " (?=(?:[^']|'[^']*')*$)")) -replace ',', '' -replace "'",''
+        $_, $Package, $_, $Path, $_, $Binary, $_, $Version = $_ -replace ',','' -split " +(?=(?:[^\']*\'[^\']*\')*[^\']*$)" -replace "'",''
 
-        (${Env:ProgramFiles(x86)}, $Env:ProgramFiles) | ForEach-Object {
-            $Prefix = $_
+        $Prefixes.GetEnumerator() | ForEach-Object {
+            $Prefix = $_.value
             $FullPath = "${Prefix}\${Path}"
             if ( ( Test-Path $FullPath  ) -and ! ( $Paths -contains $FullPath ) ) {
-                $Paths += $FullPath
+                $Paths = @($FullPath) + $Paths
                 $Env:Path = $Paths -join [System.IO.Path]::PathSeparator
             }
         }
@@ -46,7 +51,11 @@ function Install-BuildDependencies {
         if ( $Found ) {
             Log-Status "Found dependency ${Binary} as $($Found.Source)"
         } else {
-            Log-Status "Installing package ${Package}"
+            Log-Status "Installing package ${Package} $(if ( $Version -ne $null ) { "Version: ${Version}" } )"
+
+            if ( $Version -ne $null ) {
+                $WingetOptions += @('--version', ${Version})
+            }
 
             try {
                 $Params = $WingetOptions + $Package
@@ -57,4 +66,5 @@ function Install-BuildDependencies {
             }
         }
     }
+    Log-Group
 }

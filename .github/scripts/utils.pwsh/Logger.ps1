@@ -8,7 +8,7 @@ function Log-Debug {
 
     Process {
         foreach($m in $Message) {
-            Write-Debug $m
+            Write-Debug "$(if ( $env:CI -ne $null ) { '::debug::' })$m"
         }
     }
 }
@@ -38,7 +38,7 @@ function Log-Warning {
 
     Process {
         foreach($m in $Message) {
-            Write-Warning $m
+            Write-Warning "$(if ( $env:CI -ne $null ) { '::warning::' })$m"
         }
     }
 }
@@ -53,7 +53,7 @@ function Log-Error {
 
     Process {
         foreach($m in $Message) {
-            Write-Error $m
+            Write-Error "$(if ( $env:CI -ne $null ) { '::error::' })$m"
         }
     }
 }
@@ -74,6 +74,32 @@ function Log-Information {
             foreach($m in $Message) {
                 Write-Host -NoNewLine -ForegroundColor Blue "  ${StageName} $($Icon.PadRight(5)) "
                 Write-Host "${m}"
+            }
+        }
+    }
+}
+
+function Log-Group {
+    [CmdletBinding()]
+    param(
+        [Parameter(ValueFromPipeline)]
+        [string[]] $Message
+    )
+
+    Process {
+        if ( $Env:CI -ne $null )  {
+            if ( $script:LogGroup ) {
+                Write-Output '::endgroup::'
+                $script:LogGroup = $false
+            }
+
+            if ( $Message.count -ge 1 ) {
+                Write-Output "::group::$($Message -join ' ')"
+                $script:LogGroup = $true
+            }
+        } else {
+            if ( $Message.count -ge 1 ) {
+                Log-Information $Message
             }
         }
     }
