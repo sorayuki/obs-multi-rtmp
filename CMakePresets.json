@@ -1,0 +1,186 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 22,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "macos",
+      "displayName": "macOS Universal",
+      "description": "Build for macOS 11.0+ (Universal binary)",
+      "binaryDir": "${sourceDir}/build_macos",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      },
+      "generator": "Xcode",
+      "warnings": {"dev": true, "deprecated": true},
+      "cacheVariables": {
+        "QT_VERSION": "6",
+        "CMAKE_OSX_DEPLOYMENT_TARGET": "11.0",
+        "CODESIGN_IDENTITY": "$penv{CODESIGN_IDENT}",
+        "CODESIGN_TEAM": "$penv{CODESIGN_TEAM}",
+        "ENABLE_FRONTEND_API": false,
+        "ENABLE_QT": false
+      }
+    },
+    {
+      "name": "macos-ci",
+      "inherits": ["macos"],
+      "displayName": "macOS Universal CI build",
+      "description": "Build for macOS 11.0+ (Universal binary) for CI",
+      "generator": "Xcode",
+      "cacheVariables": {
+        "CMAKE_COMPILE_WARNING_AS_ERROR": true
+      }
+    },
+    {
+      "name": "windows-x64",
+      "displayName": "Windows x64",
+      "description": "Build for Windows x64",
+      "binaryDir": "${sourceDir}/build_x64",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      },
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "warnings": {"dev": true, "deprecated": true},
+      "cacheVariables": {
+        "QT_VERSION": "6",
+        "CMAKE_SYSTEM_VERSION": "10.0.18363.657",
+        "ENABLE_FRONTEND_API": false,
+        "ENABLE_QT": false
+      }
+    },
+    {
+      "name": "windows-ci-x64",
+      "inherits": ["windows-x64"],
+      "displayName": "Windows x64 CI build",
+      "description": "Build for Windows x64 on CI",
+      "cacheVariables": {
+        "CMAKE_COMPILE_WARNING_AS_ERROR": true
+      }
+    },
+    {
+      "name": "linux-x86_64",
+      "displayName": "Linux x86_64",
+      "description": "Build for Linux x86_64",
+      "binaryDir": "${sourceDir}/build_x86_64",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "generator": "Ninja",
+      "warnings": {"dev": true, "deprecated": true},
+      "cacheVariables": {
+        "QT_VERSION": "6",
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "ENABLE_FRONTEND_API": false,
+        "ENABLE_QT": false
+      }
+    },
+    {
+      "name": "linux-ci-x86_64",
+      "inherits": ["linux-x86_64"],
+      "displayName": "Linux x86_64 CI build",
+      "description": "Build for Linux x86_64 on CI",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_COMPILE_WARNING_AS_ERROR": true
+      }
+    },
+    {
+      "name": "linux-aarch64",
+      "displayName": "Linux aarch64",
+      "description": "Build for Linux aarch64",
+      "binaryDir": "${sourceDir}/build_aarch64",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "generator": "Ninja",
+      "warnings": {"dev": true, "deprecated": true},
+      "cacheVariables": {
+        "QT_VERSION": "6",
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "ENABLE_FRONTEND_API": false,
+        "ENABLE_QT": false
+      }
+    },
+    {
+      "name": "linux-ci-aarch64",
+      "inherits": ["linux-aarch64"],
+      "displayName": "Linux aarch64 CI build",
+      "description": "Build for Linux aarch64 on CI",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_COMPILE_WARNING_AS_ERROR": true
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "macos",
+      "configurePreset": "macos",
+      "displayName": "macOS Universal",
+      "description": "macOS build for Universal architectures",
+      "configuration": "Release"
+    },
+    {
+      "name": "macos-ci",
+      "configurePreset": "macos-ci",
+      "displayName": "macOS Universal CI",
+      "description": "macOS CI build for Universal architectures",
+      "configuration": "RelWithDebInfo"
+    },
+    {
+      "name": "windows-x64",
+      "configurePreset": "windows-x64",
+      "displayName": "Windows x64",
+      "description": "Windows build for x64",
+      "configuration": "RelWithDebInfo"
+    },
+    {
+      "name": "windows-ci-x64",
+      "configurePreset": "windows-ci-x64",
+      "displayName": "Windows x64 CI",
+      "description": "Windows CI build for x64 (RelWithDebInfo configuration)",
+      "configuration": "RelWithDebInfo"
+    },
+    {
+      "name": "linux-x86_64",
+      "configurePreset": "linux-x86_64",
+      "displayName": "Linux x86_64",
+      "description": "Linux build for x86_64",
+      "configuration": "RelWithDebInfo"
+    },
+    {
+      "name": "linux-ci-x86_64",
+      "configurePreset": "linux-ci-x86_64",
+      "displayName": "Linux x86_64 CI",
+      "description": "Linux CI build for x86_64",
+      "configuration": "RelWithDebInfo"
+    },
+    {
+      "name": "linux-aarch64",
+      "configurePreset": "linux-aarch64",
+      "displayName": "Linux aarch64",
+      "description": "Linux build for aarch64",
+      "configuration": "RelWithDebInfo"
+    },
+    {
+      "name": "linux-ci-aarch64",
+      "configurePreset": "linux-ci-aarch64",
+      "displayName": "Linux aarch64 CI",
+      "description": "Linux CI build for aarch64",
+      "configuration": "RelWithDebInfo"
+    }
+  ]
+}
