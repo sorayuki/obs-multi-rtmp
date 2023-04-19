@@ -16,12 +16,23 @@ You should have received a copy of the GNU General Public License along
 with this program. If not, see <https://www.gnu.org/licenses/>
 */
 
-#ifndef PLUGINNAME_H
-#define PLUGINNAME_H
+#pragma once
 
-#define PLUGIN_NAME "@CMAKE_PROJECT_NAME@"
-#define PLUGIN_VERSION "@CMAKE_PROJECT_VERSION@"
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-#define blog(level, msg, ...) blog(level, "[" PLUGIN_NAME "] " msg, ##__VA_ARGS__)
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdarg.h>
+#include <string.h>
 
-#endif // PLUGINNAME_H
+extern const char *PLUGIN_NAME;
+extern const char *PLUGIN_VERSION;
+
+void obs_log(int log_level, const char *format, ...);
+extern void blogva(int log_level, const char *format, va_list args);
+
+#ifdef __cplusplus
+}
+#endif

@@ -16,20 +16,24 @@ You should have received a copy of the GNU General Public License along
 with this program. If not, see <https://www.gnu.org/licenses/>
 */
 
-#include <obs-module.h>
 #include <plugin-support.h>
 
-OBS_DECLARE_MODULE()
-OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
+const char *PLUGIN_NAME = "@CMAKE_PROJECT_NAME@";
+const char *PLUGIN_VERSION = "@CMAKE_PROJECT_VERSION@";
 
-bool obs_module_load(void)
+void obs_log(int log_level, const char *format, ...)
 {
-	obs_log(LOG_INFO, "plugin loaded successfully (version %s)",
-		PLUGIN_VERSION);
-	return true;
-}
+    size_t length = 4 + strlen(PLUGIN_NAME) + strlen(format);
 
-void obs_module_unload(void)
-{
-	obs_log(LOG_INFO, "plugin unloaded");
+    char *template = malloc(length + 1);
+
+    snprintf(template, length, "[%s] %s", PLUGIN_NAME, format);
+
+    va_list(args);
+
+    va_start(args, format);
+    blogva(log_level, template, args);
+    va_end(args);
+
+    free(template);
 }
