@@ -12,6 +12,8 @@ local -a dependencies=("${(f)$(<${SCRIPT_HOME}/.Aptfile)}")
 local -a install_list
 local binary
 
+sudo apt-get update -qq
+
 for dependency (${dependencies}) {
   local -a tokens=(${(s: :)dependency//(,|:|\')/})
 
