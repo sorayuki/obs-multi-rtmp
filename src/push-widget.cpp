@@ -4,6 +4,8 @@
 #include "push-widget.h"
 #include "edit-widget.h"
 
+#define TAG "[obs-multi-rtmp] "
+
 class IOBSOutputEventHanlder
 {
 public:
@@ -108,71 +110,15 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
 
     obs_output_t* output_ = 0;
     obs_view_t* scene_view_ = 0;
-    video_t* scene_video_ = 0;
     bool isUseDelay_ = false;
 
-    bool ReleaseSceneView() {
-        if (video_output_active(scene_video_))
-            return false;
-
-        video_output_close(scene_video_);
-        scene_video_ = nullptr;
-        obs_view_remove(scene_view_);
-        obs_view_set_source(scene_view_, 0, nullptr);
-        obs_view_destroy(scene_view_);
-        scene_view_ = nullptr;
-
-        return true;
-    }
-
-    bool ReleaseOutputService()
-    {
-        if (!output_)
-            return true;
-        else if (output_ && obs_output_active(output_) == false)
-        {
-            auto service = obs_output_get_service(output_);
-            if (service)
-            {
-                obs_output_set_service(output_, nullptr);
-                obs_service_release(service);
-            }
-            return true;
-        }
-        else
-            return false;
-    }
-    
-    bool ReleaseOutputEncoder()
-    {
-        if (!output_)
-            return true;
-        else if (output_ && obs_output_active(output_) == false)
-        {
-            auto venc = obs_output_get_video_encoder(output_);
-            if (venc)
-            {
-                obs_output_set_video_encoder(output_, nullptr);
-                obs_encoder_release(venc);
-            }
-            
-            auto aenc = obs_output_get_audio_encoder(output_, 0);
-            if (aenc)
-            {
-                obs_output_set_audio_encoder(output_, nullptr, 0);
-                obs_encoder_release(aenc);
-            }
-
-            return true;
-        }
-        else
-            return false;
-    }
 
     bool PrepareOutputService()
     {
-        if (!output_)
+        if (!output_) {
+            blog(LOG_ERROR, TAG "Prepare output service before output object is created.");
             return false;
+        }
         
         ReleaseOutputService();
 
@@ -203,15 +149,83 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         return true;
     }
 
-    bool PrepareOutputEncoders()
+
+    bool ReleaseOutputService()
     {
         if (!output_)
+            return true;
+        else if (output_ && obs_output_active(output_) == false)
+        {
+            auto service = obs_output_get_service(output_);
+            if (service)
+            {
+                obs_output_set_service(output_, nullptr);
+                obs_service_release(service);
+            }
+            return true;
+        }
+        else {
             return false;
+        }
+    }
+
+
+    bool PrepareOutputSceneView() {
+        if (!output_) {
+            blog(LOG_ERROR, TAG "Prepare output scene before output object is created.");
+            return false;
+        }
+        auto venc = obs_output_get_video_encoder(output_);
+        if (!venc) {
+            blog(LOG_ERROR, TAG "Prepare output scene before encoder is created.");
+            return false;
+        }
+
+        auto v_scene = QJsonUtil::Get(conf_, "v-scene", std::string{});
+        if (v_scene.empty()) {
+            obs_encoder_set_video(venc, obs_get_video());
+        } else {
+            auto scene = obs_get_source_by_name(v_scene.c_str());
+            if (scene == nullptr) {
+                blog(LOG_ERROR, TAG "Output scene is not found.");
+                return false;
+            }
+            ReleaseOutputSceneView();
+
+            scene_view_ = obs_view_create();
+            obs_view_set_source(scene_view_, 0, scene);
+            obs_source_release(scene);
+            auto scene_video = obs_view_add(scene_view_);
+            obs_encoder_set_video(venc, scene_video);
+        }
+
+        return true;
+    }
+
+
+    bool ReleaseOutputSceneView() {
+        if (!scene_view_)
+            return true;
+
+        obs_view_remove(scene_view_);
+        obs_view_set_source(scene_view_, 0, nullptr);
+        obs_view_destroy(scene_view_);
+        scene_view_ = nullptr;
+
+        return true;
+    }
+
+
+    bool PrepareOutputEncoders()
+    {
+        if (!output_) {
+            blog(LOG_ERROR, TAG "Prepare output encoder before output object is created.");
+            return false;
+        }
         
         ReleaseOutputEncoder();
 
         // read config
-        auto v_scene = QJsonUtil::Get(conf_, "v-scene", std::string{});
         auto venc_id = QJsonUtil::Get(conf_, "v-enc", std::string{});
         auto aenc_id = QJsonUtil::Get(conf_, "a-enc", std::string{});
         auto v_bitrate = QJsonUtil::Get(conf_, "v-bitrate", 2000);
@@ -286,20 +300,6 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
                 obs_encoder_set_scaled_size(venc, v_width, v_height);
             }
         }
-
-        if (v_scene.empty()) {
-            obs_encoder_set_video(venc, obs_get_video());
-        } else {
-            auto scene = obs_get_source_by_name(v_scene.c_str());
-            if (scene == nullptr)
-                return false;
-            ReleaseSceneView();
-            scene_view_ = obs_view_create();
-            obs_view_set_source(scene_view_, 0, scene);
-            obs_source_release(scene);
-            scene_video_ = obs_view_add(scene_view_);
-            obs_encoder_set_video(venc, scene_video_);
-        }
         obs_output_set_video_encoder(output_, venc);
 
         // create audio encoder
@@ -325,6 +325,36 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         return true;
     }
 
+
+    bool ReleaseOutputEncoder()
+    {
+        if (!output_)
+            return true;
+        else if (obs_output_active(output_) == false)
+        {
+            auto venc = obs_output_get_video_encoder(output_);
+            if (venc)
+            {
+                obs_output_set_video_encoder(output_, nullptr);
+                obs_encoder_release(venc);
+            }
+            
+            auto aenc = obs_output_get_audio_encoder(output_, 0);
+            if (aenc)
+            {
+                obs_output_set_audio_encoder(output_, nullptr, 0);
+                obs_encoder_release(aenc);
+            }
+
+            return true;
+        }
+        else {
+            blog(LOG_ERROR, TAG "Release output while it is active.");
+            return false;
+        }
+    }
+
+
     bool ReleaseOutput()
     {
         if (output_) {
@@ -343,7 +373,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
             obs_output_release(output_);
             output_ = nullptr;
 
-            ReleaseSceneView();
+            ret = ReleaseOutputSceneView() && ret;
 
             return ret;
         }
@@ -358,6 +388,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         else
             return false;
     }
+
 
     void UpdateStreamStatus() {
         using namespace std::chrono;
@@ -510,6 +541,12 @@ public:
         if (!PrepareOutputEncoders())
         {
             SetMsg(obs_module_text("Error.CreateEncoder"));
+            return;
+        }
+
+        if (!PrepareOutputSceneView())
+        {
+            SetMsg(obs_module_text("Error.SceneNotExist"));
             return;
         }
 
@@ -727,6 +764,7 @@ public:
         });
 
         ReleaseOutputEncoder();
+        ReleaseOutputSceneView();
     }
 };
 

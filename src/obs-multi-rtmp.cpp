@@ -74,6 +74,28 @@ public:
         });
         layout_->addWidget(addButton);
 
+        // start all, stop all
+        auto allBtnContainer = new QWidget(this);
+        auto allBtnLayout = new QHBoxLayout();
+        auto startAllButton = new QPushButton(obs_module_text("Btn.StartAll"), allBtnContainer);
+        allBtnLayout->addWidget(startAllButton);
+        auto stopAllButton = new QPushButton(obs_module_text("Btn.StopAll"), allBtnContainer);
+        allBtnLayout->addWidget(stopAllButton);
+        allBtnContainer->setLayout(allBtnLayout);
+        layout_->addWidget(allBtnContainer);
+
+        QObject::connect(startAllButton, &QPushButton::clicked, [this]() {
+            for (auto x : GetAllPushWidgets())
+                x->StartStreaming();
+        });
+        QObject::connect(stopAllButton, &QPushButton::clicked, [this]() {
+            for (auto x : GetAllPushWidgets())
+                x->StopStreaming();
+        });
+        
+        // load config
+        LoadConfig();
+
         // donate
         if (std::string("\xe5\xa4\x9a\xe8\xb7\xaf\xe6\x8e\xa8\xe6\xb5\x81") == obs_module_text("Title"))
         {
@@ -172,28 +194,6 @@ public:
             label->setOpenExternalLinks(true);
             layout_->addWidget(label);
         }
-
-        // start all, stop all
-        auto allBtnContainer = new QWidget(this);
-        auto allBtnLayout = new QHBoxLayout();
-        auto startAllButton = new QPushButton(obs_module_text("Btn.StartAll"), allBtnContainer);
-        allBtnLayout->addWidget(startAllButton);
-        auto stopAllButton = new QPushButton(obs_module_text("Btn.StopAll"), allBtnContainer);
-        allBtnLayout->addWidget(stopAllButton);
-        allBtnContainer->setLayout(allBtnLayout);
-        layout_->addWidget(allBtnContainer);
-
-        QObject::connect(startAllButton, &QPushButton::clicked, [this]() {
-            for (auto x : GetAllPushWidgets())
-                x->StartStreaming();
-        });
-        QObject::connect(stopAllButton, &QPushButton::clicked, [this]() {
-            for (auto x : GetAllPushWidgets())
-                x->StopStreaming();
-        });
-        
-        // load config
-        LoadConfig();
 
         scroll_->setWidgetResizable(true);
         scroll_->setWidget(container_);

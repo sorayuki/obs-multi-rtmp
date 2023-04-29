@@ -37,6 +37,9 @@ class EditOutputWidgetImpl : public EditOutputWidget
             const char* encid;
             if (!obs_enum_encoder_types(i++, &encid))
                 break;
+            auto caps = obs_get_encoder_caps(encid);
+            if (caps & OBS_ENCODER_CAP_DEPRECATED)
+                continue;
             auto enc_codec = obs_get_encoder_codec(encid);
             if (strcmp(enc_codec, codec) == 0)
                 result.emplace_back(encid);
@@ -253,13 +256,16 @@ public:
 
     void LoadEncoders()
     {
+        auto ui_text = [](auto id) {
+            return std::string(obs_encoder_get_display_name(id.c_str())) + " [" + id + "]";
+        };
         venc_->addItem(obs_module_text("SameAsOBS"), "");
         for(auto x : EnumEncodersByCodec("h264"))
-            venc_->addItem(obs_encoder_get_display_name(x.c_str()), x.c_str());
+            venc_->addItem(ui_text(x).c_str(), x.c_str());
         
         aenc_->addItem(obs_module_text("SameAsOBS"), "");
         for(auto x : EnumEncodersByCodec("AAC"))
-            aenc_->addItem(obs_encoder_get_display_name(x.c_str()), x.c_str());
+            aenc_->addItem(ui_text(x).c_str(), x.c_str());
     }
 
     void LoadScenes()
@@ -332,7 +338,7 @@ public:
         conf_["v-enc"] = venc_->currentData().toString();
         conf_["a-enc"] = aenc_->currentData().toString();
         if (v_scene_->isEnabled())
-            conf_["v-scene"] = v_scene_->currentText();
+            conf_["v-scene"] = v_scene_->currentData().toString();
         if (v_bitrate_->isEnabled())
             try { conf_["v-bitrate"] = std::stod(tostdu8(v_bitrate_->text())); } catch(...) {}
         if (v_keyframe_sec_->isEnabled())
