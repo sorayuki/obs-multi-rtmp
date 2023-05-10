@@ -1,5 +1,5 @@
 if (( ! ${+commands[packagesbuild]} )) {
-  autoload -Uz log_info log_status mkcd
+  autoload -Uz log_group log_info log_status mkcd
 
   if (( ! ${+commands[curl]} )) {
     log_error 'curl not found. Please install curl.'
@@ -12,41 +12,51 @@ if (( ! ${+commands[packagesbuild]} )) {
   }
 
   local -a curl_opts=()
-  if (( ! ${+CI} )) {
-    curl_opts+=(--progress-bar)
-  } else {
+  if (( ${+CI} )) {
     curl_opts+=(--show-error --silent)
+  } else {
+    curl_opts+=(--progress-bar)
   }
-  curl_opts+=(--location -O ${@})
+  curl_opts+=(--location -O)
 
-  log_info 'Installing Packages.app...'
+  log_group 'Installing Packages.app...'
 
-  pushd
-  mkcd ${project_root:h}/obs-build-dependencies
+  local version
+  local base_url
+  local hash
+  IFS=';' read -r version base_url hash <<< \
+    "$(jq -r '.tools.packages | {version, baseUrl, hash} | join(";")' buildspec.json)"
 
-  local packages_url='http://s.sudre.free.fr/Software/files/Packages.dmg'
-  local packages_hash='6afdd25386295974dad8f078b8f1e41cabebd08e72d970bf92f707c7e48b16c9'
+  mkdir -p ${project_root}/.deps && pushd ${project_root}/.deps
+  curl ${curl_opts} "${base_url}/Packages.dmg"
 
-  if [[ ! -f Packages.dmg ]] {
-    log_status 'Download Packages.app'
-    curl ${curl_opts} ${packages_url}
-  }
+  local checksum="$(sha256sum Packages.dmg | cut -d " " -f 1)"
 
-  local image_checksum
-  read -r image_checksum _ <<< "$(sha256sum Packages.dmg)"
-
-  if [[ ${packages_hash} != ${image_checksum} ]] {
-    log_error "Checksum mismatch of Packages.app download.
-Expected : ${packages_hash}
-Actual   : ${image_checksum}"
+  if [[ ${hash} != ${checksum} ]] {
+    log_error "Checksum mismatch of Packages.dmg download.
+Expected : ${hash}
+Actual   : ${checksum}"
     return 2
   }
 
-  hdiutil attach -noverify Packages.dmg &> /dev/null && log_status 'Packages.dmg image mounted.'
+  hdiutil attach -readonly -noverify -noautoopen -plist Packages.dmg > .result.plist
+  local -i num_entities=$(( $(plutil -extract system-entities raw -- .result.plist) - 1 ))
+  local keys
+  local mount_point
+  for i ({0..${num_entities}}) {
+    keys=($(plutil -extract system-entities.${i} raw -- .result.plist))
+    if [[ ${keys} == *mount-point* ]] {
+      mount_point=$(plutil -extract system-entities.${i}.mount-point raw -- .result.plist)
+      break
+    }
+  }
+  rm .result.plist
 
-  log_info 'Installing Packages.app...'
-  packages_volume=$(hdiutil info -plist | grep '<string>/Volumes/Packages' | sed 's/.*<string>\(\/Volumes\/[^<]*\)<\/string>/\1/')
+  log_status 'Installing Packages.app requires elevated privileges!'
 
-  sudo installer -pkg "${packages_volume}/packages/Packages.pkg" -target / && rehash
-  hdiutil detach ${packages_volume} &> /dev/null && log_status 'Packages.dmg image unmounted.'
+  sudo installer -pkg ${mount_point}/packages/Packages.pkg -target / && rehash
+  hdiutil detach ${mount_point} &> /dev/null && log_status 'Packages.dmg image unmounted.'
+  popd
+
+  log_group
 }

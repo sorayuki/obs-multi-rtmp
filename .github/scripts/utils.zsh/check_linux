@@ -1,4 +1,20 @@
-autoload -Uz log_info log_status log_error log_debug log_warning
+autoload -Uz log_info log_status log_error log_debug log_warning log_group
+
+log_group 'Check Linux build requirements'
+log_debug 'Checking Linux distribution name and version...'
+
+# Check for Ubuntu version 22.10 or later, which have srt and librist available via apt-get
+typeset -g -i UBUNTU_2210_OR_LATER=0
+if [[ -f /etc/os_release ]] {
+  local dist_name
+  local dist_version
+  read -r dist_name dist_version <<< "$(source /etc/os_release; print "${NAME} ${VERSION_ID}")"
+
+  autoload -Uz is-at-least
+  if [[ ${dist_name} == Ubuntu ]] && is-at-least 22.10 ${dist_version}; then
+    typeset -g -i UBUNTU_2210_OR_LATER=1
+  fi
+}
 
 log_debug 'Checking for apt-get...'
 if (( ! ${+commands[apt-get]} )) {
@@ -8,14 +24,14 @@ if (( ! ${+commands[apt-get]} )) {
   log_debug "Apt-get located at ${commands[apt-get]}"
 }
 
-local -a dependencies=("${(f)$(<${SCRIPT_HOME}/.Aptfile)}")
+local -a dependencies=("${(fA)$(<${SCRIPT_HOME}/.Aptfile)}")
 local -a install_list
 local binary
 
 sudo apt-get update -qq
 
 for dependency (${dependencies}) {
-  local -a tokens=(${(s: :)dependency//(,|:|\')/})
+  local -a tokens=(${=dependency//(,|:|\')/})
 
   if [[ ! ${tokens[1]} == 'package' ]] continue
 
@@ -28,11 +44,18 @@ for dependency (${dependencies}) {
   if (( ! ${+commands[${binary}]} )) install_list+=(${tokens[2]})
 }
 
-local -a _quiet=('' '--quiet')
-
 log_debug "List of dependencies to install: ${install_list}"
 if (( ${#install_list} )) {
   if (( ! ${+CI} )) log_warning 'Dependency installation via apt may require elevated privileges'
 
-  sudo apt-get -y install ${install_list} ${_quiet[(( (_loglevel == 0) + 1 ))]}
+  local -a apt_args=(
+    ${CI:+-y}
+    --no-install-recommends
+  )
+  if (( _loglevel == 0 )) apt_args+=(--quiet)
+
+  sudo apt-get ${apt_args} install ${install_list}
 }
+
+rehash
+log_group

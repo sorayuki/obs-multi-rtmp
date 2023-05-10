@@ -13,50 +13,50 @@ if (( ! ${+target} )) {
 pushd ${project_root}
 
 typeset -g QT_VERSION
-read -r QT_VERSION <<< \
-  "$(jq -r --arg target "${target}" \
-    '.platformConfig[$target] | { qtVersion } | join(" ")' \
-    ${project_root}/buildspec.json)"
+
+local -a apt_args=(
+  ${CI:+-y}
+  --no-install-recommends
+)
+if (( _loglevel == 0 )) apt_args+=(--quiet)
 
 if (( ! (${skips[(Ie)all]} + ${skips[(Ie)deps]}) )) {
-  log_info 'Installing obs build dependencies...'
+  log_group 'Installing obs-studio build dependencies...'
 
-  sudo apt-get install -y \
+  local suffix
+  if [[ ${CPUTYPE} != "${target##*-}" ]] {
+    local -A arch_mappings=(
+      aarch64 arm64
+      x86_64 amd64
+    )
+
+    suffix=":${arch_mappings[${target##*-}]}"
+
+    sudo apt-get install ${apt_args} gcc-${${target##*-}//_/-}-linux-gnu g++-${${target##*-}//_/-}-linux-gnu
+  }
+
+  sudo apt-get install ${apt_args} \
     build-essential \
-    libcurl4-openssl-dev \
-    libavcodec-dev libavdevice-dev libavfilter-dev libavformat-dev libavutil-dev \
-    libswresample-dev libswscale-dev \
-    libjansson-dev \
-    libx11-xcb-dev \
     libgles2-mesa-dev \
-    libwayland-dev \
-    libpulse-dev
+    libobs-dev${suffix}
 
   local -a _qt_packages=()
 
   if (( QT_VERSION == 5 )) {
     _qt_packages+=(
-      qtbase5-dev
-      libqt5svg5-dev
-      qtbase5-private-dev
-      libqt5x11extras5-dev
-    )
-  } elif (( QT_VERSION == 6 )) {
-    _qt_packages+=(
-      qt6-base-dev
-      libqt6svg6-dev
-      qt6-base-private-dev
+      qtbase5-dev${suffix}
+      libqt5svg5-dev${suffix}
+      qtbase5-private-dev${suffix}
+      libqt5x11extras5-dev${suffix}
     )
   } else {
-    log_error "Unsupported Qt version '${QT_VERSION}' specified."
-    return 2
+    _qt_packages+=(
+      qt6-base-dev${suffix}
+      libqt6svg6-dev${suffix}
+      qt6-base-private-dev${suffix}
+    )
   }
 
-  sudo apt-get install -y ${_qt_packages}
+  sudo apt-get install ${apt_args} ${_qt_packages}
+  log_group
 }
-
-local deps_version
-read -r deps_version <<< \
-  "$(jq -r '.dependencies.prebuilt.version' ${buildspec_file})"
-
-typeset -g OBS_DEPS_VERSION=${deps_version}

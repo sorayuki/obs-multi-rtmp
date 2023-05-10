@@ -1,3 +1,5 @@
+if (( ! ${+_loglevel} )) typeset -g _loglevel=1
+
 if (( _loglevel > 0 )) {
   local icon=' =>'
 
