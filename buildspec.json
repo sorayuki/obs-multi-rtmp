@@ -1,29 +1,29 @@
 {
     "dependencies": {
         "obs-studio": {
-            "version": "29.0.2",
+            "version": "29.1.1",
             "repository": "https://github.com/obsproject/obs-studio.git",
             "branch": "master",
-            "hash": "0fb8bb4b1e18ee1c870c48d35ab5b598af3b59e9"
+            "hash": "c289efd84a42887feba89c3579d39a9c264b749e"
         },
         "prebuilt": {
-            "version": "2022-11-21",
+            "version": "2023-04-12",
             "baseUrl": "https://github.com/obsproject/obs-deps/releases/download",
             "label": "Pre-built obs-deps",
             "hashes": {
-                "macos-x86_64": "ed0a145e88496f8975da14a07939dbe5633e60510aada34509a4aef64a66e438",
-                "macos-arm64": "f397dc524e5ee7f85684f0b9661c45957446e28d166fcd6dfacf895c9d4d2521",
-                "macos-universal": "a1f27fbfe1452a9331d7d468aaa38e67b71d1a89a2f049e6061308d98ad3e630"
+                "macos-x86_64": "81120ffa33bb050c6c5fcd236e5cedfd7b80f7053fdba271fead5af20be0b5f5",
+                "macos-arm64": "b9bab79611774c4651d084e14259abe889d2b8d1653787a843d08cf3f0db881c",
+                "macos-universal": "9535c6e1ad96f7d49960251e85a245774088d48da1d602bb82f734b10219125a"
             }
         },
         "qt6": {
-            "version": "2022-11-21",
+            "version": "2023-04-12",
             "baseUrl": "https://github.com/obsproject/obs-deps/releases/download",
             "label": "Pre-built Qt6",
             "hashes": {
-                "macos-x86_64": "c5ed7bc9f6e802910ec539066bcf0a8d64100fafce568071f264c88c22c5859b",
-                "macos-arm64": "1ce472fd1e28f947456b72b1d7ab929d6e93cb774c2928e22eca9bb751b12ccf",
-                "macos-universal": "873f7c9c9f7fcee740a79c075b32a505c932c816d928807fa16f3439c610fbfd"
+                "macos-x86_64": "2622d6ecd484a596da12b6a45b709fe563821eda558d0bbb27335c8c2f63945c",
+                "macos-arm64": "4f72aa1103d88a00d90c01bb3650276ffa1408e16ef40579177605483b986dc9",
+                "macos-universal": "eb7614544ab4f3d2c6052c797635602280ca5b028a6b987523d8484222ce45d1"
             }
         }
     },

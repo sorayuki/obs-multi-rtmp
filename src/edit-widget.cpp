@@ -262,9 +262,13 @@ public:
         venc_->addItem(obs_module_text("SameAsOBS"), "");
         for(auto x : EnumEncodersByCodec("h264"))
             venc_->addItem(ui_text(x).c_str(), x.c_str());
+        // for(auto x : EnumEncodersByCodec("av1"))
+        //     venc_->addItem(ui_text(x).c_str(), x.c_str());
+        // for(auto x : EnumEncodersByCodec("hevc"))
+        //     venc_->addItem(ui_text(x).c_str(), x.c_str());
         
         aenc_->addItem(obs_module_text("SameAsOBS"), "");
-        for(auto x : EnumEncodersByCodec("AAC"))
+        for(auto x : EnumEncodersByCodec("aac"))
             aenc_->addItem(ui_text(x).c_str(), x.c_str());
     }
 
