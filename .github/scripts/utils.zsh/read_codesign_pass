@@ -11,7 +11,7 @@
 #     'OBS-Codesign-Password'with access Apple's 'altool' only.
 ##############################################################################
 
-autoload -Uz read_codesign read_codesign_user log_info
+autoload -Uz read_codesign read_codesign_user log_info log_warning
 
 if (( ! ${+CODESIGN_IDENT} )) {
   read_codesign
