@@ -35,10 +35,13 @@ if (( ! (${skips[(Ie)all]} + ${skips[(Ie)deps]}) )) {
     sudo apt-get install ${apt_args} gcc-${${target##*-}//_/-}-linux-gnu g++-${${target##*-}//_/-}-linux-gnu
   }
 
+  sudo add-apt-repository --yes ppa:obsproject/obs-studio
+  sudo apt update
+
   sudo apt-get install ${apt_args} \
     build-essential \
     libgles2-mesa-dev \
-    libobs-dev${suffix}
+    obs-studio
 
   local -a _qt_packages=()
 
