@@ -24,6 +24,10 @@ inputs:
     description: 'Developer ID for installer package codesigning (macOS only)'
     required: false
     default: ''
+  codesignTeam:
+    description: 'Developer team for codesigning (macOS only)'
+    required: false
+    default: ''
   codesignUser:
     description: 'Apple ID username for notarization (macOS only)'
     required: false
@@ -50,6 +54,7 @@ runs:
       env:
         CODESIGN_IDENT: ${{ inputs.codesignIdent }}
         CODESIGN_IDENT_INSTALLER: ${{ inputs.installerIdent }}
+        CODESIGN_TEAM: ${{ inputs.codesignTeam }}
         CODESIGN_IDENT_USER: ${{ inputs.codesignUser }}
         CODESIGN_IDENT_PASS: ${{ inputs.codesignPass }}
       run: |
