@@ -4,7 +4,7 @@
 class EditOutputWidgetImpl : public EditOutputWidget
 {
     QJsonObject conf_;
-    
+
     QLineEdit* name_ = 0;
     QLineEdit* rtmp_path_ = 0;
     QLineEdit* rtmp_key_ = 0;
@@ -29,7 +29,7 @@ class EditOutputWidgetImpl : public EditOutputWidget
     {
         if (!codec)
             return {};
-        
+
         std::vector<std::string> result;
         int i = 0;
         for(;;)
@@ -53,6 +53,8 @@ public:
         , conf_(conf)
     {
         setWindowTitle(obs_module_text("StreamingSettings"));
+
+        rtmp_key_->setEchoMode(QLineEdit::Password);
 
         auto layout = new QGridLayout(this);
         layout->setColumnStretch(0, 0);
@@ -266,7 +268,7 @@ public:
         //     venc_->addItem(ui_text(x).c_str(), x.c_str());
         // for(auto x : EnumEncodersByCodec("hevc"))
         //     venc_->addItem(ui_text(x).c_str(), x.c_str());
-        
+
         aenc_->addItem(obs_module_text("SameAsOBS"), "");
         for(auto x : EnumEncodersByCodec("aac"))
             aenc_->addItem(ui_text(x).c_str(), x.c_str());
@@ -275,7 +277,7 @@ public:
     void LoadScenes()
     {
         v_scene_->addItem(obs_module_text("SameAsOBS"), "");
-        
+
         using EnumParam = std::vector<std::string>;
         std::vector<std::string> scenes;
         obs_enum_scenes([](void* p, obs_source_t* src) {
@@ -366,7 +368,7 @@ public:
             rtmp_path_->setText(rtmppath);
             return rtmppath;
         });
-        
+
         QJsonUtil::IfGet(conf_, "rtmp-key", [&](QString rtmpkey) {
             rtmp_key_->setText(rtmpkey);
             return rtmpkey;
