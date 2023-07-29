@@ -54,8 +54,6 @@ public:
     {
         setWindowTitle(obs_module_text("StreamingSettings"));
 
-        rtmp_key_->setEchoMode(QLineEdit::Password);
-
         auto layout = new QGridLayout(this);
         layout->setColumnStretch(0, 0);
         layout->setColumnStretch(1, 1);
@@ -74,6 +72,8 @@ public:
         {
             layout->addWidget(new QLabel(obs_module_text("StreamingKey"), this), currow, 0);
             layout->addWidget(rtmp_key_ = new QLineEdit(u8"", this), currow, 1);
+
+            rtmp_key_->setEchoMode(QLineEdit::Password);
         }
         ++currow;
         {
