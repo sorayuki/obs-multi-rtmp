@@ -28,6 +28,13 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 	./src/edit-widget.cpp
 	./src/push-widget.h
 	./src/push-widget.cpp
+  ./src/output-config.h
+  ./src/output-config.cpp
+  ./src/output-config-legacy.cpp
+)
+
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
+  ./dep/nlohmann-json
 )
 
 # Import libobs as main plugin dependency

@@ -6,6 +6,8 @@
 
 #include "push-widget.h"
 
+#include "output-config.h"
+
 #ifdef _WIN32
 #include <Windows.h>
 #endif
@@ -25,7 +27,6 @@ public:
     }
 
     QThread* uiThread_ = nullptr;
-    std::function<void()> saveConfig_;
 } s_service;
 
 
@@ -342,6 +343,10 @@ bool obs_module_load()
             }
         }, dock
     );
+
+    obs_frontend_add_tools_menu_item("test", [](void*) {
+        ImportLegacyMultiOutputConfig();
+    }, nullptr);
 
     return true;
 }
