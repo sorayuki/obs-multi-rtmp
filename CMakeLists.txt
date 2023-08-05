@@ -28,6 +28,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 	./src/edit-widget.cpp
 	./src/push-widget.h
 	./src/push-widget.cpp
+  ./src/json-util.hpp
   ./src/output-config.h
   ./src/output-config.cpp
   ./src/output-config-legacy.cpp

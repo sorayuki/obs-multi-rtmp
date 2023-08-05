@@ -28,32 +28,20 @@ static std::optional<VideoEncoderConfig> ImportLegacyVideoConfig(QJsonObject& js
         config.outputScene = it->toString().toUtf8().constData();
 
     it = json.find("v-resolution");
-    if (it != json.end() && it->isString()) {
-        std::string resolution = it->toString().toUtf8().constData();
-        static std::regex res_pattern(R"__(\s*(\d{1,5})\s*x\s*(\d{1,5})\s*)__");
-        std::smatch match;
-        if (std::regex_match(resolution, match, res_pattern))
-        {
-            auto width = std::stoi(match[1].str());
-            auto height = std::stoi(match[2].str());
-            config.resolution = std::make_tuple(width, height);
-        }
-    }
+    if (it != json.end() && it->isString())
+        config.resolution = it->toString().toUtf8().constData();
 
     it = json.find("v-bitrate");
-    if (it != json.end() && it->isDouble()) {
+    if (it != json.end() && it->isDouble())
         config.encoderParams["bitrate"] = it->toInt();
-    }
 
     it = json.find("v-keyframe-sec");
-    if (it != json.end() && it->isDouble()) {
+    if (it != json.end() && it->isDouble())
         config.encoderParams["keyint_sec"] = it->toInt();
-    }
 
     it = json.find("v-bframes");
-    if (it != json.end() && it->isDouble()) {
+    if (it != json.end() && it->isDouble())
         config.encoderParams["bf"] = it->toInt();
-    }
 
     return config;
 }
@@ -77,20 +65,6 @@ static std::optional<AudioEncoderConfig> ImportLegacyAudioConfig(QJsonObject& js
         config.encoderParams["bitrate"] = it->toInt();
     
     return config;
-}
-
-
-std::string GenerateConfigId(MultiOutputConfig& config) {
-    std::random_device rndgen;
-    for(;;) {
-        auto rndnum = rndgen();
-        auto newid = std::to_string(rndnum);
-        if (config.audioConfig.find(newid) != config.audioConfig.end())
-            continue;
-        if (config.videoConfig.find(newid) != config.videoConfig.end())
-            continue;
-        return newid;
-    }
 }
 
 
@@ -123,17 +97,17 @@ static OutputTargetConfig ImportLegacyTargetConfig(QJsonObject json, MultiOutput
 
     auto audioConfig = ImportLegacyAudioConfig(json);
     if (audioConfig.has_value()) {
-        audioConfig->encoderId = GenerateConfigId(parentConfig);
+        audioConfig->encoderId = GenerateId(parentConfig);
         parentConfig.audioConfig.insert(
-            std::make_pair(*audioConfig->encoderId, *audioConfig)
+            std::make_pair(audioConfig->encoderId, *audioConfig)
         );
     }
 
     auto videoConfig = ImportLegacyVideoConfig(json);
     if (videoConfig.has_value()) {
-        videoConfig->encoderId = GenerateConfigId(parentConfig);
+        videoConfig->encoderId = GenerateId(parentConfig);
         parentConfig.videoConfig.insert(
-            std::make_pair(*videoConfig->encoderId, *videoConfig)
+            std::make_pair(videoConfig->encoderId, *videoConfig)
         );
     }
 
@@ -151,9 +125,9 @@ static MultiOutputConfig ImportLegacyMultiOutputConfig(QJsonObject& json) {
     {
         if (!x.isObject())
             continue;
-        config.targets.emplace_back(
-            ImportLegacyTargetConfig(x.toObject(), config)
-        );
+        auto new_target = ImportLegacyTargetConfig(x.toObject(), config);
+        new_target.id = GenerateId(config);
+        config.targets.insert(std::make_pair(new_target.id, new_target));
     }
 
     return config;

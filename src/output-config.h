@@ -9,23 +9,23 @@
 
 struct VideoEncoderConfig {
     std::string id;
-    std::optional<std::string> encoderId;
+    std::string encoderId;
     nlohmann::json encoderParams;
     std::optional<std::string> outputScene;
-    std::optional<std::tuple<int, int>> resolution;
-
+    std::optional<std::string> resolution;
 };
 
 
 struct AudioEncoderConfig {
     std::string id;
-    std::optional<std::string> encoderId;
+    std::string encoderId;
     nlohmann::json encoderParams;
     int mixerId = 0;
 };
 
 
 struct OutputTargetConfig {
+    std::string id;
     std::string name;
     std::string servicePath;
     std::string serviceKey;
@@ -40,7 +40,7 @@ struct OutputTargetConfig {
 
 
 struct MultiOutputConfig {
-    std::vector<OutputTargetConfig> targets;
+    std::unordered_map<std::string, OutputTargetConfig> targets;
     std::unordered_map<std::string, VideoEncoderConfig> videoConfig;
     std::unordered_map<std::string, AudioEncoderConfig> audioConfig;
 };
@@ -51,3 +51,5 @@ std::string SaveMultiOutputConfig(MultiOutputConfig& config);
 MultiOutputConfig LoadMultiOutputConfig(const std::string& content);
 
 MultiOutputConfig ImportLegacyMultiOutputConfig();
+
+std::string GenerateId(MultiOutputConfig& config);
