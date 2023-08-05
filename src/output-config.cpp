@@ -2,6 +2,7 @@
 
 #include <obs.h>
 #include <random>
+#include <unordered_set>
 #include "json-util.hpp"
 
 static nlohmann::json SaveTarget(OutputTargetConfig& config) {
@@ -44,19 +45,27 @@ static nlohmann::json SaveAudioConfig(AudioEncoderConfig& config) {
 std::string SaveMultiOutputConfig(MultiOutputConfig& config) {
     nlohmann::json json;
 
+    std::unordered_set<std::string> config_in_use;
+
     nlohmann::json targets(nlohmann::json::value_t::array);
     for(auto& target: config.targets) {
         targets.push_back(SaveTarget(target.second));
+        if (target.second.videoConfig.has_value())
+            config_in_use.insert(*target.second.videoConfig);
+        if (target.second.audioConfig.has_value())
+            config_in_use.insert(*target.second.audioConfig);
     }
 
     nlohmann::json video_configs(nlohmann::json::value_t::array);
     for(auto& video_config: config.videoConfig) {
-        video_configs.push_back(SaveVideoConfig(video_config.second));
+        if (config_in_use.find(video_config.first) != config_in_use.end())
+            video_configs.push_back(SaveVideoConfig(video_config.second));
     }
 
     nlohmann::json audio_configs(nlohmann::json::value_t::array);
     for(auto& audio_config: config.audioConfig) {
-        audio_configs.push_back(SaveAudioConfig(audio_config.second));
+        if (config_in_use.find(audio_config.first) != config_in_use.end())
+            audio_configs.push_back(SaveAudioConfig(audio_config.second));
     }
 
     json["targets"] = targets;
