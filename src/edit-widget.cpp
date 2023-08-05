@@ -71,9 +71,21 @@ public:
         ++currow;
         {
             layout->addWidget(new QLabel(obs_module_text("StreamingKey"), this), currow, 0);
-            layout->addWidget(rtmp_key_ = new QLineEdit(u8"", this), currow, 1);
+            auto sub_layout = new QHBoxLayout(this);
+            sub_layout->addWidget(rtmp_key_ = new QLineEdit(u8"", this), 1);
+            auto showkey_check = new QCheckBox(u8"👀", this);
+            sub_layout->addWidget(showkey_check);
+            layout->addLayout(sub_layout, currow, 1);
 
             rtmp_key_->setEchoMode(QLineEdit::Password);
+
+            QObject::connect(showkey_check, &QCheckBox::stateChanged, [showkey_check, this](int new_state) {
+                if (new_state == Qt::CheckState::Checked) {
+                    rtmp_key_->setEchoMode(QLineEdit::Normal);
+                } else {
+                    rtmp_key_->setEchoMode(QLineEdit::Password);
+                }
+            });
         }
         ++currow;
         {
