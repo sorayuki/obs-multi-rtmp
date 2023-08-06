@@ -501,12 +501,12 @@ public:
         std::string configId;
         if (isAudio) {
             if (!config_->audioConfig.has_value())
-                return {};
+                return { "OBS" };
             configId = *config_->audioConfig;
         }
         else {
             if (!config_->videoConfig.has_value())
-                return {};
+                return { "OBS" };
             configId = *config_->videoConfig;
         }
         std::vector<std::string> ret;
