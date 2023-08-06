@@ -263,6 +263,11 @@ public:
 
     void LoadConfig()
     {
+        for(auto x: GetAllPushWidgets()) {
+            delete x;
+        }
+        GlobalMultiOutputConfig() = {};
+
         if (LoadMultiOutputConfig() == false) {
             ImportLegacyMultiOutputConfig();
         }
@@ -318,7 +323,6 @@ bool obs_module_load()
             }
             else if (event == obs_frontend_event::OBS_FRONTEND_EVENT_PROFILE_CHANGED)
             {
-                ImportLegacyMultiOutputConfig();
                 mainwin->LoadConfig();
             }
         }, dock
