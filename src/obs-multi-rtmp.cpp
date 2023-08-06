@@ -58,10 +58,8 @@ public:
         scroll_->move(0, 22);
 
         container_ = new QWidget(this);
-        layout_ = new QGridLayout(container_);
+        layout_ = new QVBoxLayout(container_);
         layout_->setAlignment(Qt::AlignmentFlag::AlignTop);
-
-        int currow = 0;
 
         // init widget
         auto addButton = new QPushButton(obs_module_text("Btn.NewTarget"), container_);
@@ -72,7 +70,7 @@ public:
             target->id = newid;
             global.targets.emplace_back(target);
             auto pushwidget = createPushWidget(newid, container_);
-            layout_->addWidget(pushwidget);
+            itemLayout_->addWidget(pushwidget);
             if (pushwidget->ShowEditDlg())
                 SaveConfig();
             else {
@@ -106,7 +104,9 @@ public:
         });
         
         // load config
+        itemLayout_ = new QVBoxLayout(this);
         LoadConfig();
+        layout_->addLayout(itemLayout_);
 
         // donate
         if (std::string("\xe5\xa4\x9a\xe8\xb7\xaf\xe6\x8e\xa8\xe6\xb5\x81") == obs_module_text("Title"))
@@ -270,14 +270,15 @@ public:
         for(auto x: GlobalMultiOutputConfig().targets)
         {
             auto pushwidget = createPushWidget(x->id, container_);
-            layout_->addWidget(pushwidget);
+            itemLayout_->addWidget(pushwidget);
         }
     }
 
 private:
     QWidget* container_ = 0;
     QScrollArea* scroll_ = 0;
-    QGridLayout* layout_ = 0;
+    QVBoxLayout* itemLayout_ = 0;
+    QVBoxLayout* layout_ = 0;
 };
 
 OBS_DECLARE_MODULE()
@@ -287,8 +288,10 @@ OBS_MODULE_AUTHOR("雷鳴 (@sorayukinoyume)")
 bool obs_module_load()
 {
     // check obs version
-    if (obs_get_version() < MAKE_SEMANTIC_VERSION(26, 1, 0))
+    if (obs_get_version() < MAKE_SEMANTIC_VERSION(29, 1, 0)) {
+        blog(LOG_ERROR, TAG "Request OBS 29.1 or higher.");
         return false;
+    }
     
     auto mainwin = (QMainWindow*)obs_frontend_get_main_window();
     if (mainwin == nullptr)

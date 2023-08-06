@@ -7,8 +7,6 @@
 
 #include "obs.hpp"
 
-#define TAG "[obs-multi-rtmp] "
-
 class IOBSOutputEventHanlder
 {
 public:
@@ -61,7 +59,7 @@ public:
         thiz->onDeactive();
     }
 
-    void SetAsHandler(obs_output_t* output)
+    void SetMeAsHandler(obs_output_t* output)
     {
         auto outputSignal = obs_output_get_signal_handler(output);
         if (outputSignal)
@@ -503,7 +501,7 @@ public:
         if (output_ == nullptr)
         {
             output_ = obs_output_create("rtmp_output", "multi-output", nullptr, nullptr);
-            SetAsHandler(output_);
+            SetMeAsHandler(output_);
         }
 
         if (output_) {

@@ -31,6 +31,8 @@
 #include "obs-frontend-api.h"
 #include "util/config-file.h"
 
+#define TAG "[obs-multi-rtmp] "
+
 inline std::string tostdu8(const QString& qs)
 {
     auto b = qs.toUtf8();
