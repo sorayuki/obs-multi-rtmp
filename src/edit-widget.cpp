@@ -1,7 +1,7 @@
 #include "edit-widget.h"
 #include "output-config.h"
 #include "json-util.hpp"
-
+#include <QMenu>
 
 static std::optional<int> ParseStringToInt(const QString& str) {
     try {
@@ -32,10 +32,12 @@ class EditOutputWidgetImpl : public EditOutputWidget
     QLineEdit* v_keyframe_sec_ = 0;
     QLineEdit* v_bframes_ = 0;
     QLineEdit* v_resolution_ = 0;
-    QLabel* v_warning_ = 0;
+    QLabel* v_share_notify_ = 0;
+
     QComboBox* aenc_ = 0;
     QLineEdit* a_bitrate_ = 0;
     QComboBox* a_mixer_ = 0;
+    QLabel* a_share_notify_ = 0;
 
     QCheckBox* syncStart_ = 0;
 
@@ -61,6 +63,91 @@ class EditOutputWidgetImpl : public EditOutputWidget
         return result;
     }
 
+    template<class T>
+    static std::optional<std::string> DuplicateConfig(std::list<T>& list, std::string oldid) {
+        auto cfg = FindById(list, oldid);
+        if (!cfg) {
+            return {};
+        }
+        auto& global = GlobalMultiOutputConfig();
+        auto newid = GenerateId(global);
+        auto newcfg = std::make_shared<typename T::element_type>(*cfg);
+        newcfg->id = newid;
+        list.push_back(newcfg);
+        return newid;
+    }
+
+    void PopupShareMenu(bool isAudio) {
+        auto menu = new QMenu(this);
+        auto& global = GlobalMultiOutputConfig();
+
+        {
+            auto action = menu->addAction(obs_module_text("NoShare"));
+            QObject::connect(action, &QAction::triggered, [=]() {
+                auto& global = GlobalMultiOutputConfig();
+                if (isAudio) {
+                    if (!config_->audioConfig.has_value())
+                        return;
+                    auto newid = DuplicateConfig(global.audioConfig, *config_->audioConfig);
+                    if (!newid.has_value()) {
+                        config_->audioConfig.reset();
+                        return;
+                    }
+                    config_->audioConfig = *newid;
+                }
+                else {
+                    if (!config_->videoConfig.has_value())
+                        return;
+                    auto newid = DuplicateConfig(global.videoConfig, *config_->videoConfig);
+                    if (!newid.has_value()) {
+                        config_->videoConfig.reset();
+                        return;
+                    }
+                    config_->videoConfig = *newid;
+                }
+            });
+        }
+
+        std::unordered_map<std::string, std::string> items;
+        for(auto& target: global.targets) {
+            if (isAudio) {
+                if (target->audioConfig.has_value()) {
+                    auto id = *target->audioConfig;
+                    auto it = items.find(id);
+                    if (it != items.end()) {
+                        it->second += ", " + target->name;
+                    }
+                    else {
+                        items.insert(std::make_pair(id, target->name));
+                    }
+                }
+            } else {
+                if (target->videoConfig.has_value()) {
+                    auto id = *target->videoConfig;
+                    auto it = items.find(id);
+                    if (it != items.end()) {
+                        it->second += ", " + target->name;
+                    }
+                    else {
+                        items.insert(std::make_pair(id, target->name));
+                    }
+                }
+            }
+        }
+
+        for (auto& item : items) {
+            auto action = menu->addAction(QString::fromUtf8(item.second));
+            QObject::connect(action, &QAction::triggered, [=]() {
+                if (isAudio)
+                    config_->audioConfig = item.first;
+                else
+                    config_->videoConfig = item.first;
+            });
+        }
+
+        menu->exec(QCursor::pos());
+    }
+
 public:
     EditOutputWidgetImpl(const std::string& targetid, QWidget* parent = 0)
         : QDialog(parent)
@@ -73,6 +160,8 @@ public:
         if (config_ == nullptr) {
             return;
         }
+        config_ = std::make_shared<OutputTargetConfig>(*config_);
+
 
         auto layout = new QGridLayout(this);
         layout->setColumnStretch(0, 0);
@@ -91,7 +180,7 @@ public:
         ++currow;
         {
             layout->addWidget(new QLabel(obs_module_text("StreamingKey"), this), currow, 0);
-            auto sub_layout = new QHBoxLayout(this);
+            auto sub_layout = new QHBoxLayout();
             sub_layout->addWidget(rtmp_key_ = new QLineEdit(u8"", this), 1);
             auto showkey_check = new QCheckBox(u8"👀", this);
             sub_layout->addWidget(showkey_check);
@@ -109,7 +198,7 @@ public:
         }
         ++currow;
         {
-            auto sub_layout = new QGridLayout(this);
+            auto sub_layout = new QGridLayout();
             layout->addLayout(sub_layout, currow, 0, 1, 2);
 
             sub_layout->setColumnStretch(0, 0);
@@ -127,7 +216,7 @@ public:
         }
         ++currow;
         {
-            auto sub_grid = new QGridLayout(this);
+            auto sub_grid = new QGridLayout();
             sub_grid->setColumnStretch(0, 1);
             sub_grid->setColumnStretch(1, 1);
             layout->addLayout(sub_grid, currow, 0, 1, 2);
@@ -135,8 +224,24 @@ public:
                 {
                     auto gp = new QGroupBox(obs_module_text("VideoSettings"), this);
                     sub_grid->addWidget(gp, 0, 0, 2, 1);
-                    auto encLayout = new QGridLayout(gp);
+                    auto encLayout = new QGridLayout();
                     int currow = 0;
+                    {
+                        int curcol = 0;
+                        auto sublayout = new QHBoxLayout();
+                        sublayout->addWidget(v_share_notify_ = new QLabel(gp), 1);
+                        auto shareButton = new QPushButton(obs_module_text("Btn.EncoderShare"), gp);
+                        sublayout->addWidget(shareButton);
+                        encLayout->addLayout(sublayout, currow, curcol++, 1, 2);
+
+                        QObject::connect(shareButton, &QPushButton::clicked, [this]() {
+                            SaveConfig();
+                            PopupShareMenu(false);
+                            LoadConfig();
+                            UpdateUI();
+                        });
+                    }
+                    ++currow;
                     {
                         int curcol = 0;
                         encLayout->addWidget(new QLabel(obs_module_text("Encoder"), gp), currow, curcol++);
@@ -159,7 +264,7 @@ public:
                     {
                         int curcol = 0;
                         encLayout->addWidget(new QLabel(obs_module_text("Bitrate"), gp), currow, curcol++);
-                        auto c = new QGridLayout(gp);
+                        auto c = new QGridLayout();
                         {
                             int curcol = 0;
                             c->addWidget(v_bitrate_ = new QLineEdit("", gp), 0, curcol++);
@@ -173,7 +278,7 @@ public:
                     {
                         int curcol = 0;
                         encLayout->addWidget(new QLabel(obs_module_text("KeyFrame"), gp), currow, curcol++);
-                        auto c = new QGridLayout(gp);
+                        auto c = new QGridLayout();
                         {
                             int curcol = 0;
                             c->addWidget(v_keyframe_sec_ = new QLineEdit("", gp), 0, curcol++);
@@ -191,12 +296,6 @@ public:
                     }
                     ++currow;
                     {
-                        encLayout->addWidget(v_warning_ = new QLabel(obs_module_text("Notice.CPUPower")), currow, 0, 1, 2);
-                        v_warning_->setWordWrap(true);
-                        v_warning_->setStyleSheet(u8"background-color: rgb(255,255,0); color: rgb(0,0,0)");
-                    }
-                    ++currow;
-                    {
                         encLayout->addWidget(new QWidget(), currow, 0);
                         encLayout->setRowStretch(currow, 1);
                     }
@@ -206,8 +305,24 @@ public:
                 {
                     auto gp = new QGroupBox(obs_module_text("AudioSettings"), this);
                     sub_grid->addWidget(gp, 0, 1, 1, 1);
-                    auto encLayout = new QGridLayout(gp);
+                    auto encLayout = new QGridLayout();
                     int currow = 0;
+                    {
+                        int curcol = 0;
+                        auto sublayout = new QHBoxLayout();
+                        sublayout->addWidget(a_share_notify_ = new QLabel(gp), 1);
+                        auto shareButton = new QPushButton(obs_module_text("Btn.EncoderShare"), gp);
+                        sublayout->addWidget(shareButton);
+                        encLayout->addLayout(sublayout, currow, curcol++, 1, 2);
+
+                        QObject::connect(shareButton, &QPushButton::clicked, [this]() {
+                            PopupShareMenu(true);
+                            SaveConfig();
+                            LoadConfig();
+                            UpdateUI();
+                        });
+                    }
+                    ++currow;
                     {
                         int curcol = 0;
                         encLayout->addWidget(new QLabel(obs_module_text("Encoder"), gp), currow, curcol++);
@@ -217,7 +332,7 @@ public:
                     {
                         int curcol = 0;
                         encLayout->addWidget(new QLabel(obs_module_text("Bitrate"), gp), currow, curcol++);
-                        auto c = new QGridLayout(gp);
+                        auto c = new QGridLayout();
                         {
                             int curcol = 0;
                             c->addWidget(a_bitrate_ = new QLineEdit(gp), 0, curcol++);
@@ -242,7 +357,7 @@ public:
                 {
                     auto gp = new QGroupBox(obs_module_text("OtherSettings"), this);
                     sub_grid->addWidget(gp, 1, 1, 1, 1);
-                    auto otherLayout = new QGridLayout(gp);
+                    auto otherLayout = new QGridLayout();
                     otherLayout->addWidget(syncStart_ = new QCheckBox(obs_module_text("SyncStart"), gp), 0, 0);
                     gp->setLayout(otherLayout);
                 }
@@ -253,6 +368,11 @@ public:
             auto okbtn = new QPushButton(obs_module_text("OK"), this);
             QObject::connect(okbtn, &QPushButton::clicked, [this]() {
                 SaveConfig();
+                auto& global = GlobalMultiOutputConfig();
+                auto it = FindById(global.targets, config_->id);
+                if (it != nullptr) {
+                    *it = *config_;
+                }
                 done(DialogCode::Accepted);
             });
             layout->addWidget(okbtn, currow, 0, 1, 2);
@@ -334,7 +454,6 @@ public:
             v_keyframe_sec_->setText(obs_module_text("SameAsOBS"));
             v_bframes_->setEnabled(false);
             v_bframes_->setText(obs_module_text("SameAsOBS"));
-            v_warning_->setVisible(false);
         }
         else
         {
@@ -343,8 +462,23 @@ public:
             v_resolution_->setEnabled(true);
             v_keyframe_sec_->setEnabled(true);
             v_bframes_->setEnabled(true);
-            v_warning_->setVisible(true);
         }
+
+        auto makeShareNotify = [&](auto& targets) {
+            std::string sharedTargets;
+            for (auto& x : targets) {
+                if (!sharedTargets.empty())
+                    sharedTargets += ", ";
+                sharedTargets += x;
+            }
+            if (sharedTargets.empty())
+                sharedTargets = obs_module_text("NoShare");
+            return sharedTargets;
+        };
+
+        auto sharedVideoTargets = GetEncoderShareTargets(false);
+        v_share_notify_->setText(QString::fromUtf8(obs_module_text("EncoderShare") + makeShareNotify(sharedVideoTargets)));
+
 
         auto ae = aenc_->currentData();
         if (ae.isValid() && ae.toString() == "")
@@ -358,7 +492,38 @@ public:
             a_bitrate_->setEnabled(true);
             a_mixer_->setEnabled(true);
         }
+
+        auto sharedAudioTargets = GetEncoderShareTargets(true);
+        a_share_notify_->setText(QString::fromUtf8(obs_module_text("EncoderShare") + makeShareNotify(sharedAudioTargets)));
     }
+
+    std::vector<std::string> GetEncoderShareTargets(bool isAudio) {
+        std::string configId;
+        if (isAudio) {
+            if (!config_->audioConfig.has_value())
+                return {};
+            configId = *config_->audioConfig;
+        }
+        else {
+            if (!config_->videoConfig.has_value())
+                return {};
+            configId = *config_->videoConfig;
+        }
+        std::vector<std::string> ret;
+        auto& global = GlobalMultiOutputConfig();
+        for(auto& x: global.targets) {
+            if (isAudio) {
+                if (x->id != config_->id && x->audioConfig.has_value() && *x->audioConfig == configId)
+                    ret.emplace_back(x->name);
+            }
+            else {
+                if (x->id != config_->id && x->videoConfig.has_value() && *x->videoConfig == configId)
+                    ret.emplace_back(x->name);
+            }
+        }
+        return ret;
+    }
+
 
 
     void SaveVideoConfig() {
@@ -412,7 +577,7 @@ public:
 
         config_->name = tostdu8(name_->text());
         config_->syncStart = syncStart_->isChecked();
-        config_->serviceParam["service"] = tostdu8(rtmp_path_->text());
+        config_->serviceParam["server"] = tostdu8(rtmp_path_->text());
         config_->serviceParam["key"] = tostdu8(rtmp_key_->text());
         auto username = tostdu8(rtmp_user_->text());
         if (username.empty()) {
