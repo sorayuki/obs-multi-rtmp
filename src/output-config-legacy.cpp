@@ -1,3 +1,5 @@
+#include "pch.h"
+
 #include "output-config.h"
 
 #include "obs.h"
@@ -14,101 +16,103 @@
 #define ConfigSection "obs-multi-rtmp"
 
 
-static std::optional<VideoEncoderConfig> ImportLegacyVideoConfig(QJsonObject& json) {
+static VideoEncoderConfigPtr ImportLegacyVideoConfig(QJsonObject& json) {
     auto it = json.find("v-enc");
     if (it == json.end()) {
         return {};
     }
 
-    VideoEncoderConfig config;
-    config.encoderId = it->toString().toUtf8().constData();
+    auto config = std::make_shared<VideoEncoderConfig>();
+    config->encoderId = tostdu8(it->toString());
     
     it = json.find("v-scene");
     if (it != json.end() && it->isString())
-        config.outputScene = it->toString().toUtf8().constData();
+        config->outputScene = tostdu8(it->toString());
 
     it = json.find("v-resolution");
     if (it != json.end() && it->isString())
-        config.resolution = it->toString().toUtf8().constData();
+        config->resolution = tostdu8(it->toString());
 
     it = json.find("v-bitrate");
     if (it != json.end() && it->isDouble())
-        config.encoderParams["bitrate"] = it->toInt();
+        config->encoderParams["bitrate"] = it->toInt();
 
     it = json.find("v-keyframe-sec");
     if (it != json.end() && it->isDouble())
-        config.encoderParams["keyint_sec"] = it->toInt();
+        config->encoderParams["keyint_sec"] = it->toInt();
 
     it = json.find("v-bframes");
     if (it != json.end() && it->isDouble())
-        config.encoderParams["bf"] = it->toInt();
+        config->encoderParams["bf"] = it->toInt();
 
     return config;
 }
 
 
-static std::optional<AudioEncoderConfig> ImportLegacyAudioConfig(QJsonObject& json) {
+static AudioEncoderConfigPtr ImportLegacyAudioConfig(QJsonObject& json) {
     auto it = json.find("a-enc");
     if (it == json.end()) {
         return {};
     }
 
-    AudioEncoderConfig config;
-    config.encoderId = it->toString().toUtf8().constData();
+    auto config = std::make_shared<AudioEncoderConfig>();
+    config->encoderId = tostdu8(it->toString());
 
     it = json.find("a-mixer");
     if (it != json.end() && it->isDouble())
-        config.mixerId = it->toInt();
+        config->mixerId = it->toInt();
     
     it = json.find("a-bitrate");
     if (it != json.end() && it->isDouble())
-        config.encoderParams["bitrate"] = it->toInt();
+        config->encoderParams["bitrate"] = it->toInt();
     
     return config;
 }
 
 
-static OutputTargetConfig ImportLegacyTargetConfig(QJsonObject json, MultiOutputConfig& parentConfig) {
-    OutputTargetConfig config;
+static OutputTargetConfigPtr ImportLegacyTargetConfig(QJsonObject json, MultiOutputConfig& parentConfig) {
+    auto config = std::make_shared<OutputTargetConfig>();
 
     auto it = json.find("name");
     if (it != json.end() && it->isString())
-        config.name = it->toString().toUtf8().constData();
+        config->name = tostdu8(it->toString());
 
     it = json.find("syncstart");
     if (it != json.end() && it->isBool())
-        config.syncStart = it->toBool();
+        config->syncStart = it->toBool();
 
     it = json.find("rtmp-path");
     if (it != json.end() && it->isString())
-        config.servicePath = it->toString().toUtf8().constData();
+        config->serviceParam["server"] = tostdu8(it->toString());
     
     it = json.find("rtmp-key");
     if (it != json.end() && it->isString())
-        config.serviceKey = it->toString().toUtf8().constData();
+        config->serviceParam["key"] = tostdu8(it->toString());
     
     it = json.find("rtmp-user");
-    if (it != json.end() && it->isString())
-        config.serviceUser = it->toString().toUtf8().constData();
+    if (it != json.end() && it->isString()) {
+        auto username = tostdu8(it->toString());
+        if (username.empty()) {
+            config->serviceParam["use_auth"] = false;
+        } else {
+            config->serviceParam["use_auth"] = true;
+            config->serviceParam["username"] = username;
+            it = json.find("rtmp-pass");
+            if (it != json.end() && it->isString())
+                config->serviceParam["password"] = tostdu8(it->toString());
+        }
+    }
     
-    it = json.find("rtmp-pass");
-    if (it != json.end() && it->isString())
-        config.servicePass = it->toString().toUtf8().constData();
-
     auto audioConfig = ImportLegacyAudioConfig(json);
-    if (audioConfig.has_value()) {
+    if (audioConfig) {
         audioConfig->encoderId = GenerateId(parentConfig);
-        parentConfig.audioConfig.insert(
-            std::make_pair(audioConfig->encoderId, *audioConfig)
-        );
+        parentConfig.audioConfig.emplace_back(audioConfig);
     }
 
     auto videoConfig = ImportLegacyVideoConfig(json);
-    if (videoConfig.has_value()) {
+    if (videoConfig) {
         videoConfig->encoderId = GenerateId(parentConfig);
-        parentConfig.videoConfig.insert(
-            std::make_pair(videoConfig->encoderId, *videoConfig)
-        );
+        parentConfig.videoConfig.emplace_back(videoConfig);
     }
 
     return config;
@@ -126,15 +130,15 @@ static MultiOutputConfig ImportLegacyMultiOutputConfig(QJsonObject& json) {
         if (!x.isObject())
             continue;
         auto new_target = ImportLegacyTargetConfig(x.toObject(), config);
-        new_target.id = GenerateId(config);
-        config.targets.insert(std::make_pair(new_target.id, new_target));
+        new_target->id = GenerateId(config);
+        config.targets.emplace_back(new_target);
     }
 
     return config;
 }
 
 
-MultiOutputConfig ImportLegacyMultiOutputConfig() {
+void ImportLegacyMultiOutputConfig() {
     auto profile_config = obs_frontend_get_profile_config();
 
     QJsonObject conf;
@@ -151,9 +155,10 @@ MultiOutputConfig ImportLegacyMultiOutputConfig() {
             conf = jsondoc.object();
 
             // import legacy config
-            return ImportLegacyMultiOutputConfig(conf);
+            GlobalMultiOutputConfig() = ImportLegacyMultiOutputConfig(conf);
+
+            // erase legacy config
+            config_set_string(obs_frontend_get_global_config(), ConfigSection, "json", "");
         }
     }
-
-    return {};
 }

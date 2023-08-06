@@ -66,12 +66,23 @@ public:
         // init widget
         auto addButton = new QPushButton(obs_module_text("Btn.NewTarget"), container_);
         QObject::connect(addButton, &QPushButton::clicked, [this]() {
-            auto pushwidget = createPushWidget(QJsonObject(), container_);
+            auto& global = GlobalMultiOutputConfig();
+            auto newid = GenerateId(global);
+            auto target = std::make_shared<OutputTargetConfig>();
+            target->id = newid;
+            global.targets.emplace_back(target);
+            auto pushwidget = createPushWidget(newid, container_);
             layout_->addWidget(pushwidget);
             if (pushwidget->ShowEditDlg())
                 SaveConfig();
-            else
+            else {
+                auto it = std::find_if(global.targets.begin(), global.targets.end(), [newid](auto& x) {
+                    return x->id == newid;
+                });
+                if (it != global.targets.end())
+                    global.targets.erase(it);
                 delete pushwidget;
+            }
         });
         layout_->addWidget(addButton);
 
@@ -247,54 +258,19 @@ public:
 
     void SaveConfig()
     {
-        auto profile_config = obs_frontend_get_profile_config();
-        
-        QJsonArray targetlist;
-        for(auto x : GetAllPushWidgets())
-            targetlist.append(x->Config());
-        QJsonObject root;
-        root["targets"] = targetlist;
-        QJsonDocument jsondoc;
-        jsondoc.setObject(root);
-        config_set_string(profile_config, ConfigSection, "json", jsondoc.toJson().toBase64().constData());
-
-        config_save_safe(profile_config, "tmp", "bak");
+        SaveMultiOutputConfig();
     }
 
     void LoadConfig()
     {
-        auto profile_config = obs_frontend_get_profile_config();
-
-        QJsonObject conf;
-        auto base64str = config_get_string(profile_config, ConfigSection, "json");
-        if (!base64str || !*base64str) { // compatible with old version
-            base64str = config_get_string(obs_frontend_get_global_config(), ConfigSection, "json");
+        if (LoadMultiOutputConfig() == false) {
+            ImportLegacyMultiOutputConfig();
         }
-
-        if (base64str && *base64str)
+        
+        for(auto x: GlobalMultiOutputConfig().targets)
         {
-            auto bindat = QByteArray::fromBase64(base64str);
-            auto jsondoc = QJsonDocument::fromJson(bindat);
-            if (jsondoc.isObject()) {
-                conf = jsondoc.object();
-
-                // load succeed. remove all existing widgets
-                for (auto x : GetAllPushWidgets())
-                    delete x;
-            }
-        }
-
-        auto targets = conf.find("targets");
-        if (targets != conf.end() && targets->isArray())
-        {
-            for(auto x : targets->toArray())
-            {
-                if (x.isObject())
-                {
-                    auto pushwidget = createPushWidget(((QJsonValue)x).toObject(), container_);
-                    layout_->addWidget(pushwidget);
-                }
-            }
+            auto pushwidget = createPushWidget(x->id, container_);
+            layout_->addWidget(pushwidget);
         }
     }
 
@@ -339,14 +315,11 @@ bool obs_module_load()
             }
             else if (event == obs_frontend_event::OBS_FRONTEND_EVENT_PROFILE_CHANGED)
             {
-                static_cast<MultiOutputWidget*>(private_data)->LoadConfig();
+                ImportLegacyMultiOutputConfig();
+                mainwin->LoadConfig();
             }
         }, dock
     );
-
-    obs_frontend_add_tools_menu_item("test", [](void*) {
-        ImportLegacyMultiOutputConfig();
-    }, nullptr);
 
     return true;
 }

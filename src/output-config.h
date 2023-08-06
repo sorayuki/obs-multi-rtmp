@@ -4,6 +4,8 @@
 #include <optional>
 #include <vector>
 #include <unordered_map>
+#include <memory>
+#include <list>
 
 #include <json.hpp>
 
@@ -14,6 +16,7 @@ struct VideoEncoderConfig {
     std::optional<std::string> outputScene;
     std::optional<std::string> resolution;
 };
+using VideoEncoderConfigPtr = std::shared_ptr<VideoEncoderConfig>;
 
 
 struct AudioEncoderConfig {
@@ -22,34 +25,45 @@ struct AudioEncoderConfig {
     nlohmann::json encoderParams;
     int mixerId = 0;
 };
+using AudioEncoderConfigPtr = std::shared_ptr<AudioEncoderConfig>; 
 
 
 struct OutputTargetConfig {
     std::string id;
     std::string name;
-    std::string servicePath;
-    std::string serviceKey;
-    std::string serviceUser;
-    std::string servicePass;
-
     bool syncStart = false;
+
+    nlohmann::json serviceParam;
 
     std::optional<std::string> videoConfig;
     std::optional<std::string> audioConfig;
 };
+using OutputTargetConfigPtr = std::shared_ptr<OutputTargetConfig>;
 
 
 struct MultiOutputConfig {
-    std::unordered_map<std::string, OutputTargetConfig> targets;
-    std::unordered_map<std::string, VideoEncoderConfig> videoConfig;
-    std::unordered_map<std::string, AudioEncoderConfig> audioConfig;
+public:
+    std::list<OutputTargetConfigPtr> targets;
+    std::list<VideoEncoderConfigPtr> videoConfig;
+    std::list<AudioEncoderConfigPtr> audioConfig;
 };
 
+template<class T, class S>
+inline T FindById(std::list<T>& list, const S& id) {
+    for(auto& x: list) {
+        if (x->id == id)
+            return x;
+    }
+    return nullptr;
+}
 
-std::string SaveMultiOutputConfig(MultiOutputConfig& config);
 
-MultiOutputConfig LoadMultiOutputConfig(const std::string& content);
+MultiOutputConfig& GlobalMultiOutputConfig();
 
-MultiOutputConfig ImportLegacyMultiOutputConfig();
+void SaveMultiOutputConfig();
+
+bool LoadMultiOutputConfig();
+
+void ImportLegacyMultiOutputConfig();
 
 std::string GenerateId(MultiOutputConfig& config);

@@ -1,9 +1,23 @@
 #include "edit-widget.h"
+#include "output-config.h"
+#include "json-util.hpp"
+
+
+static std::optional<int> ParseStringToInt(const QString& str) {
+    try {
+        return std::stoi(tostdu8(str));
+    }
+    catch(...)
+    {
+        return {};
+    }
+}
 
 
 class EditOutputWidgetImpl : public EditOutputWidget
 {
-    QJsonObject conf_;
+    std::string targetid_;
+    OutputTargetConfigPtr config_ = nullptr;
 
     QLineEdit* name_ = 0;
     QLineEdit* rtmp_path_ = 0;
@@ -48,11 +62,17 @@ class EditOutputWidgetImpl : public EditOutputWidget
     }
 
 public:
-    EditOutputWidgetImpl(QJsonObject conf, QWidget* parent = 0)
+    EditOutputWidgetImpl(const std::string& targetid, QWidget* parent = 0)
         : QDialog(parent)
-        , conf_(conf)
+        , targetid_(targetid)
     {
         setWindowTitle(obs_module_text("StreamingSettings"));
+
+        auto& global = GlobalMultiOutputConfig();
+        config_ = FindById(global.targets, targetid_);
+        if (config_ == nullptr) {
+            return;
+        }
 
         auto layout = new QGridLayout(this);
         layout->setColumnStretch(0, 0);
@@ -249,11 +269,6 @@ public:
         UpdateUI();
     }
 
-    QJsonObject Config() override
-    {
-        return conf_;
-    }
-
     void ConnectWidgetSignals()
     {
         QObject::connect(venc_, (void (QComboBox::*)(int)) &QComboBox::currentIndexChanged, [this](){
@@ -313,7 +328,7 @@ public:
             v_scene_->setEnabled(false);
             v_bitrate_->setText(obs_module_text("SameAsOBS"));
             v_bitrate_->setEnabled(false);
-            v_resolution_->setText(obs_module_text("SameAsOBS"));
+            // v_resolution_->setText(obs_module_text("SameAsOBS"));
             v_resolution_->setEnabled(false);
             v_keyframe_sec_->setEnabled(false);
             v_keyframe_sec_->setText(obs_module_text("SameAsOBS"));
@@ -345,109 +360,208 @@ public:
         }
     }
 
-    void SaveConfig()
-    {
-        conf_["name"] = name_->text();
-        conf_["syncstart"] = syncStart_->isChecked();
-        conf_["rtmp-path"] = rtmp_path_->text();
-        conf_["rtmp-key"] = rtmp_key_->text();
-        conf_["rtmp-user"] = rtmp_user_->text();
-        conf_["rtmp-pass"] = rtmp_pass_->text();
-        conf_["v-enc"] = venc_->currentData().toString();
-        conf_["a-enc"] = aenc_->currentData().toString();
-        if (v_scene_->isEnabled())
-            conf_["v-scene"] = v_scene_->currentData().toString();
-        if (v_bitrate_->isEnabled())
-            try { conf_["v-bitrate"] = std::stod(tostdu8(v_bitrate_->text())); } catch(...) {}
-        if (v_keyframe_sec_->isEnabled())
-            try { conf_["v-keyframe-sec"] = std::stod(tostdu8(v_keyframe_sec_->text())); } catch(...) {}
-        if (v_bframes_->isEnabled())
-            try { conf_["v-bframes"] = std::stod(tostdu8(v_bframes_->text())); } catch(...) {}
-        if (v_resolution_->isEnabled())
-            conf_["v-resolution"] = v_resolution_->text();
-        if (a_bitrate_->isEnabled())
-            try { conf_["a-bitrate"] = std::stod(tostdu8(a_bitrate_->text())); } catch(...) {}
-        if (a_mixer_->isEnabled())
-            conf_["a-mixer"] = a_mixer_->currentData().toDouble();
+
+    void SaveVideoConfig() {
+        if (!config_->videoConfig.has_value())
+            return;
+        
+        auto& global = GlobalMultiOutputConfig();
+        auto it = FindById(global.videoConfig, *config_->videoConfig);
+        if (it == nullptr) {
+            auto new_item = global.videoConfig.emplace_back(new VideoEncoderConfig{});
+            it = new_item;
+        }
+        it->id = *config_->videoConfig;
+        it->encoderId = tostdu8(venc_->currentData().toString());
+
+        if (v_scene_->currentIndex() > 0)
+            it->outputScene = tostdu8(v_scene_->currentData().toString());
+        else
+            it->outputScene.reset();
+        
+        auto resolution = v_resolution_->text().toUtf8();
+        if (!resolution.isEmpty())
+            it->resolution = resolution.constData();
+        else
+            it->resolution.reset();
+        
+        it->encoderParams["bitrate"] = ParseStringToInt(v_bitrate_->text()).value_or(2000);
+        it->encoderParams["keyint_sec"] = ParseStringToInt(v_keyframe_sec_->text()).value_or(3);
+        it->encoderParams["bf"] = ParseStringToInt(v_bframes_->text()).value_or(2);
     }
 
-    void LoadConfig()
+    void SaveAudioConfig() {
+        if (!config_->audioConfig.has_value())
+            return;
+        
+        auto& global = GlobalMultiOutputConfig();
+        auto it = FindById(global.audioConfig, *config_->audioConfig);
+        if (it == nullptr) {
+            auto new_item = global.audioConfig.emplace_back(new AudioEncoderConfig{});
+            it = new_item;
+        }
+        it->id = *config_->audioConfig;
+        it->encoderId = tostdu8(aenc_->currentData().toString());
+        it->mixerId = a_mixer_->currentData().toInt();
+        it->encoderParams["bitrate"] = ParseStringToInt(a_bitrate_->text()).value_or(128);
+    }
+
+    void SaveConfig()
     {
-        name_->setText(QJsonUtil::Get(conf_, "name", QString(obs_module_text("NewStreaming"))));
-        syncStart_->setChecked(QJsonUtil::Get(conf_, "syncstart", false));
+        auto& global = GlobalMultiOutputConfig();
 
-        QJsonUtil::IfGet(conf_, "rtmp-path", [&](QString rtmppath) {
-            rtmp_path_->setText(rtmppath);
-            return rtmppath;
-        });
+        config_->name = tostdu8(name_->text());
+        config_->syncStart = syncStart_->isChecked();
+        config_->serviceParam["service"] = tostdu8(rtmp_path_->text());
+        config_->serviceParam["key"] = tostdu8(rtmp_key_->text());
+        auto username = tostdu8(rtmp_user_->text());
+        if (username.empty()) {
+            config_->serviceParam["use_auth"] = false;
+        } else {
+            config_->serviceParam["use_auth"] = true;
+            config_->serviceParam["username"] = username;
+            config_->serviceParam["password"] = tostdu8(rtmp_pass_->text());
+        }
 
-        QJsonUtil::IfGet(conf_, "rtmp-key", [&](QString rtmpkey) {
-            rtmp_key_->setText(rtmpkey);
-            return rtmpkey;
-        });
+        if (venc_->currentIndex() > 0 && venc_->currentData().isValid()) {
+            if (!config_->videoConfig.has_value())
+                config_->videoConfig = GenerateId(global);
+            SaveVideoConfig();
+        }
+        else
+        {
+            config_->videoConfig.reset();
+        }
 
-        QJsonUtil::IfGet(conf_, "rtmp-user", [&](QString rtmpuser) {
-            rtmp_user_->setText(rtmpuser);
-            return rtmpuser;
-        });
+        if (aenc_->currentIndex() > 0 && aenc_->currentData().isValid()) {
+            if (!config_->audioConfig.has_value())
+                config_->audioConfig = GenerateId(global);
+            SaveAudioConfig();
+        }
+        else
+        {
+            config_->audioConfig.reset();
+        }
+    }
 
-        QJsonUtil::IfGet(conf_, "rtmp-pass", [&](QString rtmppass) {
-            rtmp_pass_->setText(rtmppass);
-            return rtmppass;
-        });
 
-        QJsonUtil::IfGet(conf_, "v-scene", [&](QString sceneName) {
-            auto idx = v_scene_->findData(sceneName);
+    void LoadTargetConfig(OutputTargetConfig& target) {
+        name_->setText(QString::fromUtf8(target.name));
+        syncStart_->setChecked(target.syncStart);
+        rtmp_path_->setText(QString::fromUtf8(
+            GetJsonField<std::string>(target.serviceParam, "server").value_or("")
+        ));
+        rtmp_key_->setText(QString::fromUtf8(
+            GetJsonField<std::string>(target.serviceParam, "key").value_or("")
+        ));
+        if (GetJsonField<bool>(target.serviceParam, "use_auth").value_or(false)) {
+            rtmp_user_->setText(QString::fromUtf8(
+                GetJsonField<std::string>(target.serviceParam, "username").value_or("")
+            ));
+            rtmp_pass_->setText(QString::fromUtf8(
+                GetJsonField<std::string>(target.serviceParam, "password").value_or("")
+            ));
+        } else {
+            rtmp_user_->setText("");
+            rtmp_pass_->setText("");
+        }
+    }
+
+    void LoadVideoConfig(VideoEncoderConfig& config) {
+        {
+            auto idx = venc_->findData(QString::fromUtf8(config.encoderId));
+            if (idx > 0)
+                venc_->setCurrentIndex(idx);
+            else {
+                venc_->setCurrentIndex(0);
+                return;
+            }
+        }
+
+        if (config.outputScene.has_value()) {
+            auto idx = v_scene_->findData(QString::fromUtf8(*config.outputScene));
             if (idx >= 0)
                 v_scene_->setCurrentIndex(idx);
-            return sceneName;
-        });
+        } else {
+            v_scene_->setCurrentIndex(0);
+        }
 
-        QJsonUtil::IfGet(conf_, "v-enc", [&](QString encid) {
-            int idx = venc_->findData(encid);
-            if (idx >= 0)
-                venc_->setCurrentIndex(idx);
-            return encid;
-        });
+        v_bitrate_->setText(QString::fromUtf8(
+            std::to_string(GetJsonField<int>(config.encoderParams, "bitrate").value_or(2000))
+        ));
 
-        v_bitrate_->setText(std::to_string(
-            QJsonUtil::Get(conf_, "v-bitrate", 2000)
-        ).c_str());
+        v_keyframe_sec_->setText(QString::fromUtf8(
+            std::to_string(GetJsonField<int>(config.encoderParams, "keyint_sec").value_or(3))
+        ));
 
-        v_keyframe_sec_->setText(std::to_string(
-            QJsonUtil::Get(conf_, "v-keyframe-sec", 3)
-        ).c_str());
+        v_bframes_->setText(QString::fromUtf8(
+            std::to_string(GetJsonField<int>(config.encoderParams, "bf").value_or(2))
+        ));
 
-        v_bframes_->setText(std::to_string(
-            QJsonUtil::Get(conf_, "v-bframes", 2)
-        ).c_str());
+        v_resolution_->setText(QString::fromUtf8(
+            config.resolution.value_or("")
+        ));
+    }
 
-        v_resolution_->setText(
-            QJsonUtil::Get(conf_, "v-resolution", QString{})
-        );
-
-        QJsonUtil::IfGet(conf_, "a-enc", [&](QString encid) {
-            int idx = aenc_->findData(encid);
-            if (idx >= 0)
+    void LoadAudioConfig(AudioEncoderConfig& config) {
+        {
+            auto idx = aenc_->findData(QString::fromUtf8(config.encoderId));
+            if (idx > 0) {
                 aenc_->setCurrentIndex(idx);
-            return encid;
-        });
+            } else {
+                aenc_->setCurrentIndex(0);
+                return;
+            }
+        }
 
-        a_bitrate_->setText(std::to_string(
-            QJsonUtil::Get(conf_, "a-bitrate", 128)
-        ).c_str());
+        a_bitrate_->setText(QString::fromUtf8(
+            std::to_string(GetJsonField<int>(config.encoderParams, "bitrate").value_or(128))
+        ));
 
-        QJsonUtil::IfGet(conf_, "a-mixer", [&](int val) {
-            int index = a_mixer_->findData(val);
-            if (index >= 0)
-                a_mixer_->setCurrentIndex(index);
-            else
-                a_mixer_->setCurrentIndex(0);
-            return val;
-        });
+        {
+            auto idx = a_mixer_->findData(config.mixerId);
+            if (idx < 0)
+                idx = 0;
+            a_mixer_->setCurrentIndex(idx);
+        }
+    }
+
+    void LoadConfig() {
+        auto& global = GlobalMultiOutputConfig();
+
+        if (config_->name.empty())
+            config_->name = obs_module_text("NewStreaming");
+
+        LoadTargetConfig(*config_);
+
+        bool videoConfigLoaded = false;
+        if (config_->videoConfig.has_value()) {
+            auto it = FindById(global.videoConfig, *config_->videoConfig);
+            if (it != nullptr) {
+                LoadVideoConfig(*it);
+                videoConfigLoaded = true;
+            }
+        }
+        if (!videoConfigLoaded) {
+            venc_->setCurrentIndex(0);
+        }
+
+        bool audioConfigLoaded = false;
+        if (config_->audioConfig.has_value()) {
+            auto it = FindById(global.audioConfig, *config_->audioConfig);
+            if (it != nullptr) {
+                LoadAudioConfig(*it);
+                audioConfigLoaded = true;
+            }
+        }
+        if (audioConfigLoaded == false) {
+            aenc_->setCurrentIndex(0);
+        }
+
+        UpdateUI();
     }
 };
 
-EditOutputWidget* createEditOutputWidget(QJsonObject conf, QWidget* parent) {
-    return new EditOutputWidgetImpl(conf, parent);
+EditOutputWidget* createEditOutputWidget(const std::string& targetid, QWidget* parent) {
+    return new EditOutputWidgetImpl(targetid, parent);
 }

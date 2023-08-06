@@ -15,7 +15,7 @@ static constexpr bool IsJsonFieldTypeMatch(nlohmann::json::iterator it) {
 template<class T>
 static std::optional<T> GetJsonField(nlohmann::json& json, const char* key) {
     auto it = json.find(key);
-    if (it == json.end() && IsJsonFieldTypeMatch<T>(it))
-        return {};
-    return it->get<T>();
+    if (it != json.end() && IsJsonFieldTypeMatch<T>(it))
+        return it->get<T>();
+    return {};
 }

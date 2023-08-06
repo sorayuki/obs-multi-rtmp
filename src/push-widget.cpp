@@ -3,6 +3,9 @@
 #include <optional>
 #include "push-widget.h"
 #include "edit-widget.h"
+#include "output-config.h"
+
+#include "obs.hpp"
 
 #define TAG "[obs-multi-rtmp] "
 
@@ -92,7 +95,8 @@ public:
 
 class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
 {
-    QJsonObject conf_;
+    std::string targetid_;
+    OutputTargetConfigPtr config_;
 
     QPushButton* btn_ = 0;
     QLabel* name_ = 0;
@@ -109,6 +113,8 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     QPushButton* remove_btn_ = 0;
 
     obs_output_t* output_ = 0;
+    bool using_main_video_encoder_ = true;
+    bool using_main_audio_encoder_ = true;
     obs_view_t* scene_view_ = 0;
     bool isUseDelay_ = false;
 
@@ -122,23 +128,9 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         
         ReleaseOutputService();
 
-        auto conf = obs_data_create();
+        auto conf = obs_data_create_from_json(config_->serviceParam.dump().c_str());
         if (!conf)
             return false;
-        
-        obs_data_set_string(conf, "server", tostdu8(conf_["rtmp-path"].toString()).c_str());
-        obs_data_set_string(conf, "key", tostdu8(conf_["rtmp-key"].toString()).c_str());
-
-        auto user = tostdu8(conf_["rtmp-user"].toString());
-        auto pass = tostdu8(conf_["rtmp-pass"].toString());
-        if (!user.empty())
-        {
-            obs_data_set_bool(conf, "use_auth", true);
-            obs_data_set_string(conf, "username", user.c_str());
-            obs_data_set_string(conf, "password", pass.c_str());
-        }
-        else
-            obs_data_set_bool(conf, "use_auth", false);
         
         auto service = obs_service_create("rtmp_custom", "multi-output-service", conf, nullptr);
         obs_data_release(conf);
@@ -170,35 +162,48 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     }
 
 
-    bool PrepareOutputSceneView() {
+    bool PrepareEncoderSource() {
         if (!output_) {
             blog(LOG_ERROR, TAG "Prepare output scene before output object is created.");
             return false;
         }
-        auto venc = obs_output_get_video_encoder(output_);
-        if (!venc) {
-            blog(LOG_ERROR, TAG "Prepare output scene before encoder is created.");
-            return false;
-        }
 
-        auto v_scene = QJsonUtil::Get(conf_, "v-scene", std::string{});
-        if (v_scene.empty()) {
-            obs_encoder_set_video(venc, obs_get_video());
-        } else {
-            auto scene = obs_get_source_by_name(v_scene.c_str());
-            if (scene == nullptr) {
-                blog(LOG_ERROR, TAG "Output scene is not found.");
+        if (!using_main_video_encoder_) {
+            auto venc = obs_output_get_video_encoder(output_);
+            if (!venc) {
+                blog(LOG_ERROR, TAG "Prepare output scene before encoder is created.");
                 return false;
             }
-            ReleaseOutputSceneView();
+            auto videoConfig = FindById(GlobalMultiOutputConfig().videoConfig, config_->videoConfig.value_or(""));
 
-            scene_view_ = obs_view_create();
-            obs_view_set_source(scene_view_, 0, scene);
-            obs_source_release(scene);
-            auto scene_video = obs_view_add(scene_view_);
-            obs_encoder_set_video(venc, scene_video);
+            if (!videoConfig || !videoConfig->outputScene.has_value()) {
+                obs_encoder_set_video(venc, obs_get_video());
+            } else {
+                auto sceneName = *videoConfig->outputScene;
+                auto scene = obs_get_source_by_name(sceneName.c_str());
+                if (scene == nullptr) {
+                    blog(LOG_ERROR, TAG "Output scene is not found.");
+                    return false;
+                }
+                ReleaseOutputSceneView();
+
+                scene_view_ = obs_view_create();
+                obs_view_set_source(scene_view_, 0, scene);
+                obs_source_release(scene);
+                auto scene_video = obs_view_add(scene_view_);
+                obs_encoder_set_video(venc, scene_video);
+            }
         }
 
+        if (!using_main_audio_encoder_) {
+            auto aenc = obs_output_get_audio_encoder(output_, 0);
+            if (!aenc) {
+                blog(LOG_ERROR, TAG "Prepare output scene before encoder is created.");
+                return false;
+            }
+            obs_encoder_set_audio(aenc, obs_get_audio());
+        }
+        
         return true;
     }
 
@@ -225,102 +230,79 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         
         ReleaseOutputEncoder();
 
-        // read config
-        auto venc_id = QJsonUtil::Get(conf_, "v-enc", std::string{});
-        auto aenc_id = QJsonUtil::Get(conf_, "a-enc", std::string{});
-        auto v_bitrate = QJsonUtil::Get(conf_, "v-bitrate", 2000);
-        auto a_bitrate = QJsonUtil::Get(conf_, "a-bitrate", 128);
-        auto v_keyframe_sec = QJsonUtil::Get(conf_, "v-keyframe-sec", 3);
-        auto a_mixer = QJsonUtil::Get(conf_, "a-mixer", 0);
-        auto v_bframes = QJsonUtil::Get<int>(conf_, "v-bframes");
-        auto resolution = QJsonUtil::Get<std::string>(conf_, "v-resolution");
-        int v_width = -1, v_height = -1;
-        
-        {
-            if (resolution.has_value()) {
-                std::regex res_pattern(R"__(\s*(\d{1,5})\s*x\s*(\d{1,5})\s*)__");
-                std::smatch match;
-                if (std::regex_match(resolution.value(), match, res_pattern))
-                {
-                    v_width = std::stoi(match[1].str());
-                    v_height = std::stoi(match[2].str());
+        auto& global = GlobalMultiOutputConfig();
+
+        // main output
+        OBSOutput mainOutput = obs_frontend_get_streaming_output();
+        obs_output_release(mainOutput);
+
+        // video encoder
+        OBSEncoder venc;
+        if (config_->videoConfig.has_value()) {
+            auto videoConfigId = *config_->videoConfig;
+            auto videoConfig = FindById(global.videoConfig, videoConfigId);
+            if (videoConfig) {
+                OBSData settings = obs_data_create_from_json(videoConfig->encoderParams.dump().c_str());
+                obs_data_release(settings);
+                venc = obs_video_encoder_create(videoConfig->encoderId.c_str(), "multi-rtmp-video-encoder", settings, nullptr);
+                obs_encoder_release(venc);
+
+                if (venc) {
+                    if (videoConfig->resolution.has_value()) {
+                        std::regex res_pattern(R"__(\s*(\d{1,5})\s*x\s*(\d{1,5})\s*)__");
+                        std::smatch match;
+                        if (std::regex_match(*videoConfig->resolution, match, res_pattern))
+                        {
+                            auto width = std::stoi(match[1].str());
+                            auto height = std::stoi(match[2].str());
+                            obs_encoder_set_scaled_size(venc, width, height);
+                        }
+                    }
+                    using_main_video_encoder_ = false;
                 }
-
-                if (a_mixer < 0 || a_mixer > 5)
-                    a_mixer = 0;
+            } else {
+                blog(LOG_ERROR, TAG "Load video encoder config failed for %s. Sharing with main output.", config_->name.c_str());
             }
+        } else {
+            venc = obs_output_get_video_encoder(mainOutput);
+            using_main_video_encoder_ = true;
         }
 
-        // ====== prepare encoder
-        obs_encoder *venc = 0, *aenc = 0;
+        // audio encoder
+        OBSEncoder aenc;
+        if (config_->audioConfig.has_value()) {
+            auto audioConfigId = *config_->audioConfig;
+            auto audioConfig = FindById(global.audioConfig, audioConfigId);
+            if (audioConfig) {
+                OBSData settings = obs_data_create_from_json(audioConfig->encoderParams.dump().c_str());
+                obs_data_release(settings);
+                aenc = obs_audio_encoder_create(audioConfig->encoderId.c_str(), "multi-rtmp-audio-encoder", settings, audioConfig->mixerId, nullptr);
+                obs_encoder_release(aenc);
 
-        // load stream encoders
-        if (venc_id.empty() || aenc_id.empty())
-        {
-            obs_output_t* stream_out = obs_frontend_get_streaming_output();
-            if (!stream_out)
-            {
-                auto msgbox = new QMessageBox(QMessageBox::Icon::Critical, 
-                    obs_module_text("Notice.Title"), 
-                    obs_module_text("Notice.GetEncoder"),
-                    QMessageBox::StandardButton::Ok,
-                    this
-                    );
-                msgbox->exec();
-                return false;
+                using_main_audio_encoder_ = false;
+            } else {
+                blog(LOG_ERROR, TAG "Load audio encoder config failed for %s. Sharing with main output.", config_->name.c_str());
             }
-            if (venc_id.empty())
-            {
-                venc = obs_output_get_video_encoder(stream_out);
-                venc = obs_encoder_get_ref(venc);
-            }
-            if (aenc_id.empty())
-            {
-                aenc = obs_output_get_audio_encoder(stream_out, 0);
-                aenc = obs_encoder_get_ref(aenc);
-            }
-
-            obs_output_release(stream_out);
+        } else {
+            aenc = obs_output_get_audio_encoder(mainOutput, 0);
+            using_main_audio_encoder_ = true;
         }
 
-        // create video encoder
-        if (!venc)
-        {
-            if (venc_id.empty())
-                return false;
-            obs_data_t* settings = obs_data_create();
-            obs_data_set_int(settings, "bitrate", v_bitrate);
-            obs_data_set_int(settings, "keyint_sec", v_keyframe_sec);
-            if (v_bframes.has_value())
-                obs_data_set_int(settings, "bf", v_bframes.value());
-            venc = obs_video_encoder_create(venc_id.c_str(), "multi-rtmp-video-encoder", settings, nullptr);
-            obs_data_release(settings);
-            if (v_width > 0 && v_height > 0)
-            {
-                obs_encoder_set_scaled_size(venc, v_width, v_height);
-            }
-        }
-        obs_output_set_video_encoder(output_, venc);
-
-        // create audio encoder
-        if (!aenc)
-        {
-            if (aenc_id.empty())
-                return false;
-            obs_data_t* settings = obs_data_create();
-            obs_data_set_int(settings, "bitrate", a_bitrate);
-            aenc = obs_audio_encoder_create(aenc_id.c_str(), "multi-rtmp-audio-encoder", settings, a_mixer, nullptr);
-            obs_data_release(settings);
-        }
-
-        obs_encoder_set_audio(aenc, obs_get_audio());
-        obs_output_set_audio_encoder(output_, aenc, 0);
-
-        if (!aenc || !venc)
-        {
+        if (!aenc || !venc) {
             ReleaseOutputEncoder();
+
+            auto msgbox = new QMessageBox(QMessageBox::Icon::Critical, 
+                obs_module_text("Notice.Title"), 
+                obs_module_text("Notice.GetEncoder"),
+                QMessageBox::StandardButton::Ok,
+                this
+                );
+            msgbox->exec();
             return false;
         }
+
+        obs_output_set_audio_encoder(output_, obs_encoder_get_ref(aenc), 0);
+        obs_output_set_video_encoder(output_, obs_encoder_get_ref(venc));
 
         return true;
     }
@@ -449,11 +431,16 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     }
 
 public:
-    PushWidgetImpl(QJsonObject conf, QWidget* parent = 0)
+    PushWidgetImpl(const std::string& targetid, QWidget* parent = 0)
         : QWidget(parent)
-        , conf_(conf)
+        , targetid_(targetid)
     {
         QObject::setObjectName("push-widget");
+
+        auto& global = GlobalMultiOutputConfig();
+        config_ = FindById(global.targets, targetid_);
+        if (!config_)
+            return;
 
         timer_ = new QTimer(this);
         timer_->setInterval(std::chrono::milliseconds(1000));
@@ -483,6 +470,11 @@ public:
             );
             if (msgbox->exec() == QMessageBox::Yes) {
                 GetGlobalService().RunInUIThread([this]() {
+                    auto& global = GlobalMultiOutputConfig();
+                    auto it = std::find_if(global.targets.begin(), global.targets.end(), [&](auto& x) { return x->id == targetid_; });
+                    if (it != global.targets.end()) {
+                        global.targets.erase(it);
+                    }
                     delete this;
                 });
             }
@@ -544,7 +536,7 @@ public:
             return;
         }
 
-        if (!PrepareOutputSceneView())
+        if (!PrepareEncoderSource())
         {
             SetMsg(obs_module_text("Error.SceneNotExist"));
             return;
@@ -577,11 +569,6 @@ public:
         else
             obs_output_force_stop(output_);
     }
-
-    QJsonObject Config() override
-    {
-        return conf_;
-    }
    
     void OnOBSEvent(obs_frontend_event ev) override
     {
@@ -591,11 +578,11 @@ public:
         ) {
             Stop();
         } else if (ev == obs_frontend_event::OBS_FRONTEND_EVENT_STREAMING_STARTING) {
-            if (!IsRunning() && QJsonUtil::Get(conf_, "syncstart", false)) {
+            if (!IsRunning() && config_->syncStart) {
                 StartStop();
             }
         } else if (ev == obs_frontend_event::OBS_FRONTEND_EVENT_STREAMING_STOPPING) {
-            if (IsRunning() && QJsonUtil::Get(conf_, "syncstart", false)) {
+            if (IsRunning() && config_->syncStart) {
                 StartStop();
             }
         }
@@ -603,7 +590,7 @@ public:
 
     void LoadConfig()
     {
-        name_->setText(QJsonUtil::Get(conf_, "name", QString("")));
+        name_->setText(QString::fromUtf8(config_->name));
     }
 
     void ResetInfo()
@@ -648,11 +635,10 @@ public:
 
     bool ShowEditDlg() override
     {
-        std::unique_ptr<EditOutputWidget> dlg{ createEditOutputWidget(conf_, this) };
+        std::unique_ptr<EditOutputWidget> dlg{ createEditOutputWidget(targetid_, this) };
 
         if (dlg->exec() == QDialog::DialogCode::Accepted)
         {
-            conf_ = dlg->Config();
             LoadConfig();
             return true;
         }
@@ -768,6 +754,6 @@ public:
     }
 };
 
-PushWidget* createPushWidget(QJsonObject conf, QWidget* parent) {
-    return new PushWidgetImpl(conf, parent);
+PushWidget* createPushWidget(const std::string& targetid, QWidget* parent) {
+    return new PushWidgetImpl(targetid, parent);
 }
