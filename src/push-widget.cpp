@@ -494,6 +494,7 @@ public:
                         global.targets.erase(it);
                     }
                     delete this;
+                    SaveMultiOutputConfig();
                 });
             }
         });
