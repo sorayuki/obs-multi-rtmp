@@ -316,8 +316,8 @@ public:
                         encLayout->addLayout(sublayout, currow, curcol++, 1, 2);
 
                         QObject::connect(shareButton, &QPushButton::clicked, [this]() {
-                            PopupShareMenu(true);
                             SaveConfig();
+                            PopupShareMenu(true);
                             LoadConfig();
                             UpdateUI();
                         });
