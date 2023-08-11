@@ -1,5 +1,11 @@
 # [Homepage / 主页](https://sorayuki.github.io/obs-multi-rtmp)
 
+## 为什么首页是日语？ / Why homepage is in Japanese?
+
+因为最初是做给管人用的。
+
+Because it's originally made for virtual youtubers.
+
 # 声明 
 
 近日发现百度贴吧有个叫 maggot 的用户在售卖此插件。咸鱼上也有，没得救了。 
