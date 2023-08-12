@@ -2,6 +2,9 @@
 #include "output-config.h"
 #include "json-util.hpp"
 #include <QMenu>
+#include <QTabWidget>
+
+#include "obs-properties-widget.h"
 
 static std::optional<int> ParseStringToInt(const QString& str) {
     try {
@@ -63,6 +66,7 @@ class EditOutputWidgetImpl : public EditOutputWidget
         return result;
     }
 
+
     template<class T>
     static std::optional<std::string> DuplicateConfig(std::list<T>& list, std::string oldid) {
         auto cfg = FindById(list, oldid);
@@ -76,6 +80,7 @@ class EditOutputWidgetImpl : public EditOutputWidget
         list.push_back(newcfg);
         return newid;
     }
+
 
     void PopupShareMenu(bool isAudio) {
         auto menu = new QMenu(this);
@@ -148,6 +153,13 @@ class EditOutputWidgetImpl : public EditOutputWidget
         menu->exec(QCursor::pos());
     }
 
+
+    QTabWidget* CreateOutputSettingsWidget(QWidget* parent) {
+        auto tab = new QTabWidget(parent);
+
+        return tab;
+    }
+
 public:
     EditOutputWidgetImpl(const std::string& targetid, QWidget* parent = 0)
         : QDialog(parent)
@@ -168,6 +180,17 @@ public:
         layout->setColumnStretch(1, 1);
 
         int currow = 0;
+        {
+            auto serv = obs_video_encoder_create("jim_nvenc", "asdfasdfadf", nullptr, nullptr);
+            auto prop = obs_encoder_properties(serv);
+            auto data = obs_encoder_get_settings(serv);
+            obs_encoder_release(serv);
+
+            auto w = createPropertyWidget(prop, data, this);
+            layout->addWidget(new QLabel("test", this), currow, 0);
+            layout->addWidget(w, currow, 1);
+        }
+        ++currow;
         {
             layout->addWidget(new QLabel(obs_module_text("StreamingName"), this), currow, 0);
             layout->addWidget(name_ = new QLineEdit("", this), currow, 1);
