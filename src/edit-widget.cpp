@@ -230,7 +230,7 @@ class EditOutputWidgetImpl : public EditOutputWidget
                 obs_service_get_settings(service)
             );
             obs_service_release(service);
-            tab->addTab(serviceSettings_, "service");
+            tab->addTab(serviceSettings_, "Tab.Service");
         }
 
         // output
@@ -242,7 +242,7 @@ class EditOutputWidgetImpl : public EditOutputWidget
                 obs_output_get_settings(output)
             );
             obs_output_release(output);
-            tab->addTab(outputSettings_, "output");
+            tab->addTab(outputSettings_, "Tab.Output");
         }
 
         return tab;
