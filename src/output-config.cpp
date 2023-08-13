@@ -22,6 +22,7 @@ static nlohmann::json SaveTarget(OutputTargetConfig& config) {
     json["id"] = config.id;
     json["name"] = config.name;
     json["service-param"] = config.serviceParam;
+    json["output-param"] = config.outputParam;
     json["sync-start"] = config.syncStart;
     if (config.videoConfig.has_value())
         json["video-config"] = *config.videoConfig;
@@ -98,6 +99,7 @@ static OutputTargetConfigPtr LoadTargetConfig(nlohmann::json& json) {
     config->name = GetJsonField<std::string>(json, "name").value_or("");
     config->syncStart = GetJsonField<bool>(json, "sync-start").value_or(false);
     config->serviceParam = GetJsonField<nlohmann::json>(json, "service-param").value_or(nlohmann::json{});
+    config->outputParam = GetJsonField<nlohmann::json>(json, "output-param").value_or(nlohmann::json{});
     config->videoConfig = GetJsonField<std::string>(json, "video-config");
     config->audioConfig = GetJsonField<std::string>(json, "audio-config");
 

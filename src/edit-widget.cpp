@@ -1,6 +1,7 @@
 #include "edit-widget.h"
 #include "output-config.h"
 #include "json-util.hpp"
+#include "obs.hpp"
 #include <QMenu>
 #include <QTabWidget>
 
@@ -17,28 +18,91 @@ static std::optional<int> ParseStringToInt(const QString& str) {
 }
 
 
+static nlohmann::json to_json(obs_data* data) {
+    if (!data)
+        return {};
+    auto jsonstr = obs_data_get_json(data);
+    if (!jsonstr)
+        return {};
+    try {
+        return nlohmann::json::parse(jsonstr);
+    }
+    catch (...) {
+        return {};
+    }
+}
+
+static OBSData from_json(nlohmann::json j) {
+    auto jstr = j.dump();
+    OBSData r = obs_data_create_from_json(jstr.c_str());
+    if (!r)
+        return {};
+    obs_data_release(r);
+    return r;
+}
+
+static obs_properties* AddBF(obs_properties* p) {
+    auto bfp = obs_properties_get(p, "bf");
+    if (!bfp) {
+        obs_properties_add_int(p, "bf", obs_module_text("BFrames"), 0, 16, 1);
+    }
+    return p;
+}
+
+
 class EditOutputWidgetImpl : public EditOutputWidget
 {
     std::string targetid_;
     OutputTargetConfigPtr config_ = nullptr;
 
     QLineEdit* name_ = 0;
-    QLineEdit* rtmp_path_ = 0;
-    QLineEdit* rtmp_key_ = 0;
 
-    QLineEdit* rtmp_user_ = 0;
-    QLineEdit* rtmp_pass_ = 0;
+    class PropertiesWidget: public QWidget {
+    public:
+        PropertiesWidget(QWidget* parent)
+            : QWidget(parent)
+        {
+            layout = new QGridLayout(this);
+            layout->setRowStretch(0, 1);
+            layout->setColumnStretch(0, 1);
+            layout->setContentsMargins(0, 0, 0, 0);
+            setLayout(layout);
+        }
 
+        // owner of props and settings is transfered
+        void UpdateProperties(obs_properties* props, obs_data* settings) {
+            layout->addWidget(wid = createPropertyWidget(props, this->settings = settings, this), 0, 0, 1, 1);
+            obs_data_release(settings);
+        }
+
+        void ClearProperties() {
+            layout->addWidget(new QWidget(this), 0, 0, 1, 1);
+        }
+
+        nlohmann::json Save() {
+            if (!wid || !settings)
+                return {};
+            wid->Save();
+            return to_json(settings);
+        }
+
+    private:
+        QGridLayout* layout;
+        QPropertiesWidget* wid = nullptr;
+        OBSData settings;
+    };
+
+    PropertiesWidget* serviceSettings_;
+    PropertiesWidget* outputSettings_;
+    PropertiesWidget* videoEncoderSettings_;
+    PropertiesWidget* audioEncoderSettings_;
+   
     QComboBox* venc_ = 0;
     QComboBox* v_scene_ = 0;
-    QLineEdit* v_bitrate_ = 0;
-    QLineEdit* v_keyframe_sec_ = 0;
-    QLineEdit* v_bframes_ = 0;
     QLineEdit* v_resolution_ = 0;
     QLabel* v_share_notify_ = 0;
 
     QComboBox* aenc_ = 0;
-    QLineEdit* a_bitrate_ = 0;
     QComboBox* a_mixer_ = 0;
     QLabel* a_share_notify_ = 0;
 
@@ -157,6 +221,30 @@ class EditOutputWidgetImpl : public EditOutputWidget
     QTabWidget* CreateOutputSettingsWidget(QWidget* parent) {
         auto tab = new QTabWidget(parent);
 
+        // service
+        {
+            serviceSettings_ = new PropertiesWidget(this);
+            auto service = obs_service_create("rtmp_custom", ("tmp_service_" + targetid_).c_str(), from_json(config_->serviceParam), nullptr);
+            serviceSettings_->UpdateProperties(
+                obs_service_properties(service),
+                obs_service_get_settings(service)
+            );
+            obs_service_release(service);
+            tab->addTab(serviceSettings_, "service");
+        }
+
+        // output
+        {
+            outputSettings_ = new PropertiesWidget(this);
+            auto output = obs_output_create("rtmp_output", ("tmp_output_" + targetid_).c_str(), from_json(config_->outputParam), nullptr);
+            outputSettings_->UpdateProperties(
+                obs_output_properties(output),
+                obs_output_get_settings(output)
+            );
+            obs_output_release(output);
+            tab->addTab(outputSettings_, "output");
+        }
+
         return tab;
     }
 
@@ -174,68 +262,19 @@ public:
         }
         config_ = std::make_shared<OutputTargetConfig>(*config_);
 
-
         auto layout = new QGridLayout(this);
         layout->setColumnStretch(0, 0);
         layout->setColumnStretch(1, 1);
 
         int currow = 0;
         {
-            auto serv = obs_video_encoder_create("jim_nvenc", "asdfasdfadf", nullptr, nullptr);
-            auto prop = obs_encoder_properties(serv);
-            auto data = obs_encoder_get_settings(serv);
-            obs_encoder_release(serv);
-
-            auto w = createPropertyWidget(prop, data, this);
-            layout->addWidget(new QLabel("test", this), currow, 0);
-            layout->addWidget(w, currow, 1);
-        }
-        ++currow;
-        {
             layout->addWidget(new QLabel(obs_module_text("StreamingName"), this), currow, 0);
             layout->addWidget(name_ = new QLineEdit("", this), currow, 1);
         }
         ++currow;
         {
-            layout->addWidget(new QLabel(obs_module_text("StreamingServer"), this), currow, 0);
-            layout->addWidget(rtmp_path_ = new QLineEdit("", this), currow, 1);
-        }
-        ++currow;
-        {
-            layout->addWidget(new QLabel(obs_module_text("StreamingKey"), this), currow, 0);
-            auto sub_layout = new QHBoxLayout();
-            sub_layout->addWidget(rtmp_key_ = new QLineEdit(u8"", this), 1);
-            auto showkey_check = new QCheckBox(u8"👀", this);
-            sub_layout->addWidget(showkey_check);
-            layout->addLayout(sub_layout, currow, 1);
-
-            rtmp_key_->setEchoMode(QLineEdit::Password);
-
-            QObject::connect(showkey_check, &QCheckBox::stateChanged, [showkey_check, this](int new_state) {
-                if (new_state == Qt::CheckState::Checked) {
-                    rtmp_key_->setEchoMode(QLineEdit::Normal);
-                } else {
-                    rtmp_key_->setEchoMode(QLineEdit::Password);
-                }
-            });
-        }
-        ++currow;
-        {
-            auto sub_layout = new QGridLayout();
-            layout->addLayout(sub_layout, currow, 0, 1, 2);
-
-            sub_layout->setColumnStretch(0, 0);
-            sub_layout->setColumnStretch(1, 1);
-            sub_layout->setColumnStretch(2, 0);
-            sub_layout->setColumnStretch(3, 1);
-            sub_layout->addWidget(new QLabel(obs_module_text("StreamingUser"), this), 0, 0);
-            sub_layout->addWidget(rtmp_user_ = new QLineEdit(u8"", this), 0, 1);
-            sub_layout->addWidget(new QLabel(obs_module_text("StreamingPassword"), this), 0, 2);
-            sub_layout->addWidget(rtmp_pass_ = new QLineEdit(u8"", this), 0, 3);
-
-            rtmp_user_->setPlaceholderText(obs_module_text("UsuallyNoNeed"));
-            rtmp_pass_->setPlaceholderText(obs_module_text("UsuallyNoNeed"));
-            rtmp_pass_->setEchoMode(QLineEdit::Password);
+            auto w = CreateOutputSettingsWidget(this);
+            layout->addWidget(w, currow, 0, 1, 2);
         }
         ++currow;
         {
@@ -285,42 +324,7 @@ public:
                     }
                     ++currow;
                     {
-                        int curcol = 0;
-                        encLayout->addWidget(new QLabel(obs_module_text("Bitrate"), gp), currow, curcol++);
-                        auto c = new QGridLayout();
-                        {
-                            int curcol = 0;
-                            c->addWidget(v_bitrate_ = new QLineEdit("", gp), 0, curcol++);
-                            c->addWidget(new QLabel(obs_module_text("kbps"), gp), 0, curcol++);
-                            c->setColumnStretch(0, 1);
-                            c->setColumnStretch(1, 0);
-                        }
-                        encLayout->addLayout(c, currow, curcol++);
-                    }
-                    ++currow;
-                    {
-                        int curcol = 0;
-                        encLayout->addWidget(new QLabel(obs_module_text("KeyFrame"), gp), currow, curcol++);
-                        auto c = new QGridLayout();
-                        {
-                            int curcol = 0;
-                            c->addWidget(v_keyframe_sec_ = new QLineEdit("", gp), 0, curcol++);
-                            c->addWidget(new QLabel(obs_module_text("UnitSecond"), gp), 0, curcol++);
-                            c->setColumnStretch(0, 1);
-                            c->setColumnStretch(1, 0);
-                        }
-                        encLayout->addLayout(c, currow, curcol++);
-                    }
-                    ++currow;
-                    {
-                        int curcol = 0;
-                        encLayout->addWidget(new QLabel(obs_module_text("BFrames"), gp), currow, curcol++);
-                        encLayout->addWidget(v_bframes_ = new QLineEdit("2", gp), currow, curcol++);
-                    }
-                    ++currow;
-                    {
-                        encLayout->addWidget(new QWidget(), currow, 0);
-                        encLayout->setRowStretch(currow, 1);
+                        encLayout->addWidget(videoEncoderSettings_ = new PropertiesWidget(gp), currow, 0, 1, 2);
                     }
                     gp->setLayout(encLayout);
                 }
@@ -354,25 +358,15 @@ public:
                     ++currow;
                     {
                         int curcol = 0;
-                        encLayout->addWidget(new QLabel(obs_module_text("Bitrate"), gp), currow, curcol++);
-                        auto c = new QGridLayout();
-                        {
-                            int curcol = 0;
-                            c->addWidget(a_bitrate_ = new QLineEdit(gp), 0, curcol++);
-                            c->addWidget(new QLabel(obs_module_text("kbps")), 0, curcol++);
-                            c->setColumnStretch(0, 1);
-                            c->setColumnStretch(1, 0);
-                        }
-                        encLayout->addLayout(c, currow, curcol++);
-                    }
-                    ++currow;
-                    {
-                        int curcol = 0;
                         encLayout->addWidget(new QLabel(obs_module_text("AudioMixerID"), gp), currow, curcol++);
                         encLayout->addWidget(a_mixer_ = new QComboBox(gp), currow, curcol++);
 
                         for(int i = 1; i <= 6; ++i)
                             a_mixer_->addItem(QString(std::to_string(i).c_str()), i - 1);
+                    }
+                    ++currow;
+                    {
+                        encLayout->addWidget(audioEncoderSettings_ = new PropertiesWidget(gp), currow, 0, 1, 2);
                     }
                     gp->setLayout(encLayout);
                 }
@@ -469,22 +463,12 @@ public:
         if (ve.isValid() && ve.toString() == "")
         {
             v_scene_->setEnabled(false);
-            v_bitrate_->setText(obs_module_text("SameAsOBS"));
-            v_bitrate_->setEnabled(false);
-            // v_resolution_->setText(obs_module_text("SameAsOBS"));
             v_resolution_->setEnabled(false);
-            v_keyframe_sec_->setEnabled(false);
-            v_keyframe_sec_->setText(obs_module_text("SameAsOBS"));
-            v_bframes_->setEnabled(false);
-            v_bframes_->setText(obs_module_text("SameAsOBS"));
         }
         else
         {
             v_scene_->setEnabled(true);
-            v_bitrate_->setEnabled(true);
             v_resolution_->setEnabled(true);
-            v_keyframe_sec_->setEnabled(true);
-            v_bframes_->setEnabled(true);
         }
 
         auto makeShareNotify = [&](auto& targets) {
@@ -502,17 +486,13 @@ public:
         auto sharedVideoTargets = GetEncoderShareTargets(false);
         v_share_notify_->setText(QString::fromUtf8(obs_module_text("EncoderShare") + makeShareNotify(sharedVideoTargets)));
 
-
         auto ae = aenc_->currentData();
         if (ae.isValid() && ae.toString() == "")
         {
-            a_bitrate_->setText(obs_module_text("SameAsOBS"));
-            a_bitrate_->setEnabled(false);
             a_mixer_->setEnabled(false);
         }
         else
         {
-            a_bitrate_->setEnabled(true);
             a_mixer_->setEnabled(true);
         }
 
@@ -573,9 +553,7 @@ public:
         else
             it->resolution.reset();
         
-        it->encoderParams["bitrate"] = ParseStringToInt(v_bitrate_->text()).value_or(2000);
-        it->encoderParams["keyint_sec"] = ParseStringToInt(v_keyframe_sec_->text()).value_or(3);
-        it->encoderParams["bf"] = ParseStringToInt(v_bframes_->text()).value_or(2);
+        it->encoderParams = videoEncoderSettings_->Save();
     }
 
     void SaveAudioConfig() {
@@ -591,7 +569,7 @@ public:
         it->id = *config_->audioConfig;
         it->encoderId = tostdu8(aenc_->currentData().toString());
         it->mixerId = a_mixer_->currentData().toInt();
-        it->encoderParams["bitrate"] = ParseStringToInt(a_bitrate_->text()).value_or(128);
+        it->encoderParams = audioEncoderSettings_->Save();
     }
 
     void SaveConfig()
@@ -600,16 +578,8 @@ public:
 
         config_->name = tostdu8(name_->text());
         config_->syncStart = syncStart_->isChecked();
-        config_->serviceParam["server"] = tostdu8(rtmp_path_->text());
-        config_->serviceParam["key"] = tostdu8(rtmp_key_->text());
-        auto username = tostdu8(rtmp_user_->text());
-        if (username.empty()) {
-            config_->serviceParam["use_auth"] = false;
-        } else {
-            config_->serviceParam["use_auth"] = true;
-            config_->serviceParam["username"] = username;
-            config_->serviceParam["password"] = tostdu8(rtmp_pass_->text());
-        }
+        config_->outputParam = outputSettings_->Save();
+        config_->serviceParam = serviceSettings_->Save();
 
         if (venc_->currentIndex() > 0 && venc_->currentData().isValid()) {
             if (!config_->videoConfig.has_value())
@@ -636,23 +606,6 @@ public:
     void LoadTargetConfig(OutputTargetConfig& target) {
         name_->setText(QString::fromUtf8(target.name));
         syncStart_->setChecked(target.syncStart);
-        rtmp_path_->setText(QString::fromUtf8(
-            GetJsonField<std::string>(target.serviceParam, "server").value_or("")
-        ));
-        rtmp_key_->setText(QString::fromUtf8(
-            GetJsonField<std::string>(target.serviceParam, "key").value_or("")
-        ));
-        if (GetJsonField<bool>(target.serviceParam, "use_auth").value_or(false)) {
-            rtmp_user_->setText(QString::fromUtf8(
-                GetJsonField<std::string>(target.serviceParam, "username").value_or("")
-            ));
-            rtmp_pass_->setText(QString::fromUtf8(
-                GetJsonField<std::string>(target.serviceParam, "password").value_or("")
-            ));
-        } else {
-            rtmp_user_->setText("");
-            rtmp_pass_->setText("");
-        }
     }
 
     void LoadVideoConfig(VideoEncoderConfig& config) {
@@ -662,6 +615,7 @@ public:
                 venc_->setCurrentIndex(idx);
             else {
                 venc_->setCurrentIndex(0);
+                videoEncoderSettings_->ClearProperties();
                 return;
             }
         }
@@ -674,21 +628,18 @@ public:
             v_scene_->setCurrentIndex(0);
         }
 
-        v_bitrate_->setText(QString::fromUtf8(
-            std::to_string(GetJsonField<int>(config.encoderParams, "bitrate").value_or(2000))
-        ));
-
-        v_keyframe_sec_->setText(QString::fromUtf8(
-            std::to_string(GetJsonField<int>(config.encoderParams, "keyint_sec").value_or(3))
-        ));
-
-        v_bframes_->setText(QString::fromUtf8(
-            std::to_string(GetJsonField<int>(config.encoderParams, "bf").value_or(2))
-        ));
-
         v_resolution_->setText(QString::fromUtf8(
             config.resolution.value_or("")
         ));
+
+        {
+            auto encoder = obs_video_encoder_create(config.encoderId.c_str(), ("tmp_video_encoder_" + targetid_ + "_" + config.id).c_str(), from_json(config.encoderParams), nullptr);
+            videoEncoderSettings_->UpdateProperties(
+                AddBF(obs_encoder_properties(encoder)),
+                obs_encoder_get_settings(encoder)
+            );
+            obs_encoder_release(encoder);
+        }
     }
 
     void LoadAudioConfig(AudioEncoderConfig& config) {
@@ -698,19 +649,25 @@ public:
                 aenc_->setCurrentIndex(idx);
             } else {
                 aenc_->setCurrentIndex(0);
+                audioEncoderSettings_->ClearProperties();
                 return;
             }
         }
-
-        a_bitrate_->setText(QString::fromUtf8(
-            std::to_string(GetJsonField<int>(config.encoderParams, "bitrate").value_or(128))
-        ));
 
         {
             auto idx = a_mixer_->findData(config.mixerId);
             if (idx < 0)
                 idx = 0;
             a_mixer_->setCurrentIndex(idx);
+        }
+
+        {
+            auto encoder = obs_audio_encoder_create(config.encoderId.c_str(), ("tmp_audio_encoder_" + targetid_ + "_" + config.id).c_str(), from_json(config.encoderParams), 0, nullptr);
+            audioEncoderSettings_->UpdateProperties(
+                obs_encoder_properties(encoder),
+                obs_encoder_get_settings(encoder)
+            );
+            obs_encoder_release(encoder);
         }
     }
 
@@ -732,6 +689,7 @@ public:
         }
         if (!videoConfigLoaded) {
             venc_->setCurrentIndex(0);
+            videoEncoderSettings_->ClearProperties();
         }
 
         bool audioConfigLoaded = false;
@@ -744,6 +702,7 @@ public:
         }
         if (audioConfigLoaded == false) {
             aenc_->setCurrentIndex(0);
+            audioEncoderSettings_->ClearProperties();
         }
 
         UpdateUI();

@@ -521,7 +521,8 @@ public:
 
         if (output_ == nullptr)
         {
-            output_ = obs_output_create("rtmp_output", "multi-output", nullptr, nullptr);
+            obs_data* output_settings = obs_data_create_from_json(config_->outputParam.dump().c_str());
+            output_ = obs_output_create("rtmp_output", "multi-output", output_settings, nullptr);
             SetMeAsHandler(output_);
         }
 

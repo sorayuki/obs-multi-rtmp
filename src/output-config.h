@@ -34,6 +34,7 @@ struct OutputTargetConfig {
     bool syncStart = false;
 
     nlohmann::json serviceParam;
+    nlohmann::json outputParam;
 
     std::optional<std::string> videoConfig;
     std::optional<std::string> audioConfig;

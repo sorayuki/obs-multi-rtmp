@@ -1,6 +1,8 @@
 #include "obs-properties-widget.h"
 #include "obs.hpp"
 
+#include "nlohmann/json.hpp"
+
 namespace {
     QString LoadCString(const char* s) {
         if (!s)
@@ -20,6 +22,23 @@ namespace {
         virtual void UpdateUI() = 0;
     };
 
+
+    class QLineEditWithFocus : public QLineEdit {
+    public:
+        template<class ...Args>
+        QLineEditWithFocus(UpdateHandler* updater, Args& ...arg)
+            : updater(updater)
+            , QLineEdit(std::forward<Args>(arg)...)
+        {
+        }
+
+        UpdateHandler* updater;
+
+        void focusOutEvent(QFocusEvent* e) override {
+            QLineEdit::focusOutEvent(e);
+            updater->UpdateUI();
+        }
+    };
 
     struct PropertyWidget {
         UpdateHandler* updater;
@@ -50,30 +69,21 @@ namespace {
                 }
                 case OBS_PROPERTY_INT:
                 {
-                    auto le = new QLineEdit(parent);
+                    auto le = new QLineEditWithFocus(updater, parent);
                     le->setValidator(new QIntValidator(le));
-                    QObject::connect(le, &QLineEdit::textChanged, [=]() {
-                        updater->UpdateUI();
-                    });
                     ctrl = le;
                     break;
                 }
                 case OBS_PROPERTY_FLOAT:
                 {
-                    auto le = new QLineEdit(parent);
+                    auto le = new QLineEditWithFocus(updater, parent);
                     le->setValidator(new QDoubleValidator(le));
-                    QObject::connect(le, &QLineEdit::textChanged, [=]() {
-                        updater->UpdateUI();
-                    });
                     ctrl = le;
                     break;
                 }
                 case OBS_PROPERTY_TEXT:
                 {
-                    auto le = new QLineEdit(parent);
-                    QObject::connect(le, &QLineEdit::textChanged, [=]() {
-                        updater->UpdateUI();
-                    });
+                    auto le = new QLineEditWithFocus(updater, parent);
                     ctrl = le;
                     break;
                 }
@@ -217,6 +227,8 @@ namespace {
             , props(props)
             , orig_settings(p_settings)
         {
+            obs_data_release(p_settings);
+
             settings = obs_data_create();
             obs_data_release(settings);
 
@@ -228,6 +240,12 @@ namespace {
             obs_data_apply(settings, orig_settings);
             
             UpdateUI();
+        }
+
+        ~QPropertiesWidgetImpl()
+        {
+            if (props)
+                obs_properties_destroy(props);
         }
 
         void LoadProperties() {
@@ -293,7 +311,7 @@ namespace {
             isUpdating = false;
         }
 
-        void Apply() {
+        void Save() {
             obs_data_apply(orig_settings, settings);
         }
     };
