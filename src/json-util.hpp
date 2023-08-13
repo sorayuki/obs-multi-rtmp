@@ -6,7 +6,7 @@
 
 template<class T>
 static bool IsJsonFieldTypeMatch(nlohmann::json::iterator it) {
-    if (std::is_same_v<T, int>) return it->type() == nlohmann::json::value_t::number_integer;
+    if (std::is_same_v<T, int>) return (it->type() == nlohmann::json::value_t::number_integer || it->type() == nlohmann::json::value_t::number_unsigned);
     else if (std::is_same_v<T, bool>) return it->type() == nlohmann::json::value_t::boolean;
     else if (std::is_same_v<T, std::string>) return it->type() == nlohmann::json::value_t::string;
     else if (std::is_same_v<T, nlohmann::json>) return it->type() == nlohmann::json::value_t::object;
