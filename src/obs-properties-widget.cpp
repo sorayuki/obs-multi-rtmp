@@ -209,23 +209,23 @@ namespace {
         std::unordered_map<std::string, std::shared_ptr<PropertyWidget>> propwids;
         obs_properties* props;
         OBSData settings;
-        OBSData settings_orig;
+        OBSData orig_settings;
 
     public:
-        QPropertiesWidgetImpl(obs_properties* props, obs_data* settings, QWidget* parent)
+        QPropertiesWidgetImpl(obs_properties* props, obs_data* p_settings, QWidget* parent)
             : QWidget(parent)
             , props(props)
-            , settings_orig(settings)
+            , orig_settings(p_settings)
         {
             settings = obs_data_create();
             obs_data_release(settings);
 
             // load default settings
-            auto defs = obs_data_get_defaults(settings_orig);
+            auto defs = obs_data_get_defaults(orig_settings);
             obs_data_apply(settings, defs);
             obs_data_release(defs);
 
-            obs_data_apply(settings, settings_orig);
+            obs_data_apply(settings, orig_settings);
             
             UpdateUI();
         }
@@ -294,7 +294,7 @@ namespace {
         }
 
         void Apply() {
-            obs_data_apply(settings_orig, settings);
+            obs_data_apply(orig_settings, settings);
         }
     };
 };
