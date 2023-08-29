@@ -3,7 +3,7 @@
 include_guard(GLOBAL)
 
 # Set C and C++ language standards to C17 and C++17
-if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.17)
+if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.21)
   set(CMAKE_C_STANDARD 17)
 else()
   set(CMAKE_C_STANDARD 11)
