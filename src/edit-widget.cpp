@@ -230,7 +230,7 @@ class EditOutputWidgetImpl : public EditOutputWidget
                 obs_service_get_settings(service)
             );
             obs_service_release(service);
-            tab->addTab(serviceSettings_, "Tab.Service");
+            tab->addTab(serviceSettings_, obs_module_text("Tab.Service"));
         }
 
         // output
@@ -242,7 +242,7 @@ class EditOutputWidgetImpl : public EditOutputWidget
                 obs_output_get_settings(output)
             );
             obs_output_release(output);
-            tab->addTab(outputSettings_, "Tab.Output");
+            tab->addTab(outputSettings_, obs_module_text("Tab.Output"));
         }
 
         return tab;
@@ -280,7 +280,7 @@ public:
         {
             auto sub_grid = new QGridLayout();
             sub_grid->setColumnStretch(0, 1);
-            sub_grid->setColumnStretch(1, 1);
+            sub_grid->setColumnStretch(1, 0);
             layout->addLayout(sub_grid, currow, 0, 1, 2);
             {
                 {
