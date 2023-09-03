@@ -1,7 +1,7 @@
 ﻿#include "obs-properties-widget.h"
 #include "obs.hpp"
 
-#include "nlohmann/json.hpp"
+#include "json.hpp"
 
 namespace {
     QString LoadCString(const char* s) {
