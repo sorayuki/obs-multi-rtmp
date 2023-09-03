@@ -44,7 +44,9 @@ static OBSData from_json(nlohmann::json j) {
 static obs_properties* AddBF(obs_properties* p) {
     auto bfp = obs_properties_get(p, "bf");
     if (!bfp) {
-        obs_properties_add_int(p, "bf", obs_module_text("BFrames"), 0, 16, 1);
+        bfp = obs_properties_get(p, "bframes");
+        if (!bfp)
+            obs_properties_add_int(p, "bf", obs_module_text("BFrames"), 0, 16, 1);
     }
     return p;
 }
