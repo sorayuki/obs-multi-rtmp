@@ -62,34 +62,34 @@ class EditOutputWidgetImpl : public EditOutputWidget
         PropertiesWidget(QWidget* parent)
             : QWidget(parent)
         {
-            layout = new QGridLayout(this);
-            layout->setRowStretch(0, 1);
-            layout->setColumnStretch(0, 1);
-            layout->setContentsMargins(0, 0, 0, 0);
-            setLayout(layout);
+            layout_ = new QGridLayout(this);
+            layout_->setRowStretch(0, 1);
+            layout_->setColumnStretch(0, 1);
+            layout_->setContentsMargins(0, 0, 0, 0);
+            setLayout(layout_);
         }
 
         // owner of props and settings is transfered
         void UpdateProperties(obs_properties* props, obs_data* settings) {
-            layout->addWidget(wid = createPropertyWidget(props, this->settings = settings, this), 0, 0, 1, 1);
+            layout_->addWidget(wid_ = createPropertyWidget(props, settings_ = settings, this), 0, 0, 1, 1);
             obs_data_release(settings);
         }
 
         void ClearProperties() {
-            layout->addWidget(new QWidget(this), 0, 0, 1, 1);
+            layout_->addWidget(new QWidget(this), 0, 0, 1, 1);
         }
 
         nlohmann::json Save() {
-            if (!wid || !settings)
+            if (!wid_ || !settings_)
                 return {};
-            wid->Save();
-            return to_json(settings);
+            wid_->Save();
+            return to_json(settings_);
         }
 
     private:
-        QGridLayout* layout;
-        QPropertiesWidget* wid = nullptr;
-        OBSData settings;
+        QGridLayout* layout_ = nullptr;
+        QPropertiesWidget* wid_ = nullptr;
+        OBSData settings_;
     };
 
     PropertiesWidget* serviceSettings_;
