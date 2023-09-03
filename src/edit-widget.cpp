@@ -71,11 +71,13 @@ class EditOutputWidgetImpl : public EditOutputWidget
 
         // owner of props and settings is transfered
         void UpdateProperties(obs_properties* props, obs_data* settings) {
+            ResetWid();
             layout_->addWidget(wid_ = createPropertyWidget(props, settings_ = settings, this), 0, 0, 1, 1);
             obs_data_release(settings);
         }
 
         void ClearProperties() {
+            ResetWid();
             layout_->addWidget(new QWidget(this), 0, 0, 1, 1);
         }
 
@@ -90,6 +92,13 @@ class EditOutputWidgetImpl : public EditOutputWidget
         QGridLayout* layout_ = nullptr;
         QPropertiesWidget* wid_ = nullptr;
         OBSData settings_;
+
+        void ResetWid() {
+            if (wid_) {
+                delete wid_;
+                wid_ = nullptr;
+            }
+        }
     };
 
     PropertiesWidget* serviceSettings_;

@@ -113,11 +113,20 @@ namespace {
                     ctrl = new QLabel("Unsupported", parent);
                     break;
             }
+
+            QObject::connect(label, &QObject::destroyed, [this]() {
+                label = nullptr;
+            });
+            QObject::connect(ctrl, &QObject::destroyed, [this]() {
+                ctrl = nullptr;
+            });
         }
 
         ~PropertyWidget() {
-            if (label) delete label;
-            if (ctrl) delete ctrl;
+            if (label) 
+                delete label;
+            if (ctrl) 
+                delete ctrl;
         }
 
         void LoadData(obs_data* data) {
@@ -255,8 +264,10 @@ namespace {
             auto oldLayout = this->layout();
             if (oldLayout) {
                 for (auto& x : oldpropwids) {
-                    oldLayout->removeWidget(x.second->label);
-                    oldLayout->removeWidget(x.second->ctrl);
+                    if (x.second->label)
+                        oldLayout->removeWidget(x.second->label);
+                    if (x.second->ctrl)
+                        oldLayout->removeWidget(x.second->ctrl);
                 }
             }
 
