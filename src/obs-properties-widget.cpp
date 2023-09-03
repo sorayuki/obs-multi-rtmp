@@ -1,4 +1,4 @@
-#include "obs-properties-widget.h"
+﻿#include "obs-properties-widget.h"
 #include "obs.hpp"
 
 #include "nlohmann/json.hpp"
@@ -85,6 +85,9 @@ namespace {
                 {
                     auto le = new QLineEditWithFocus(updater, parent);
                     ctrl = le;
+                    if (obs_property_text_type(p) == OBS_TEXT_PASSWORD) {
+                        le->setEchoMode(QLineEdit::PasswordEchoOnEdit);
+                    }
                     break;
                 }
                 case OBS_PROPERTY_LIST: {
@@ -140,19 +143,19 @@ namespace {
             case OBS_PROPERTY_INT:
             {
                 auto val = obs_data_get_int(data, name.c_str());
-                static_cast<QLineEdit*>(ctrl)->setText(to_qstring(val));
+                static_cast<QLineEditWithFocus*>(ctrl)->setText(to_qstring(val));
                 break;
             }
             case OBS_PROPERTY_FLOAT:
             {
                 auto val = obs_data_get_double(data, name.c_str());
-                static_cast<QLineEdit*>(ctrl)->setText(to_qstring(val));
+                static_cast<QLineEditWithFocus*>(ctrl)->setText(to_qstring(val));
                 break;
             }
             case OBS_PROPERTY_TEXT:
             {
                 auto val = obs_data_get_string(data, name.c_str());
-                static_cast<QLineEdit*>(ctrl)->setText(LoadCString(val));
+                static_cast<QLineEditWithFocus*>(ctrl)->setText(LoadCString(val));
                 break;
             }
             case OBS_PROPERTY_LIST: {
@@ -185,7 +188,7 @@ namespace {
             case OBS_PROPERTY_INT:
             {
                 try {
-                    auto val = tostdu8(static_cast<QLineEdit*>(ctrl)->text());
+                    auto val = tostdu8(static_cast<QLineEditWithFocus*>(ctrl)->text());
                     obs_data_set_int(data, name.c_str(), std::stoi(val));
                 } catch(...) {
                 }
@@ -194,7 +197,7 @@ namespace {
             case OBS_PROPERTY_FLOAT:
             {
                 try {
-                    auto val = tostdu8(static_cast<QLineEdit*>(ctrl)->text());
+                    auto val = tostdu8(static_cast<QLineEditWithFocus*>(ctrl)->text());
                     obs_data_set_int(data, name.c_str(), std::stod(val));
                 } catch(...) {
                 }
@@ -202,7 +205,7 @@ namespace {
             }
             case OBS_PROPERTY_TEXT:
             {
-                auto val = static_cast<QLineEdit*>(ctrl)->text();
+                auto val = static_cast<QLineEditWithFocus*>(ctrl)->text();
                 obs_data_set_string(data, name.c_str(), tostdu8(val).c_str());
                 break;
             }
