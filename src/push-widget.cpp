@@ -178,7 +178,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
                 obs_encoder_set_video(venc, obs_get_video());
             } else {
                 auto sceneName = *videoConfig->outputScene;
-                auto scene = obs_get_source_by_name(sceneName.c_str());
+                OBSSourceAutoRelease scene = obs_get_source_by_name(sceneName.c_str());
                 if (scene == nullptr) {
                     blog(LOG_ERROR, TAG "Output scene is not found.");
                     return false;
@@ -187,7 +187,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
 
                 scene_view_ = obs_view_create();
                 obs_view_set_source(scene_view_, 0, scene);
-                obs_source_release(scene);
+                obs_source_inc_active(scene);
                 auto scene_video = obs_view_add(scene_view_);
                 obs_encoder_set_video(venc, scene_video);
             }
@@ -211,6 +211,10 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
             return true;
 
         obs_view_remove(scene_view_);
+        OBSSourceAutoRelease source = obs_view_get_source(scene_view_, 0);
+        if (source) {
+            obs_source_dec_active(source);
+        }
         obs_view_set_source(scene_view_, 0, nullptr);
         obs_view_destroy(scene_view_);
         scene_view_ = nullptr;
