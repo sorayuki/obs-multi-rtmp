@@ -406,7 +406,7 @@ public:
             layout->addWidget(okbtn, currow, 0, 1, 2);
         }
 
-        resize(540, 160);
+        layout->setSizeConstraint(QLayout::SetFixedSize);
         setLayout(layout);
 
         LoadEncoders();
