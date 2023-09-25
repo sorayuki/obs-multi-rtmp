@@ -57,29 +57,15 @@ function(set_target_properties_plugin target)
     PREFIX "UI Files"
     FILES ${target_ui_files})
 
-  set(valid_uuid FALSE)
-  check_uuid(${_macosPackageUUID} valid_uuid)
-  if(NOT valid_uuid)
-    message(FATAL_ERROR "Specified macOS package UUID is not a valid UUID value: ${_macosPackageUUID}")
-  else()
-    set(UUID_PACKAGE ${_macosPackageUUID})
-  endif()
-
-  set(valid_uuid FALSE)
-  check_uuid(${_macosInstallerUUID} valid_uuid)
-  if(NOT valid_uuid)
-    message(FATAL_ERROR "Specified macOS package UUID is not a valid UUID value: ${_macosInstallerUUID}")
-  else()
-    set(UUID_INSTALLER ${_macosInstallerUUID})
-  endif()
-
   install(TARGETS ${target} LIBRARY DESTINATION .)
   install(
     FILES "$<TARGET_BUNDLE_DIR:${target}>.dsym"
     CONFIGURATIONS Release
     DESTINATION .
     OPTIONAL)
-  configure_file(cmake/macos/resources/create-package.cmake.in "${CMAKE_CURRENT_BINARY_DIR}/create-package.cmake")
+
+  configure_file(cmake/macos/resources/distribution.in "${CMAKE_CURRENT_BINARY_DIR}/distribution" @ONLY)
+  configure_file(cmake/macos/resources/create-package.cmake.in "${CMAKE_CURRENT_BINARY_DIR}/create-package.cmake" @ONLY)
   install(SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/create-package.cmake")
 endfunction()
 

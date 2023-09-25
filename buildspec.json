@@ -31,14 +31,6 @@
             }
         }
     },
-    "tools": {
-        "packages": {
-            "version": "1.2.10",
-            "baseUrl": "http://s.sudre.free.fr/Software/files",
-            "label": "Packages.app",
-            "hash": "6afdd25386295974dad8f078b8f1e41cabebd08e72d970bf92f707c7e48b16c9"
-        }
-    },
     "platformConfig": {
         "macos": {
             "bundleId": "com.example.obs-plugintemplate"
@@ -50,8 +42,6 @@
     "website": "https://example.com",
     "email": "me@example.com",
     "uuids": {
-        "macosPackage": "00000000-0000-0000-0000-000000000000",
-        "macosInstaller": "00000000-0000-0000-0000-000000000000",
         "windowsApp": "00000000-0000-0000-0000-000000000000"
     }
 }

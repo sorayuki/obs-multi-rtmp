@@ -49,8 +49,6 @@ string(JSON _author GET ${buildspec} author)
 string(JSON _email GET ${buildspec} email)
 string(JSON _version GET ${buildspec} version)
 string(JSON _bundleId GET ${buildspec} platformConfig macos bundleId)
-string(JSON _macosPackageUUID GET ${buildspec} uuids macosPackage)
-string(JSON _macosInstallerUUID GET ${buildspec} uuids macosInstaller)
 string(JSON _windowsAppUUID GET ${buildspec} uuids windowsApp)
 # cmake-format: on
 

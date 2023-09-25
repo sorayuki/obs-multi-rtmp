@@ -180,18 +180,13 @@ ${_usage_host:-}"
     if (( _loglevel > 1  || ${+CI} )) _tarflags="v${_tarflags}"
 
     if (( package )) {
-      if [[ ! -f ${project_root}/build_macos/installer-macos.generated.pkgproj ]] {
-        log_error 'Packages project file not found. Run the build script or the CMake build and install procedures first.'
+      if [[ ! -f ${project_root}/release/${config}/${product_name}.pkg ]] {
+        log_error 'Installer Package not found. Run the build script or the CMake build and install procedures first.'
         return 2
       }
 
-      check_packages
-
       log_group "Packaging ${product_name}..."
       pushd ${project_root}
-      packagesbuild \
-        --build-folder ${project_root}/release/${config} \
-        ${project_root}/build_macos/installer-macos.generated.pkgproj
 
       if (( codesign )) {
         read_codesign_installer
