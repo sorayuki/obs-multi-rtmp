@@ -43,7 +43,7 @@ function(set_target_properties_plugin target)
       POST_BUILD
       COMMAND "${CMAKE_COMMAND}" -E make_directory "${OBS_BUILD_DIR}/obs-plugins/64bit"
       COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:${target}>"
-              "$<$<CONFIG:Debug,RelWithDebInfo>:$<TARGET_PDB_FILE:${target}>>" "${OBS_BUILD_DIR}/obs-plugin/64bit"
+              "$<$<CONFIG:Debug,RelWithDebInfo>:$<TARGET_PDB_FILE:${target}>>" "${OBS_BUILD_DIR}/obs-plugins/64bit"
       COMMENT "Copy ${target} to obs-studio directory ${OBS_BUILD_DIR}"
       VERBATIM)
   endif()
