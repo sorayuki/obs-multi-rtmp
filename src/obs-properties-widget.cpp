@@ -228,6 +228,8 @@ namespace {
 
 
     class QPropertiesWidgetImpl: virtual public QWidget, public QPropertiesWidget, public UpdateHandler {
+        QScrollArea* scroll_;
+        QWidget* container_;
         std::unordered_map<std::string, std::shared_ptr<PropertyWidget>> propwids;
         obs_properties* props;
         OBSData settings;
@@ -239,6 +241,9 @@ namespace {
             , props(props)
             , orig_settings(p_settings)
         {
+            scroll_ = new QScrollArea(this);
+            container_ = new QWidget(this);
+
             obs_data_release(p_settings);
 
             settings = obs_data_create();
@@ -252,6 +257,15 @@ namespace {
             obs_data_apply(settings, orig_settings);
             
             UpdateUI();
+
+            scroll_->setWidgetResizable(true);
+            scroll_->setWidget(container_);
+
+            auto layout = new QGridLayout(this);
+            layout->setContentsMargins(0, 0, 0, 0);
+            layout->setRowStretch(0, 1);
+            layout->setColumnStretch(0, 1);
+            layout->addWidget(scroll_, 0, 0);
         }
 
         ~QPropertiesWidgetImpl()
@@ -264,7 +278,7 @@ namespace {
             std::unordered_map<std::string, std::shared_ptr<PropertyWidget>> oldpropwids;
             oldpropwids.swap(propwids);
 
-            auto oldLayout = this->layout();
+            auto oldLayout = container_->layout();
             if (oldLayout) {
                 for (auto& x : oldpropwids) {
                     if (x.second->label)
@@ -274,9 +288,10 @@ namespace {
                 }
             }
 
-            auto layout = new QGridLayout(this);
+            auto layout = new QGridLayout();
             layout->setColumnStretch(0, 0);
             layout->setColumnStretch(1, 1);
+            layout->setContentsMargins(0, 0, 0, 0);
             auto x = obs_properties_first(props);
             int currow = 0;
             do {
@@ -286,7 +301,7 @@ namespace {
                 auto name = obs_property_name(x);
                 auto it = oldpropwids.find(name);
                 if (it == oldpropwids.end()) {
-                    auto newwid = std::make_shared<PropertyWidget>(this, this, x);
+                    auto newwid = std::make_shared<PropertyWidget>(container_, this, x);
                     propwids.insert(std::make_pair(newwid->name, newwid));
                     layout->addWidget(newwid->label, currow, 0);
                     layout->addWidget(newwid->ctrl, currow, 1);
@@ -300,7 +315,7 @@ namespace {
 
             if (oldLayout)
                 delete oldLayout;
-            setLayout(layout);
+            container_->setLayout(layout);
         }
 
         bool isUpdating = false;

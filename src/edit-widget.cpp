@@ -33,6 +33,9 @@ static nlohmann::json to_json(obs_data* data) {
 }
 
 static OBSData from_json(nlohmann::json j) {
+    if (j.type() == nlohmann::json::value_t::null)
+        return OBSDataAutoRelease(obs_data_create()).Get();
+    
     auto jstr = j.dump();
     OBSData r = obs_data_create_from_json(jstr.c_str());
     if (!r)
@@ -264,6 +267,7 @@ public:
         : QDialog(parent)
         , targetid_(targetid)
     {
+        
         setWindowTitle(obs_module_text("StreamingSettings"));
 
         auto& global = GlobalMultiOutputConfig();
