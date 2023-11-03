@@ -3,7 +3,7 @@ on:
   workflow_call:
 jobs:
   check-event:
-    name: Check GitHub Event Data 📡
+    name: Check GitHub Event Data 🔎
     runs-on: ubuntu-22.04
     defaults:
       run:
@@ -29,7 +29,7 @@ jobs:
           case "${GITHUB_EVENT_NAME}" in
             pull_request)
               config_data=('codesign:false' 'notarize:false' 'package:false' 'config:RelWithDebInfo')
-              if gh pr view --json labels \
+              if gh pr view ${{ github.event.number }} --json labels \
                 | jq -e -r '.labels[] | select(.name == "Seeking Testers")' > /dev/null; then
                 config_data[0]='codesign:true'
                 config_data[2]='package:true'
@@ -77,9 +77,9 @@ jobs:
           if (( ${+RUNNER_DEBUG} )) setopt XTRACE
 
           print '::group::Clean Homebrew Environment'
-          typeset -a to_remove=()
+          local -a to_remove=()
 
-          if (( #to_remove > 0 )) brew uninstall --ignore-dependencies ${to_remove}
+          if (( #to_remove )) brew uninstall --ignore-dependencies ${to_remove}
           print '::endgroup::'
 
           local product_name
@@ -100,7 +100,7 @@ jobs:
 
       - name: Set Up Codesigning 🔑
         uses: ./.github/actions/setup-macos-codesigning
-        if: ${{ fromJSON(needs.check-event.outputs.codesign) }}
+        if: fromJSON(needs.check-event.outputs.codesign)
         id: codesign
         with:
           codesignIdentity: ${{ secrets.MACOS_SIGNING_APPLICATION_IDENTITY }}
