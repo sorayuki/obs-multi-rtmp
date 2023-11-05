@@ -111,7 +111,7 @@ jobs:
           draft: true
           prerelease: ${{ steps.check.outputs.prerelease }}
           tag_name: ${{ steps.check.outputs.version }}
-          name: OBS Studio ${{ steps.check.outputs.version }}
+          name: obs-multi-rtmp ${{ steps.check.outputs.version }}
           body_path: ${{ github.workspace }}/CHECKSUMS.txt
           files: |
             ${{ github.workspace }}/*.exe
