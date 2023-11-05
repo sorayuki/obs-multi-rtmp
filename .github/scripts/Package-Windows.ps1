@@ -64,7 +64,7 @@ function Package {
 
     Remove-Item @RemoveArgs
 
-    if ( ( $BuildInstaller ) ) {
+    #if ( ( $BuildInstaller ) ) {
         $NsiFile = "${ProjectRoot}/installer.nsi"
         Log-Information 'Creating NSIS installer...'
 
@@ -73,7 +73,7 @@ function Package {
         Invoke-External "makensis.exe" ${NsiFile}
         Copy-Item -Path "${ProjectRoot}/obs-multi-rtmp-setup.exe" -Destination "${OutputName}-Installer.exe"
         Pop-Location -Stack BuildTemp
-    } else {
+    #} else {
         Log-Group "Archiving ${ProductName}..."
         $CompressArgs = @{
             Path = (Get-ChildItem -Path "${ProjectRoot}/release/${Configuration}" -Exclude "${OutputName}*.*")
@@ -83,7 +83,7 @@ function Package {
         }
 
         Compress-Archive -Force @CompressArgs
-    }
+    #}
     Log-Group
 }
 
