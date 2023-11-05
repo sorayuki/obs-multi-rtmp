@@ -13,6 +13,7 @@ obj/Release
 .vscode/
 .vs/
 .idea/
+.deps/
 
 # ignore generated files
 *.generated.*

@@ -33,15 +33,15 @@
     },
     "platformConfig": {
         "macos": {
-            "bundleId": "com.example.obs-plugintemplate"
+            "bundleId": "net.sorayuki.obs-multi-rtmp"
         }
     },
-    "name": "obs-plugintemplate",
+    "name": "obs-multi-rtmp",
     "version": "1.0.0",
-    "author": "Your Name Here",
-    "website": "https://example.com",
+    "author": "SoraYuki",
+    "website": "https://github.com/sorayuki",
     "email": "me@example.com",
     "uuids": {
-        "windowsApp": "00000000-0000-0000-0000-000000000000"
+        "windowsApp": "B47DF2B4-6684-47C5-ABE3-E3A7B4504E6B"
     }
 }

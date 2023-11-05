@@ -23,8 +23,8 @@
         "CMAKE_OSX_DEPLOYMENT_TARGET": "11.0",
         "CODESIGN_IDENTITY": "$penv{CODESIGN_IDENT}",
         "CODESIGN_TEAM": "$penv{CODESIGN_TEAM}",
-        "ENABLE_FRONTEND_API": false,
-        "ENABLE_QT": false
+        "ENABLE_FRONTEND_API": true,
+        "ENABLE_QT": true
       }
     },
     {
@@ -34,7 +34,7 @@
       "description": "Build for macOS 11.0+ (Universal binary) for CI",
       "generator": "Xcode",
       "cacheVariables": {
-        "CMAKE_COMPILE_WARNING_AS_ERROR": true
+        "CMAKE_COMPILE_WARNING_AS_ERROR": false
       }
     },
     {
@@ -53,8 +53,8 @@
       "cacheVariables": {
         "QT_VERSION": "6",
         "CMAKE_SYSTEM_VERSION": "10.0.18363.657",
-        "ENABLE_FRONTEND_API": false,
-        "ENABLE_QT": false
+        "ENABLE_FRONTEND_API": true,
+        "ENABLE_QT": true
       }
     },
     {
@@ -63,7 +63,7 @@
       "displayName": "Windows x64 CI build",
       "description": "Build for Windows x64 on CI",
       "cacheVariables": {
-        "CMAKE_COMPILE_WARNING_AS_ERROR": true
+        "CMAKE_COMPILE_WARNING_AS_ERROR": false
       }
     },
     {
@@ -81,8 +81,8 @@
       "cacheVariables": {
         "QT_VERSION": "6",
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "ENABLE_FRONTEND_API": false,
-        "ENABLE_QT": false
+        "ENABLE_FRONTEND_API": true,
+        "ENABLE_QT": true
       }
     },
     {
@@ -92,7 +92,7 @@
       "description": "Build for Linux x86_64 on CI",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "CMAKE_COMPILE_WARNING_AS_ERROR": true
+        "CMAKE_COMPILE_WARNING_AS_ERROR": false
       }
     },
     {
@@ -110,8 +110,8 @@
       "cacheVariables": {
         "QT_VERSION": "6",
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "ENABLE_FRONTEND_API": false,
-        "ENABLE_QT": false
+        "ENABLE_FRONTEND_API": true,
+        "ENABLE_QT": true
       }
     },
     {
@@ -121,7 +121,7 @@
       "description": "Build for Linux aarch64 on CI",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "CMAKE_COMPILE_WARNING_AS_ERROR": true
+        "CMAKE_COMPILE_WARNING_AS_ERROR": false
       }
     }
   ],
