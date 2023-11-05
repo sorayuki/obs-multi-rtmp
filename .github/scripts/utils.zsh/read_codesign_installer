@@ -1,0 +1,7 @@
+autoload -Uz log_info
+
+if (( ! ${+CODESIGN_IDENT_INSTALLER} )) {
+  typeset -g CODESIGN_IDENT_INSTALLER
+  log_info 'Setting up Apple Developer Installer ID for installer package codesigning...'
+  read CODESIGN_IDENT_INSTALLER'?Apple Developer Installer ID: '
+}

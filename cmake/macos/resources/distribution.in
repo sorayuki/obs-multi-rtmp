@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<installer-gui-script minSpecVersion="1.0">
+    <options
+        rootVolumeOnly="true"
+        hostArchitectures="arm64,x86_64"
+        customize="never"
+        allow-external-scripts="no" />
+    <domains enable_currentUserHome="true" enable_anywhere="false" enable_localSystem="false" />
+    <title>@CMAKE_PROJECT_NAME@</title>
+    <choices-outline>
+        <line choice="obs-plugin" />
+    </choices-outline>
+    <choice id="obs-plugin" title="@CMAKE_PROJECT_NAME@" description="">
+        <pkg-ref id="@MACOS_BUNDLEID@" />
+    </choice>
+    <pkg-ref id="@MACOS_BUNDLEID@" version="@CMAKE_PROJECT_VERSION@">#@CMAKE_PROJECT_NAME@.pkg</pkg-ref>
+    <installation-check script="installCheck();" />
+    <script>
+        function installCheck() {
+            var macOSVersion = system.version.ProductVersion
+
+            if (system.compareVersions(macOSVersion, '@CMAKE_OSX_DEPLOYMENT_TARGET@') == -1) {
+                my.result.title = system.localizedStandardStringWithFormat(
+                                    'InstallationCheckError',
+                                    system.localizedString('DISTRIBUTION_TITLE')
+                                  );
+                my.result.message = ' ';
+                my.result.type = 'Fatal';
+                return false;
+            }
+        }
+    </script>
+</installer-gui-script>

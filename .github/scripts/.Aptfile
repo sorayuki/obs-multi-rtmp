@@ -1,0 +1,6 @@
+package 'cmake'
+package 'ccache'
+package 'git'
+package 'jq'
+package 'ninja-build', bin: 'ninja'
+package 'pkg-config'

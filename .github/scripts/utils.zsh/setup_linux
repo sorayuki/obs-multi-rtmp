@@ -1,0 +1,65 @@
+autoload -Uz log_error log_status log_info mkcd
+
+if (( ! ${+project_root} )) {
+  log_error "'project_root' not set. Please set before running ${0}."
+  return 2
+}
+
+if (( ! ${+target} )) {
+  log_error "'target' not set. Please set before running ${0}."
+  return 2
+}
+
+pushd ${project_root}
+
+typeset -g QT_VERSION
+
+local -a apt_args=(
+  ${CI:+-y}
+  --no-install-recommends
+)
+if (( _loglevel == 0 )) apt_args+=(--quiet)
+
+if (( ! (${skips[(Ie)all]} + ${skips[(Ie)deps]}) )) {
+  log_group 'Installing obs-studio build dependencies...'
+
+  local suffix
+  if [[ ${CPUTYPE} != "${target##*-}" ]] {
+    local -A arch_mappings=(
+      aarch64 arm64
+      x86_64 amd64
+    )
+
+    suffix=":${arch_mappings[${target##*-}]}"
+
+    sudo apt-get install ${apt_args} gcc-${${target##*-}//_/-}-linux-gnu g++-${${target##*-}//_/-}-linux-gnu
+  }
+
+  sudo add-apt-repository --yes ppa:obsproject/obs-studio
+  sudo apt update
+
+  sudo apt-get install ${apt_args} \
+    build-essential \
+    libgles2-mesa-dev \
+    obs-studio
+
+  local -a _qt_packages=()
+
+  if (( QT_VERSION == 5 )) {
+    _qt_packages+=(
+      qtbase5-dev${suffix}
+      libqt5svg5-dev${suffix}
+      qtbase5-private-dev${suffix}
+      libqt5x11extras5-dev${suffix}
+    )
+  } else {
+    _qt_packages+=(
+      qt6-base-dev${suffix}
+      libqt6svg6-dev${suffix}
+      qt6-base-private-dev${suffix}
+    )
+  }
+
+  sudo apt-get install ${apt_args} ${_qt_packages}
+  log_group
+}

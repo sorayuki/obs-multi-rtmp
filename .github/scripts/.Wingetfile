@@ -1,0 +1,2 @@
+package 'cmake', path: 'Cmake\bin', bin: 'cmake'
+package 'innosetup', path: 'Inno Setup 6', bin: 'iscc'
