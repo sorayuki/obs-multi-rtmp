@@ -1,3 +1,0 @@
-local icon='  ✖︎ '
-
-print -u2 -PR "%F{1} ${icon} %f ${@}"
