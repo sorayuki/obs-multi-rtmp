@@ -65,19 +65,13 @@ function Package {
     Remove-Item @RemoveArgs
 
     if ( ( $BuildInstaller ) ) {
-        Log-Group "Packaging ${ProductName}..."
-        $IsccFile = "${ProjectRoot}/build_${Target}/installer-Windows.generated.iss"
+        $NsiFile = "${ProjectRoot}/installer.nsi"
+        Log-Information 'Creating NSIS installer...'
 
-        if ( ! ( Test-Path -Path $IsccFile ) ) {
-            throw 'InnoSetup install script not found. Run the build script or the CMake build and install procedures first.'
-        }
-
-        Log-Information 'Creating InnoSetup installer...'
         Push-Location -Stack BuildTemp
         Ensure-Location -Path "${ProjectRoot}/release"
-        Copy-Item -Path ${Configuration} -Destination Package -Recurse
-        Invoke-External iscc ${IsccFile} /O"${ProjectRoot}/release" /F"${OutputName}-Installer"
-        Remove-Item -Path Package -Recurse
+        Invoke-External "makensis.exe" ${NsiFile}
+        Copy-Item -Path "${ProjectRoot}/obs-multi-rtmp-setup.exe" -Destination "${OutputName}-Installer.exe"
         Pop-Location -Stack BuildTemp
     } else {
         Log-Group "Archiving ${ProductName}..."

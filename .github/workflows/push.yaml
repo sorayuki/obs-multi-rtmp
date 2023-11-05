@@ -2,10 +2,10 @@ name: Push to master
 run-name: ${{ github.ref_name }} push run 🚀
 on:
   push:
-    branches:
-      - master
-      - main
-      - 'release/**'
+#    branches:
+#      - master
+#      - main
+#      - 'release/**'
     tags:
       - '*'
 permissions:
