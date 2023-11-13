@@ -228,7 +228,7 @@ namespace {
 
 
     class QPropertiesWidgetImpl: virtual public QWidget, public QPropertiesWidget, public UpdateHandler {
-        QScrollArea* scroll_;
+        QScrollArea scroll_;
         QWidget* container_;
         std::unordered_map<std::string, std::shared_ptr<PropertyWidget>> propwids;
         obs_properties* props;
@@ -241,7 +241,6 @@ namespace {
             , props(props)
             , orig_settings(p_settings)
         {
-            scroll_ = new QScrollArea(this);
             container_ = new QWidget(this);
 
             obs_data_release(p_settings);
@@ -258,14 +257,14 @@ namespace {
             
             UpdateUI();
 
-            scroll_->setWidgetResizable(true);
-            scroll_->setWidget(container_);
+            scroll_.setWidgetResizable(true);
+            scroll_.setWidget(container_);
 
             auto layout = new QGridLayout(this);
             layout->setContentsMargins(0, 0, 0, 0);
             layout->setRowStretch(0, 1);
             layout->setColumnStretch(0, 1);
-            layout->addWidget(scroll_, 0, 0);
+            layout->addWidget(&scroll_, 0, 0);
         }
 
         ~QPropertiesWidgetImpl()

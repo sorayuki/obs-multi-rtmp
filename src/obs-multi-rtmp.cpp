@@ -35,7 +35,7 @@ GlobalService& GetGlobalService() {
 }
 
 
-class MultiOutputWidget : public QDockWidget
+class MultiOutputWidget : public QWidget
 {
     int dockLocation_;
     bool dockVisible_;
@@ -43,21 +43,12 @@ class MultiOutputWidget : public QDockWidget
 
 public:
     MultiOutputWidget(QWidget* parent = 0)
-        : QDockWidget(parent)
+        : QWidget(parent)
         , reopenShown_(false)
     {
         setWindowTitle(obs_module_text("Title"));
-        setFeatures(QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable);
 
-        // save dock location
-        QObject::connect(this, &QDockWidget::dockLocationChanged, [this](Qt::DockWidgetArea area) {
-            dockLocation_ = area;
-        });
-
-        scroll_ = new QScrollArea(this);
-        scroll_->move(0, 22);
-
-        container_ = new QWidget(this);
+        container_ = new QWidget(&scroll_);
         layout_ = new QVBoxLayout(container_);
         layout_->setAlignment(Qt::AlignmentFlag::AlignTop);
 
@@ -104,7 +95,7 @@ public:
         });
         
         // load config
-        itemLayout_ = new QVBoxLayout(this);
+        itemLayout_ = new QVBoxLayout(container_);
         LoadConfig();
         layout_->addLayout(itemLayout_);
 
@@ -207,12 +198,14 @@ public:
             layout_->addWidget(label);
         }
 
-        scroll_->setWidgetResizable(true);
-        scroll_->setWidget(container_);
+        scroll_.setWidgetResizable(true);
+        scroll_.setWidget(container_);
 
-        setLayout(layout_);
-
-        resize(200, 400);
+        auto fullLayout = new QGridLayout(this);
+        fullLayout->setContentsMargins(0, 0, 0, 0);
+        fullLayout->setRowStretch(0, 1);
+        fullLayout->setColumnStretch(0, 1);
+        fullLayout->addWidget(&scroll_, 0, 0);
     }
 
     void visibleToggled(bool visible)
@@ -231,15 +224,6 @@ public:
                 this
             ).exec();
         }
-    }
-
-    bool event(QEvent *event) override
-    {
-        if (event->type() == QEvent::Resize)
-        {
-            scroll_->resize(width(), height() - 22);
-        }
-        return QDockWidget::event(event);
     }
 
     std::vector<PushWidget*> GetAllPushWidgets()
@@ -281,7 +265,7 @@ public:
 
 private:
     QWidget* container_ = 0;
-    QScrollArea* scroll_ = 0;
+    QScrollArea scroll_;
     QVBoxLayout* itemLayout_ = 0;
     QVBoxLayout* layout_ = 0;
 };
@@ -305,25 +289,28 @@ bool obs_module_load()
         s_service.uiThread_ = QThread::currentThread();
     });
 
-    auto dock = new MultiOutputWidget(mainwin);
+    auto dock = new MultiOutputWidget();
     dock->setObjectName("obs-multi-rtmp-dock");
-    auto action = (QAction*)obs_frontend_add_dock(dock);
-    QObject::connect(action, &QAction::toggled, dock, &MultiOutputWidget::visibleToggled);
+    if (!obs_frontend_add_dock_by_id("obs-multi-rtmp-dock", obs_module_text("Title"), dock))
+    {
+        delete dock;
+        return false;
+    }
 
     obs_frontend_add_event_callback(
         [](enum obs_frontend_event event, void *private_data) {
-            auto mainwin = static_cast<MultiOutputWidget*>(private_data);
+            auto dock = static_cast<MultiOutputWidget*>(private_data);
 
-            for(auto x: mainwin->GetAllPushWidgets())
+            for(auto x: dock->GetAllPushWidgets())
                 x->OnOBSEvent(event);
 
             if (event == obs_frontend_event::OBS_FRONTEND_EVENT_EXIT)
             {   
-                mainwin->SaveConfig();
+                dock->SaveConfig();
             }
             else if (event == obs_frontend_event::OBS_FRONTEND_EVENT_PROFILE_CHANGED)
             {
-                mainwin->LoadConfig();
+                dock->LoadConfig();
             }
         }, dock
     );
