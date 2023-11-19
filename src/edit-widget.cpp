@@ -348,6 +348,7 @@ public:
                     ++currow;
                     {
                         encLayout->addWidget(videoEncoderSettings_ = new PropertiesWidget(gp), currow, 0, 1, 2);
+                        videoEncoderSettings_->setMinimumHeight(180);
                     }
                     gp->setLayout(encLayout);
                 }
