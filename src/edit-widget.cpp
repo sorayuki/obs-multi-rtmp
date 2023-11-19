@@ -419,7 +419,7 @@ public:
             layout->addWidget(okbtn);
         }
 
-        layout->setSizeConstraint(QLayout::SetFixedSize);
+        // layout->setSizeConstraint(QLayout::SetFixedSize);
         setLayout(layout);
 
         LoadFPSDenumerator();

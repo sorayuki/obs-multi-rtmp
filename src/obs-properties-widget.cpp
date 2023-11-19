@@ -26,9 +26,9 @@ namespace {
     class QLineEditWithFocus : public QLineEdit {
     public:
         template<class ...Args>
-        QLineEditWithFocus(UpdateHandler* updater, Args& ...arg)
+        QLineEditWithFocus(UpdateHandler* updater, QWidget* parent)
             : updater(updater)
-            , QLineEdit(std::forward<Args>(arg)...)
+            , QLineEdit(parent)
         {
         }
 
@@ -38,6 +38,36 @@ namespace {
             QLineEdit::focusOutEvent(e);
             updater->UpdateUI();
         }
+    };
+
+    class QLineEditWithEye: public QWidget {
+        QLineEditWithFocus* edit_;
+        QCheckBox* eye_;
+    public:
+        QLineEditWithEye(UpdateHandler* updater, QWidget* parent, bool hasEye)
+            : QWidget(parent)
+        {
+            auto layout = new QHBoxLayout();
+            layout->addWidget(edit_ = new QLineEditWithFocus(updater, this), 1);
+
+            if (hasEye) {
+                edit_->setEchoMode(QLineEdit::EchoMode::Password);
+                layout->addWidget(eye_ = new QCheckBox(u8"👀", this));
+
+                QObject::connect(eye_, &QCheckBox::stateChanged, [=](int newstate) {
+                    if (newstate == Qt::CheckState::Checked) {
+                        edit_->setEchoMode(QLineEdit::EchoMode::Normal);
+                    } else {
+                        edit_->setEchoMode(QLineEdit::EchoMode::Password);
+                    }
+                });
+            }
+
+            layout->setContentsMargins(0, 0, 0, 0);
+            setLayout(layout);
+        }
+
+        QLineEdit* edit() const { return edit_; }
     };
 
     struct PropertyWidget {
@@ -69,25 +99,22 @@ namespace {
                 }
                 case OBS_PROPERTY_INT:
                 {
-                    auto le = new QLineEditWithFocus(updater, parent);
-                    le->setValidator(new QIntValidator(le));
+                    auto le = new QLineEditWithEye(updater, parent, false);
+                    le->edit()->setValidator(new QIntValidator(le));
                     ctrl = le;
                     break;
                 }
                 case OBS_PROPERTY_FLOAT:
                 {
-                    auto le = new QLineEditWithFocus(updater, parent);
-                    le->setValidator(new QDoubleValidator(le));
+                    auto le = new QLineEditWithEye(updater, parent, false);
+                    le->edit()->setValidator(new QDoubleValidator(le));
                     ctrl = le;
                     break;
                 }
                 case OBS_PROPERTY_TEXT:
                 {
-                    auto le = new QLineEditWithFocus(updater, parent);
+                    auto le = new QLineEditWithEye(updater, parent, obs_property_text_type(p) == OBS_TEXT_PASSWORD);
                     ctrl = le;
-                    if (obs_property_text_type(p) == OBS_TEXT_PASSWORD) {
-                        le->setEchoMode(QLineEdit::PasswordEchoOnEdit);
-                    }
                     break;
                 }
                 case OBS_PROPERTY_LIST: {
@@ -143,19 +170,19 @@ namespace {
             case OBS_PROPERTY_INT:
             {
                 auto val = obs_data_get_int(data, name.c_str());
-                static_cast<QLineEditWithFocus*>(ctrl)->setText(to_qstring(val));
+                static_cast<QLineEditWithEye*>(ctrl)->edit()->setText(to_qstring(val));
                 break;
             }
             case OBS_PROPERTY_FLOAT:
             {
                 auto val = obs_data_get_double(data, name.c_str());
-                static_cast<QLineEditWithFocus*>(ctrl)->setText(to_qstring(val));
+                static_cast<QLineEditWithEye*>(ctrl)->edit()->setText(to_qstring(val));
                 break;
             }
             case OBS_PROPERTY_TEXT:
             {
                 auto val = obs_data_get_string(data, name.c_str());
-                static_cast<QLineEditWithFocus*>(ctrl)->setText(LoadCString(val));
+                static_cast<QLineEditWithEye*>(ctrl)->edit()->setText(LoadCString(val));
                 break;
             }
             case OBS_PROPERTY_LIST: {
@@ -188,7 +215,7 @@ namespace {
             case OBS_PROPERTY_INT:
             {
                 try {
-                    auto val = tostdu8(static_cast<QLineEditWithFocus*>(ctrl)->text());
+                    auto val = tostdu8(static_cast<QLineEditWithEye*>(ctrl)->edit()->text());
                     obs_data_set_int(data, name.c_str(), std::stoi(val));
                 } catch(...) {
                 }
@@ -197,7 +224,7 @@ namespace {
             case OBS_PROPERTY_FLOAT:
             {
                 try {
-                    auto val = tostdu8(static_cast<QLineEditWithFocus*>(ctrl)->text());
+                    auto val = tostdu8(static_cast<QLineEditWithEye*>(ctrl)->edit()->text());
                     obs_data_set_int(data, name.c_str(), std::stod(val));
                 } catch(...) {
                 }
@@ -205,7 +232,7 @@ namespace {
             }
             case OBS_PROPERTY_TEXT:
             {
-                auto val = static_cast<QLineEditWithFocus*>(ctrl)->text();
+                auto val = static_cast<QLineEditWithEye*>(ctrl)->edit()->text();
                 obs_data_set_string(data, name.c_str(), tostdu8(val).c_str());
                 break;
             }
