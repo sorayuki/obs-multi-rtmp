@@ -1,4 +1,5 @@
 #include "output-config.h"
+#include "pch.h"
 
 #include <obs.h>
 #include <obs-frontend-api.h>
@@ -40,6 +41,7 @@ static nlohmann::json SaveVideoConfig(VideoEncoderConfig& config) {
         json["scene"] = *config.outputScene;
     if (config.resolution.has_value())
         json["resolution"] = *config.resolution;
+    json["fps-denumerator"] = config.fpsDenumerator;
     return json;
 }
 
@@ -58,6 +60,8 @@ static std::string SaveMultiOutputConfig(MultiOutputConfig& config) {
     std::unordered_set<std::string> videoconfig_in_use;
     std::unordered_set<std::string> audioconfig_in_use;
 
+    int target_count = 0, videocfg_count = 0, audiocfg_count = 0;
+
     nlohmann::json targets(nlohmann::json::value_t::array);
     for(auto& target: config.targets) {
         targets.push_back(SaveTarget(*target));
@@ -65,23 +69,28 @@ static std::string SaveMultiOutputConfig(MultiOutputConfig& config) {
             videoconfig_in_use.insert(*target->videoConfig);
         if (target->audioConfig.has_value())
             audioconfig_in_use.insert(*target->audioConfig);
+        ++target_count;
     }
 
     nlohmann::json video_configs(nlohmann::json::value_t::array);
     for(auto& video_config: config.videoConfig) {
         if (videoconfig_in_use.find(video_config->id) != videoconfig_in_use.end())
             video_configs.push_back(SaveVideoConfig(*video_config));
+        ++videocfg_count;
     }
 
     nlohmann::json audio_configs(nlohmann::json::value_t::array);
     for(auto& audio_config: config.audioConfig) {
         if (audioconfig_in_use.find(audio_config->id) != audioconfig_in_use.end())
             audio_configs.push_back(SaveAudioConfig(*audio_config));
+        ++audiocfg_count;
     }
 
     json["targets"] = targets;
     json["video_configs"] = video_configs;
     json["audio_configs"] = audio_configs;
+
+    blog(LOG_INFO, TAG "Save %d targets, %d video configs, %d audio configs", target_count, videocfg_count, audiocfg_count);
 
     return json.dump();
 }
@@ -116,6 +125,7 @@ static VideoEncoderConfigPtr LoadVideoConfig(nlohmann::json& json) {
     config->encoderId = GetJsonField<std::string>(json, "encoder").value_or("");
     config->outputScene = GetJsonField<std::string>(json, "scene");
     config->resolution = GetJsonField<std::string>(json, "resolution");
+    config->fpsDenumerator = GetJsonField<int>(json, "fps-denumerator").value_or(1);
     config->encoderParams = GetJsonField<nlohmann::json>(json, "param").value_or(nlohmann::json{});
 
     return config;
@@ -137,6 +147,8 @@ static AudioEncoderConfigPtr LoadAudioConfig(nlohmann::json& json) {
 
 static MultiOutputConfig LoadMultiOutputConfig(const std::string& content) {
     try {
+        int target_count = 0, videocfg_count = 0, audiocfg_count = 0;
+
         auto json = nlohmann::json::parse(content);
         MultiOutputConfig config;
         auto it = json.find("targets");
@@ -147,6 +159,7 @@ static MultiOutputConfig LoadMultiOutputConfig(const std::string& content) {
                 auto target = LoadTargetConfig(target_json);
                 if (target)
                     config.targets.emplace_back(target);
+                ++target_count;
             }
         }
 
@@ -159,6 +172,7 @@ static MultiOutputConfig LoadMultiOutputConfig(const std::string& content) {
                 if (video_enc) {
                     config.videoConfig.emplace_back(video_enc);
                 }
+                ++videocfg_count;
             }
         }
 
@@ -171,13 +185,16 @@ static MultiOutputConfig LoadMultiOutputConfig(const std::string& content) {
                 if (audio_enc) {
                     config.audioConfig.emplace_back(audio_enc);
                 }
+                ++audiocfg_count;
             }
         }
+
+        blog(LOG_INFO, TAG "Load %d targets, %d video configs, %d audio configs", target_count, videocfg_count, audiocfg_count);
         
         return config;
     }
     catch(const std::exception& e) {
-        blog(LOG_ERROR, "[LoadMultiOutputConfig] Fail to parse config json: %s", e.what());
+        blog(LOG_ERROR, TAG "Fail to parse config json: %s", e.what());
         return {};
     }
 }
@@ -191,6 +208,7 @@ void SaveMultiOutputConfig() {
         filename += "/obs-multi-rtmp.json";
         auto content = SaveMultiOutputConfig(GlobalMultiOutputConfig());
         os_quick_write_utf8_file_safe(filename.c_str(), content.c_str(), content.size(), true, "tmp", "bak");
+        blog(LOG_INFO, TAG "Save config into %s", filename.c_str());
     }
     bfree(profiledir);
 }
@@ -207,6 +225,9 @@ bool LoadMultiOutputConfig() {
             GlobalMultiOutputConfig() = LoadMultiOutputConfig(content);
             bfree(content);
             ret = true;
+            blog(LOG_INFO, TAG "Load config from %s", filename.c_str());
+        } else {
+            blog(LOG_INFO, TAG "Load config from %s failed", filename.c_str());
         }
     }
     bfree(profiledir);

@@ -114,6 +114,7 @@ class EditOutputWidgetImpl : public EditOutputWidget
     QComboBox* venc_ = 0;
     QComboBox* v_scene_ = 0;
     QLineEdit* v_resolution_ = 0;
+    QComboBox* v_fpsdenumerator_ = 0;
     QLabel* v_share_notify_ = 0;
 
     QComboBox* aenc_ = 0;
@@ -259,6 +260,8 @@ class EditOutputWidgetImpl : public EditOutputWidget
             tab->addTab(outputSettings_, obs_module_text("Tab.Output"));
         }
 
+        tab->setCurrentIndex(0);
+
         return tab;
     }
 
@@ -277,26 +280,25 @@ public:
         }
         config_ = std::make_shared<OutputTargetConfig>(*config_);
 
-        auto layout = new QGridLayout(this);
-        layout->setColumnStretch(0, 0);
-        layout->setColumnStretch(1, 1);
+        auto layout = new QVBoxLayout(this);
 
         int currow = 0;
         {
-            layout->addWidget(new QLabel(obs_module_text("StreamingName"), this), currow, 0);
-            layout->addWidget(name_ = new QLineEdit("", this), currow, 1);
+            auto sublayout = new QHBoxLayout(this);
+            sublayout->addWidget(new QLabel(obs_module_text("StreamingName"), this));
+            sublayout->addWidget(name_ = new QLineEdit("", this), 1);
+            layout->addLayout(sublayout);
         }
         ++currow;
         {
             auto w = CreateOutputSettingsWidget(this);
-            layout->addWidget(w, currow, 0, 1, 2);
+            layout->addWidget(w);
         }
         ++currow;
         {
             auto sub_grid = new QGridLayout();
             sub_grid->setColumnStretch(0, 1);
             sub_grid->setColumnStretch(1, 0);
-            layout->addLayout(sub_grid, currow, 0, 1, 2);
             {
                 {
                     auto gp = new QGroupBox(obs_module_text("VideoSettings"), this);
@@ -336,6 +338,12 @@ public:
                         encLayout->addWidget(new QLabel(obs_module_text("VideoResolution"), gp), currow, curcol++);
                         encLayout->addWidget(v_resolution_ = new QLineEdit("", gp), currow, curcol++);
                         v_resolution_->setPlaceholderText(obs_module_text("SameAsOBSNow"));
+                    }
+                    ++currow;
+                    {
+                        int curcol = 0;
+                        encLayout->addWidget(new QLabel(obs_module_text("VideoFPSDenumerator"), gp), currow, curcol++);
+                        encLayout->addWidget(v_fpsdenumerator_ = new QComboBox(gp), currow, curcol++);
                     }
                     ++currow;
                     {
@@ -394,6 +402,7 @@ public:
                     gp->setLayout(otherLayout);
                 }
             }
+            layout->addLayout(sub_grid, 1);
         }
         ++currow;
         {
@@ -407,12 +416,13 @@ public:
                 }
                 done(DialogCode::Accepted);
             });
-            layout->addWidget(okbtn, currow, 0, 1, 2);
+            layout->addWidget(okbtn);
         }
 
         layout->setSizeConstraint(QLayout::SetFixedSize);
         setLayout(layout);
 
+        LoadFPSDenumerator();
         LoadEncoders();
         LoadScenes();
 
@@ -453,6 +463,30 @@ public:
             aenc_->addItem(ui_text(x).c_str(), x.c_str());
     }
 
+    void LoadFPSDenumerator()
+    {
+        static const char* scales[] = {
+            nullptr,
+            (const char*)u8"1x",
+            (const char*)u8"½x", 
+            (const char*)u8"⅓x", 
+            (const char*)u8"¼x", 
+        };
+        obs_video_info ovi;
+        obs_get_video_info(&ovi);
+        for(int i = 1; i <= 4; ++i) {
+            auto fps = 1.0 * ovi.fps_num / ovi.fps_den / i;
+            auto fps_decimal_part = (int)(fps * 100) - (int)((int)fps * 100);
+            std::string strfps;
+            if (fps_decimal_part)
+                strfps = std::to_string((int)fps) + "." + std::to_string(fps_decimal_part);
+            else
+                strfps = std::to_string((int)fps);
+            auto text = std::string(scales[i]) + " (" + strfps + " FPS)";
+            v_fpsdenumerator_->addItem(text.c_str(), i);
+        }
+    }
+
     void LoadScenes()
     {
         v_scene_->addItem(obs_module_text("SameAsOBS"), "");
@@ -479,11 +513,13 @@ public:
         {
             v_scene_->setEnabled(false);
             v_resolution_->setEnabled(false);
+            v_fpsdenumerator_->setEnabled(false);
         }
         else
         {
             v_scene_->setEnabled(true);
             v_resolution_->setEnabled(true);
+            v_fpsdenumerator_->setEnabled(true);
         }
 
         auto makeShareNotify = [&](auto& targets) {
@@ -567,6 +603,8 @@ public:
             it->resolution = resolution.constData();
         else
             it->resolution.reset();
+
+        it->fpsDenumerator = v_fpsdenumerator_->currentData().toInt();
         
         it->encoderParams = videoEncoderSettings_->Save();
     }
@@ -646,6 +684,13 @@ public:
         v_resolution_->setText(QString::fromUtf8(
             config.resolution.value_or("")
         ));
+
+        {
+            auto idx = v_fpsdenumerator_->findData(config.fpsDenumerator);
+            if (idx < 0)
+                idx = 0;
+            v_fpsdenumerator_->setCurrentIndex(idx);
+        }
 
         {
             auto encoder = obs_video_encoder_create(config.encoderId.c_str(), ("tmp_video_encoder_" + targetid_ + "_" + config.id).c_str(), from_json(config.encoderParams), nullptr);

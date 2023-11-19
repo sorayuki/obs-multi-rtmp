@@ -139,6 +139,7 @@ static MultiOutputConfig ImportLegacyMultiOutputConfig(QJsonObject& json) {
 
 
 void ImportLegacyMultiOutputConfig() {
+    blog(LOG_INFO, TAG "Import config from old version.");
     auto profile_config = obs_frontend_get_profile_config();
 
     QJsonObject conf;

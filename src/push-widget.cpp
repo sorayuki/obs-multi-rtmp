@@ -273,6 +273,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
                                 obs_encoder_set_scaled_size(venc, width, height);
                             }
                         }
+                        obs_encoder_set_frame_rate_divisor(venc, videoConfig->fpsDenumerator);
                         using_main_video_encoder_ = false;
                     }
                 } else {

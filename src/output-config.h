@@ -12,6 +12,7 @@
 struct VideoEncoderConfig {
     std::string id;
     std::string encoderId;
+    int fpsDenumerator = 1;
     nlohmann::json encoderParams;
     std::optional<std::string> outputScene;
     std::optional<std::string> resolution;

@@ -5,6 +5,7 @@
 #include <filesystem>
 
 #include "push-widget.h"
+#include "plugin-support.h"
 
 #include "output-config.h"
 
@@ -276,12 +277,6 @@ OBS_MODULE_AUTHOR("雷鳴 (@sorayukinoyume)")
 
 bool obs_module_load()
 {
-    // check obs version
-    if (obs_get_version() < MAKE_SEMANTIC_VERSION(29, 1, 0)) {
-        blog(LOG_ERROR, TAG "Request OBS 29.1 or higher.");
-        return false;
-    }
-    
     auto mainwin = (QMainWindow*)obs_frontend_get_main_window();
     if (mainwin == nullptr)
         return false;
@@ -296,6 +291,8 @@ bool obs_module_load()
         delete dock;
         return false;
     }
+
+    blog(LOG_INFO, TAG "version: %s by SoraYuki https://github.com/sorayuki/obs-multi-rtmp/", PLUGIN_VERSION);
 
     obs_frontend_add_event_callback(
         [](enum obs_frontend_event event, void *private_data) {
