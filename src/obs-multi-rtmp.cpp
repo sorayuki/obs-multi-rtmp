@@ -107,7 +107,7 @@ public:
             auto innerLayout = new QGridLayout(cr);
             innerLayout->setAlignment(Qt::AlignmentFlag::AlignLeft);
 
-            auto label = new QLabel(u8"免费领红包或投喂支持插件作者。", cr);
+            auto label = new QLabel(u8"该插件免费提供，\r\n如您是付费取得，可向商家申请退款\r\n免费领红包或投喂支持插件作者。", cr);
             innerLayout->addWidget(label, 0, 0, 1, 2);
             innerLayout->setColumnStretch(0, 4);
             auto label2 = new QLabel(u8"作者：雷鸣", cr);
@@ -148,43 +148,27 @@ public:
                     "tm62qBBUAAAAASUVORK5CYII=";
                 auto donateWnd = new QDialog();
                 donateWnd->setWindowTitle(u8"赞助");
-                auto redbagBtn = new QPushButton(u8"支付宝领红包", donateWnd);
+                QTabWidget* tab = new QTabWidget(donateWnd);
                 auto redbagQr = new QLabel(donateWnd);
                 auto redbagQrBmp = QPixmap::fromImage(QImage::fromData(QByteArray::fromBase64(QByteArray::fromRawData(redbagpng, sizeof(redbagpng) - 1)), "png"));
                 redbagQr->setPixmap(redbagQrBmp);
-                auto aliBtn = new QPushButton(u8"支付宝", donateWnd);
+                tab->addTab(redbagQr, u8"支付宝领红包");
                 auto aliQr = new QLabel(donateWnd);
                 auto aliQrBmp = QPixmap::fromImage(QImage::fromData(QByteArray::fromBase64(QByteArray::fromRawData(alipaypng, sizeof(alipaypng) - 1)), "png"));
                 aliQr->setPixmap(aliQrBmp);
-                auto weBtn = new QPushButton(u8"微信", donateWnd);
+                tab->addTab(aliQr, u8"支付宝打赏");
                 auto weQr = new QLabel(donateWnd);
                 auto weQrBmp = QPixmap::fromImage(QImage::fromData(QByteArray::fromBase64(QByteArray::fromRawData(wechatpng, sizeof(wechatpng) - 1)), "png"));
                 weQr->setPixmap(weQrBmp);
-                auto layout = new QGridLayout(donateWnd);
-                layout->addWidget(redbagBtn, 0, 0);
-                layout->addWidget(aliBtn, 0, 1);
-                layout->addWidget(weBtn, 0, 2);
-                layout->addWidget(redbagQr, 1, 0, 1, 3);
-                layout->addWidget(aliQr, 1, 0, 1, 3);
-                layout->addWidget(weQr, 1, 0, 1, 3);
-                aliQr->setVisible(false);
-                weQr->setVisible(false);
-                QObject::connect(redbagBtn, &QPushButton::clicked, [redbagQr, aliQr, weQr]() {
-                    redbagQr->setVisible(true);
-                    aliQr->setVisible(false);
-                    weQr->setVisible(false);
-                });
-                QObject::connect(aliBtn, &QPushButton::clicked, [redbagQr, aliQr, weQr]() {
-                    redbagQr->setVisible(false);
-                    aliQr->setVisible(true);
-                    weQr->setVisible(false);
-                });
-                QObject::connect(weBtn, &QPushButton::clicked, [redbagQr, aliQr, weQr]() {
-                    redbagQr->setVisible(false);
-                    aliQr->setVisible(false);
-                    weQr->setVisible(true);
-                });
+                tab->addTab(weQr, u8"微信打赏");
+
+                auto layout = new QGridLayout();
+                layout->setRowStretch(0, 1);
+                layout->setColumnStretch(0, 1);
+                layout->addWidget(new QLabel(u8"打赏并非购买，不提供退款。", donateWnd), 0, 0);
+                layout->addWidget(tab, 1, 0);
                 donateWnd->setLayout(layout);
+                donateWnd->setMinimumWidth(360);
                 donateWnd->exec();
             });
 
