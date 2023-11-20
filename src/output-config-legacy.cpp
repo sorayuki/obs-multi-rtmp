@@ -157,9 +157,10 @@ void ImportLegacyMultiOutputConfig() {
 
             // import legacy config
             GlobalMultiOutputConfig() = ImportLegacyMultiOutputConfig(conf);
+            SaveMultiOutputConfig();
 
             // erase legacy config
-            config_set_string(obs_frontend_get_global_config(), ConfigSection, "json", "");
+            // config_set_string(obs_frontend_get_global_config(), ConfigSection, "json", "");
         }
     }
 }
