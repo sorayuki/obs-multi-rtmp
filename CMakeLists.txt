@@ -56,3 +56,10 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 )
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})
+
+include("I:/Libs/vcpkg/vcpkg/scripts/buildsystems/vcpkg.cmake")
+find_package(cpr CONFIG REQUIRED)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE cpr::cpr)
+
+find_package(OpenSSL REQUIRED)
+target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OpenSSL::SSL OpenSSL::Crypto)

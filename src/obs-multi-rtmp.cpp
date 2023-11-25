@@ -53,6 +53,27 @@ public:
         layout_ = new QVBoxLayout(container_);
         layout_->setAlignment(Qt::AlignmentFlag::AlignTop);
 
+        //Add Udvash Class stream info downloading form
+
+        auto classCodeLbl = new QLabel("Enter Class Code:", container_);
+	    auto classCodeTxt = new QLineEdit(container_);
+	    classCodeTxt->setFixedHeight(40);
+
+	    auto classCodeLayout_ = new QHBoxLayout();
+	    classCodeLayout_->setAlignment(Qt::AlignmentFlag::AlignTop);
+
+	    classCodeLayout_->addWidget(classCodeLbl);
+	    classCodeLayout_->addWidget(classCodeTxt);
+
+	    auto btnContainer_ = new QVBoxLayout();
+	    btnContainer_->setAlignment(Qt::AlignmentFlag::AlignTop);
+
+	    btnContainer_->addLayout(classCodeLayout_);
+
+	    auto getStreamsBtn = new QPushButton("Get Stream Settings", container_); 
+
+	    btnContainer_->addWidget(getStreamsBtn);
+
         // init widget
         auto addButton = new QPushButton(obs_module_text("Btn.NewTarget"), container_);
         QObject::connect(addButton, &QPushButton::clicked, [this]() {
