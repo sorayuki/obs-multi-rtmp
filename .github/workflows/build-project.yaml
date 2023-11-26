@@ -188,7 +188,8 @@ jobs:
       - name: Package Plugin 📀
         uses: ./.github/actions/package-plugin
         with:
-          package: ${{ fromJSON(needs.check-event.outputs.package) }}
+          package: false
+          # package: ${{ fromJSON(needs.check-event.outputs.package) }}
           target: x86_64
           config: ${{ needs.check-event.outputs.config }}
 
