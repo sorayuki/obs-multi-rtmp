@@ -242,10 +242,10 @@ ${_usage_host:-}"
     local -a cmake_args=()
     if (( _loglevel > 1 )) cmake_args+=(--verbose)
 
-    log_group "Creating source tarball for ${product_name}..."
-    pushd ${project_root}
-    cmake --build build_${target##*-} --config ${config} -t package_source ${cmake_args}
-    popd
+    # log_group "Creating source tarball for ${product_name}..."
+    # pushd ${project_root}
+    # cmake --build build_${target##*-} --config ${config} -t package_source ${cmake_args}
+    # popd
 
     if (( package )) {
       log_group "Packaging ${product_name}..."
@@ -259,7 +259,10 @@ ${_usage_host:-}"
       if (( _loglevel > 1 || ${+CI} )) _tarflags="v${_tarflags}"
 
       pushd ${project_root}/release/${config}
-      XZ_OPT=-T0 tar "-${_tarflags}" ${project_root}/release/${output_name}.tar.xz (lib|share)
+      # XZ_OPT=-T0 tar "-${_tarflags}" ${project_root}/release/${output_name}.tar.xz (lib|share)
+      XZ_OPT=-T0 tar --transform='s#dist#.var/app/com.obsproject.Studio/config#' "-${_tarflags}" ${project_root}/release/${output_name}-flatpak.tar.xz dist
+      XZ_OPT=-T0 tar --transform='s#dist#.config#' "-${_tarflags}" ${project_root}/release/${output_name}.tar.xz dist
+
       popd
     }
     log_group
