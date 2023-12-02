@@ -4,7 +4,7 @@ include_guard(GLOBAL)
 
 include(helpers_common)
 
-set(DIST_ROOT_IN_CONFIG obs-studio/plugins/${CMAKE_PROJECT_NAME})
+set(PLUGIN_FOLDER ${CMAKE_PROJECT_NAME})
 
 # set_target_properties_plugin: Set target properties for use in obs-studio
 function(set_target_properties_plugin target)
@@ -41,8 +41,8 @@ function(set_target_properties_plugin target)
 
   install(
     TARGETS ${target}
-    RUNTIME DESTINATION dist/${DIST_ROOT_IN_CONFIG}/bin/${OBSARCHNAME}
-    LIBRARY DESTINATION dist/${DIST_ROOT_IN_CONFIG}/bin/${OBSARCHNAME})
+    RUNTIME DESTINATION dist/${PLUGIN_FOLDER}/bin/${OBSARCHNAME}
+    LIBRARY DESTINATION dist/${PLUGIN_FOLDER}/bin/${OBSARCHNAME})
 
   if(TARGET plugin-support)
     target_link_libraries(${target} PRIVATE plugin-support)
@@ -79,7 +79,7 @@ function(target_install_resources target)
     
     install(
       DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/data/"
-      DESTINATION dist/${DIST_ROOT_IN_CONFIG}/data
+      DESTINATION dist/${PLUGIN_FOLDER}/data
       USE_SOURCE_PERMISSIONS)
   endif()
 endfunction()
@@ -90,7 +90,7 @@ function(target_add_resource target resource)
 
   # install(FILES "${resource}" DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/obs/obs-plugins/${target})
 
-  install(FILES "${resource}" DESTINATION dist/${DIST_ROOT_IN_CONFIG}/data)
+  install(FILES "${resource}" DESTINATION dist/${PLUGIN_FOLDER}/data)
 
   source_group("Resources" FILES "${resource}")
 endfunction()

@@ -260,9 +260,9 @@ ${_usage_host:-}"
 
       pushd ${project_root}/release/${config}
       # XZ_OPT=-T0 tar "-${_tarflags}" ${project_root}/release/${output_name}.tar.xz (lib|share)
-      XZ_OPT=-T0 tar --transform='s#dist#.var/app/com.obsproject.Studio/config#' "-${_tarflags}" ${project_root}/release/${output_name}-flatpak.tar.xz dist
-      XZ_OPT=-T0 tar --transform='s#dist#.config#' "-${_tarflags}" ${project_root}/release/${output_name}.tar.xz dist
-
+      pushd dist
+      XZ_OPT=-T0 tar "-${_tarflags}" ${project_root}/release/${output_name}.tar.xz *
+      popd
       popd
     }
     log_group
