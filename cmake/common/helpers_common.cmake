@@ -134,4 +134,10 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/plugin-support.c.in")
     PRIVATE plugin-support.c
     PUBLIC src/plugin-support.h)
   target_include_directories(plugin-support PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  if(OS_LINUX
+     OR OS_FREEBSD
+     OR OS_OPENBSD)
+    # add fPIC on Linux to prevent shared object errors
+    set_property(TARGET plugin-support PROPERTY POSITION_INDEPENDENT_CODE ON)
+  endif()
 endif()
