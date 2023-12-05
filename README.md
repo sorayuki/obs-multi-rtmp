@@ -50,8 +50,5 @@ If you regard this tool useful and want to doante for some, here is the link. (I
 
 ## Build
 
-Windows
-> .github\scripts\Build-Windows.ps1
-
-macOS
-> .github/scripts/build-macos.zsh
+This project use obs-plugintemplate.   
+Referring obs-plugintemplate to get to know how it works.
