@@ -1,6 +1,10 @@
 name: Build Project
 on:
   workflow_call:
+    outputs:
+      pluginName:
+        description: 'Project name detected by parsing build spec file'
+        value: ${{ jobs.check-event.outputs.pluginName }}
 jobs:
   check-event:
     name: Check GitHub Event Data 🔎
@@ -14,6 +18,7 @@ jobs:
       notarize: ${{ steps.setup.outputs.notarize }}
       config: ${{ steps.setup.outputs.config }}
       commitHash: ${{ steps.setup.outputs.commitHash }}
+      pluginName: ${{ steps.setup.outputs.pluginName }}
     steps:
       - uses: actions/checkout@v3
         with:
@@ -56,6 +61,15 @@ jobs:
             echo "${key}=${value}" >> $GITHUB_OUTPUT
           done
           echo "commitHash=${GITHUB_SHA:0:9}" >> $GITHUB_OUTPUT
+
+          plugin_name="$(grep 'name' buildspec.json | sed -E -e 's/^.+"name":[^"]+"(.+)",?$/\1/g')"
+          plugin_display_name="$(grep 'displayName' buildspec.json | sed -E -e 's/^.+"displayName":[^"]+"(.+)",?$/\1/g' || echo "")"
+
+          if [[ "${plugin_display_name}" ]]; then
+            echo "pluginName=${plugin_display_name}" >> $GITHUB_OUTPUT
+          else
+            echo "pluginName=${plugin_name}" >> $GITHUB_OUTPUT
+          fi
 
   macos-build:
     name: Build for macOS 🍏

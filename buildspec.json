@@ -37,6 +37,7 @@
         }
     },
     "name": "obs-plugintemplate",
+    "displayName": "OBS Plugin Template",
     "version": "1.0.0",
     "author": "Your Name Here",
     "website": "https://example.com",
