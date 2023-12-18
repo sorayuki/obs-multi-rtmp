@@ -64,10 +64,20 @@ function Package {
 
     Remove-Item @RemoveArgs
 
+    Log-Group "Archiving ${ProductName}..."
+    $CompressArgs = @{
+        Path = (Get-ChildItem -Path "${ProjectRoot}/release/${Configuration}" -Exclude "${OutputName}*.*")
+        CompressionLevel = 'Optimal'
+        DestinationPath = "${ProjectRoot}/release/${OutputName}.zip"
+        Verbose = ($Env:CI -ne $null)
+    }
+    Compress-Archive -Force @CompressArgs
+    Log-Group
+
     if ( ( $BuildInstaller ) ) {
         Log-Group "Packaging ${ProductName}..."
-        $IsccFile = "${ProjectRoot}/build_${Target}/installer-Windows.generated.iss"
 
+        $IsccFile = "${ProjectRoot}/build_${Target}/installer-Windows.generated.iss"
         if ( ! ( Test-Path -Path $IsccFile ) ) {
             throw 'InnoSetup install script not found. Run the build script or the CMake build and install procedures first.'
         }
@@ -79,18 +89,9 @@ function Package {
         Invoke-External iscc ${IsccFile} /O"${ProjectRoot}/release" /F"${OutputName}-Installer"
         Remove-Item -Path Package -Recurse
         Pop-Location -Stack BuildTemp
-    } else {
-        Log-Group "Archiving ${ProductName}..."
-        $CompressArgs = @{
-            Path = (Get-ChildItem -Path "${ProjectRoot}/release/${Configuration}" -Exclude "${OutputName}*.*")
-            CompressionLevel = 'Optimal'
-            DestinationPath = "${ProjectRoot}/release/${OutputName}.zip"
-            Verbose = ($Env:CI -ne $null)
-        }
 
-        Compress-Archive -Force @CompressArgs
+        Log-Group
     }
-    Log-Group
 }
 
 Package
