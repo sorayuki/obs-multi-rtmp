@@ -7,9 +7,18 @@
   },
   "configurePresets": [
     {
+      "name": "template",
+      "hidden": true,
+      "cacheVariables": {
+        "ENABLE_FRONTEND_API": false,
+        "ENABLE_QT": false
+      }
+    },
+    {
       "name": "macos",
       "displayName": "macOS Universal",
       "description": "Build for macOS 11.0+ (Universal binary)",
+      "inherits": ["template"],
       "binaryDir": "${sourceDir}/build_macos",
       "condition": {
         "type": "equals",
@@ -22,9 +31,7 @@
         "QT_VERSION": "6",
         "CMAKE_OSX_DEPLOYMENT_TARGET": "11.0",
         "CODESIGN_IDENTITY": "$penv{CODESIGN_IDENT}",
-        "CODESIGN_TEAM": "$penv{CODESIGN_TEAM}",
-        "ENABLE_FRONTEND_API": false,
-        "ENABLE_QT": false
+        "CODESIGN_TEAM": "$penv{CODESIGN_TEAM}"
       }
     },
     {
@@ -41,6 +48,7 @@
       "name": "windows-x64",
       "displayName": "Windows x64",
       "description": "Build for Windows x64",
+      "inherits": ["template"],
       "binaryDir": "${sourceDir}/build_x64",
       "condition": {
         "type": "equals",
@@ -52,9 +60,7 @@
       "warnings": {"dev": true, "deprecated": true},
       "cacheVariables": {
         "QT_VERSION": "6",
-        "CMAKE_SYSTEM_VERSION": "10.0.18363.657",
-        "ENABLE_FRONTEND_API": false,
-        "ENABLE_QT": false
+        "CMAKE_SYSTEM_VERSION": "10.0.18363.657"
       }
     },
     {
@@ -70,6 +76,7 @@
       "name": "linux-x86_64",
       "displayName": "Linux x86_64",
       "description": "Build for Linux x86_64",
+      "inherits": ["template"],
       "binaryDir": "${sourceDir}/build_x86_64",
       "condition": {
         "type": "equals",
@@ -80,9 +87,7 @@
       "warnings": {"dev": true, "deprecated": true},
       "cacheVariables": {
         "QT_VERSION": "6",
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "ENABLE_FRONTEND_API": false,
-        "ENABLE_QT": false
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
       }
     },
     {
@@ -99,6 +104,7 @@
       "name": "linux-aarch64",
       "displayName": "Linux aarch64",
       "description": "Build for Linux aarch64",
+      "inherits": ["template"],
       "binaryDir": "${sourceDir}/build_aarch64",
       "condition": {
         "type": "equals",
@@ -109,9 +115,7 @@
       "warnings": {"dev": true, "deprecated": true},
       "cacheVariables": {
         "QT_VERSION": "6",
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "ENABLE_FRONTEND_API": false,
-        "ENABLE_QT": false
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
       }
     },
     {
