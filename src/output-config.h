@@ -33,6 +33,7 @@ struct OutputTargetConfig {
     std::string id;
     std::string name;
     bool syncStart = false;
+    bool syncStop = false;
 
     nlohmann::json serviceParam;
     nlohmann::json outputParam;
