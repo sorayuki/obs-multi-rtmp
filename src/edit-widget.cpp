@@ -122,6 +122,7 @@ class EditOutputWidgetImpl : public EditOutputWidget
     QLabel* a_share_notify_ = 0;
 
     QCheckBox* syncStart_ = 0;
+    QCheckBox *syncStop_ = 0;
 
     std::vector<std::string> EnumEncodersByCodec(const char* codec)
     {
@@ -400,6 +401,7 @@ public:
                     sub_grid->addWidget(gp, 1, 1, 1, 1);
                     auto otherLayout = new QGridLayout();
                     otherLayout->addWidget(syncStart_ = new QCheckBox(obs_module_text("SyncStart"), gp), 0, 0);
+                    otherLayout->addWidget(syncStop_ = new QCheckBox(obs_module_text("SyncStop"), gp), 1, 0);
                     gp->setLayout(otherLayout);
                 }
             }
@@ -632,6 +634,7 @@ public:
 
         config_->name = tostdu8(name_->text());
         config_->syncStart = syncStart_->isChecked();
+        config_->syncStop = syncStop_->isChecked();
         config_->outputParam = outputSettings_->Save();
         config_->serviceParam = serviceSettings_->Save();
 
@@ -660,6 +663,7 @@ public:
     void LoadTargetConfig(OutputTargetConfig& target) {
         name_->setText(QString::fromUtf8(target.name));
         syncStart_->setChecked(target.syncStart);
+        syncStop_->setChecked(target.syncStop);
     }
 
     void LoadVideoConfig(VideoEncoderConfig& config) {
