@@ -517,6 +517,13 @@ public:
         ReleaseOutput();
     }
 
+    static const char *GetOutputID(const char *url) {
+        if (strncmp("srt",  url,  3) == 0)  return "ffmpeg_mpegts_muxer";
+        if (strncmp("rist", url,  4) == 0) return "ffmpeg_mpegts_muxer";
+        if (strncmp("hls", url,  3) == 0) return "ffmpeg_hls_muxer";
+        return "rtmp_output";
+    }
+
     void StartStreaming() override {
         if (IsRunning())
             return;
@@ -527,7 +534,11 @@ public:
         if (output_ == nullptr)
         {
             obs_data* output_settings = obs_data_create_from_json(config_->outputParam.dump().c_str());
-            output_ = obs_output_create("rtmp_output", "multi-output", output_settings, nullptr);
+            auto url = config_->serviceParam.at("server").template get<std::string>().c_str();
+            
+            blog(LOG_DEBUG, GetOutputID(url));
+
+            output_ = obs_output_create(GetOutputID(url), "multi-output", output_settings, nullptr);
             SetMeAsHandler(output_);
         }
 
