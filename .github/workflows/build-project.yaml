@@ -1,6 +1,10 @@
 name: Build Project
 on:
   workflow_call:
+    outputs:
+      pluginName:
+        description: 'Project name detected by parsing build spec file'
+        value: ${{ jobs.check-event.outputs.pluginName }}
 jobs:
   check-event:
     name: Check GitHub Event Data 🔎
@@ -14,8 +18,9 @@ jobs:
       notarize: ${{ steps.setup.outputs.notarize }}
       config: ${{ steps.setup.outputs.config }}
       commitHash: ${{ steps.setup.outputs.commitHash }}
+      pluginName: ${{ steps.setup.outputs.pluginName }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - name: Check Event Data ☑️
@@ -53,6 +58,15 @@ jobs:
           done
           echo "commitHash=${GITHUB_SHA:0:9}" >> $GITHUB_OUTPUT
 
+          plugin_name="$(grep 'name' buildspec.json | sed -E -e 's/^.+"name":[^"]+"(.+)",?$/\1/g')"
+          plugin_display_name="$(grep 'displayName' buildspec.json | sed -E -e 's/^.+"displayName":[^"]+"(.+)",?$/\1/g' || echo "")"
+
+          if [[ "${plugin_display_name}" ]]; then
+            echo "pluginName=${plugin_display_name}" >> $GITHUB_OUTPUT
+          else
+            echo "pluginName=${plugin_name}" >> $GITHUB_OUTPUT
+          fi
+
   macos-build:
     name: Build for macOS 🍏
     runs-on: macos-13
@@ -61,7 +75,7 @@ jobs:
       run:
         shell: zsh --no-rcs --errexit --pipefail {0}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 0
@@ -86,7 +100,7 @@ jobs:
           print "pluginName=${product_name}" >> $GITHUB_OUTPUT
           print "pluginVersion=${product_version}" >> $GITHUB_OUTPUT
 
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         id: ccache-cache
         with:
           path: ${{ github.workspace }}/.ccache
@@ -131,13 +145,13 @@ jobs:
           codesignPass: ${{ secrets.MACOS_NOTARIZATION_PASSWORD }}
 
       - name: Upload Artifacts 📡
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-macos-universal-${{ needs.check-event.outputs.commitHash }}
           path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-macos-universal.*
 
       - name: Upload Debug Symbol Artifacts 🪲
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: ${{ needs.check-event.outputs.config == 'Release' }}
         with:
           name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-macos-universal-${{ needs.check-event.outputs.commitHash }}-dSYMs
@@ -151,7 +165,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 0
@@ -168,7 +182,7 @@ jobs:
           echo "pluginName=${product_name}" >> $GITHUB_OUTPUT
           echo "pluginVersion=${product_version}" >> $GITHUB_OUTPUT
 
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         id: ccache-cache
         with:
           path: ${{ github.workspace }}/.ccache
@@ -194,19 +208,19 @@ jobs:
           config: ${{ needs.check-event.outputs.config }}
 
 #      - name: Upload Source Tarball 🗜️
-#        uses: actions/upload-artifact@v3
+#        uses: actions/upload-artifact@v4
 #        with:
 #          name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-sources-${{ needs.check-event.outputs.commitHash }}
 #          path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-source.*
 
       - name: Upload Artifacts 📡
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-ubuntu-22.04-x86_64-${{ needs.check-event.outputs.commitHash }}
           path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-x86_64*.*
 
       - name: Upload debug symbol artifacts 🪲
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: ${{ fromJSON(needs.check-event.outputs.package) }}
         with:
           name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-ubuntu-22.04-x86_64-${{ needs.check-event.outputs.commitHash }}-dbgsym
@@ -220,7 +234,7 @@ jobs:
       run:
         shell: pwsh
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 0
@@ -254,7 +268,7 @@ jobs:
           package: ${{ fromJSON(needs.check-event.outputs.package) }}
 
       - name: Upload Artifacts 📡
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-x64-${{ needs.check-event.outputs.commitHash }}
           path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-windows-x64*.*
