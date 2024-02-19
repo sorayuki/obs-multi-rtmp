@@ -4,7 +4,7 @@
 
 因为最初是做给管人用的。
 
-Because it's originally made for virtual YouYubers (VTubers).
+Because it's originally made for virtual Youtubers (VTubers).
 
 # 声明 
 
