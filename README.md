@@ -1,10 +1,10 @@
 # [Homepage / 主页](https://sorayuki.github.io/obs-multi-rtmp)
 
-## 为什么首页是日语？ / Why homepage is in Japanese?
+## 为什么首页是日语？ / Why is the homepage in Japanese?
 
 因为最初是做给管人用的。
 
-Because it's originally made for virtual youtubers.
+Because it's originally made for virtual Youtubers (VTubers).
 
 # 声明 
 
@@ -15,11 +15,11 @@ Because it's originally made for virtual youtubers.
 举报之后百度贴吧找我要软件著作权证明，累不爱。 
 
 
-# Announce
+# Announcement
 
-This plugin is provided without fee. 
+This plugin is provided for free, without a fee. 
 
-Recently an Baidu Tieba account 'maggot' is selling this plugin. Don't buy it.
+Recently a Baidu Tieba account 'maggot' is selling this plugin. Please, don't buy it.
 
 
 # お知らせ
@@ -37,7 +37,7 @@ Recently an Baidu Tieba account 'maggot' is selling this plugin. Don't buy it.
 
 このツールの開発に支援もとい投げ銭をしたいと思った方は以下のリンクからお願いします。(機能のリクエストは受け付けていません)
 
-If you regard this tool useful and want to doante for some, here is the link. (It's not for feature request.)
+If you find this tool useful and want to doante, here is the link. (Please do not donate for feature requests.)
 
 ## [paypal / 贝宝](https://paypal.me/sorayuki0)
 
@@ -50,5 +50,5 @@ If you regard this tool useful and want to doante for some, here is the link. (I
 
 ## Build
 
-This project use obs-plugintemplate.   
-Referring obs-plugintemplate to get to know how it works.
+This project uses obs-plugintemplate.   
+Please refer to obs-plugintemplate to understand how it works.

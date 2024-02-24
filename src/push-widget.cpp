@@ -618,7 +618,7 @@ public:
                 StartStop();
             }
         } else if (ev == obs_frontend_event::OBS_FRONTEND_EVENT_STREAMING_STOPPING) {
-            if (IsRunning() && config_->syncStart) {
+            if (IsRunning() && config_->syncStop) {
                 StartStop();
             }
         }
