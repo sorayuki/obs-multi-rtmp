@@ -108,7 +108,7 @@ static OutputTargetConfigPtr LoadTargetConfig(nlohmann::json& json) {
     auto config = std::make_shared<OutputTargetConfig>();
     config->id = *id;
     config->name = GetJsonField<std::string>(json, "name").value_or("");
-    config->protocol = GetJsonField<std::string>(json, "protocol").value_or("RTMP");
+    config->protocol = GetJsonField<std::string>(json, "protocol").value_or("");
     config->syncStart = GetJsonField<bool>(json, "sync-start").value_or(false);
     config->syncStop = GetJsonField<bool>(json, "sync-stop").value_or(config->syncStart);
     config->serviceParam = GetJsonField<nlohmann::json>(json, "service-param").value_or(nlohmann::json{});
