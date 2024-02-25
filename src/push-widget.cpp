@@ -127,10 +127,13 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         ReleaseOutputService();
 
         auto conf = obs_data_create_from_json(config_->serviceParam.dump().c_str());
+        auto url = config_->serviceParam.at("server").template get<std::string>().c_str();
+        auto service_id = (strncmp("http", url,  4) == 0) ? "whip_custom" : "rtmp_custom";
+	    blog(LOG_INFO, service_id);
         if (!conf)
             return false;
         
-        auto service = obs_service_create("rtmp_custom", "multi-output-service", conf, nullptr);
+        auto service = obs_service_create(service_id, "multi-output-service", conf, nullptr);
         obs_data_release(conf);
         if (!service)
             return false;
