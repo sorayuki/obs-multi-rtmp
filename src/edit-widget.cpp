@@ -464,6 +464,8 @@ public:
         aenc_->addItem(obs_module_text("SameAsOBS"), "");
         for(auto x : EnumEncodersByCodec("aac"))
             aenc_->addItem(ui_text(x).c_str(), x.c_str());
+        for(auto x : EnumEncodersByCodec("opus"))
+            aenc_->addItem(ui_text(x).c_str(), x.c_str());
     }
 
     void LoadFPSDenumerator()
