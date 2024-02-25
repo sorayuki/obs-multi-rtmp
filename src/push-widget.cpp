@@ -518,8 +518,9 @@ public:
     }
 
     static const char *GetOutputID(const char *url) {
-        if (strncmp("srt",  url,  3) == 0)  return "ffmpeg_mpegts_muxer";
+        if (strncmp("srt",  url,  3) == 0) return "ffmpeg_mpegts_muxer";
         if (strncmp("rist", url,  4) == 0) return "ffmpeg_mpegts_muxer";
+        if (strncmp("http", url,  4) == 0) return "whip_output";
 
         return "rtmp_output";
     }
