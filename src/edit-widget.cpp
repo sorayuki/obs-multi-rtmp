@@ -4,6 +4,8 @@
 #include "obs.hpp"
 #include <QMenu>
 #include <QTabWidget>
+#include <QRadioButton>
+#include <QComboBox>
 
 #include "obs-properties-widget.h"
 
@@ -110,7 +112,11 @@ class EditOutputWidgetImpl : public EditOutputWidget
     PropertiesWidget* outputSettings_;
     PropertiesWidget* videoEncoderSettings_;
     PropertiesWidget* audioEncoderSettings_;
+
+    QStringList protocol_options = {"RTMP", "SRT/RIST", "WebRTC (WHIP)"};
+    QStringList protocol_values = {"RTMP", "SRT_RIST", "WebRTC"};
    
+    QComboBox* protocolComboBox = 0;
     QComboBox* venc_ = 0;
     QComboBox* v_scene_ = 0;
     QLineEdit* v_resolution_ = 0;
@@ -278,6 +284,50 @@ class EditOutputWidgetImpl : public EditOutputWidget
         return tab;
     }
 
+    // unused version with a radio group
+    QGroupBox *unusedCreateProtocolSelector(QWidget *parent) {
+        QHBoxLayout *hBoxLayout = new QHBoxLayout();
+	    QGroupBox *groupBox = new QGroupBox(obs_module_text("Protocol"));
+
+        // const char* options[] = {"RTMP", "SRT/RIST", "WHIP (WebRTC)"};        
+
+	    QRadioButton *radio1 = new QRadioButton("RTMP");
+	    QRadioButton *radio2 = new QRadioButton("SRT/RIST");
+	    QRadioButton *radio3 = new QRadioButton("WHIP (WebRTC)");
+	    radio1->setChecked(true);
+
+        // can totally turn into an array
+        hBoxLayout->addWidget(new QLabel(obs_module_text("Protocol"), this));
+        hBoxLayout->addWidget(radio1);
+        hBoxLayout->addWidget(radio2);
+        hBoxLayout->addWidget(radio3);
+        groupBox->setLayout(hBoxLayout);
+        return groupBox;
+    }
+
+    // actual version: a combo box / dropdown menu
+    QWidget *CreateProtocolSelector2(QWidget *parent) {
+        QWidget *widget = new QWidget(this);
+        QHBoxLayout *hBoxLayout = new QHBoxLayout();
+        protocolComboBox = new QComboBox();
+
+        for (int i = 0; i < protocol_values.length(); i++)
+        {
+            protocolComboBox->addItem(protocol_options[i], protocol_values[i]);
+        }
+        
+        QObject::connect(protocolComboBox, &QComboBox::currentIndexChanged, [this](){
+            auto text = tostdu8(protocolComboBox->itemData(protocolComboBox->currentIndex()).toString());
+            blog(LOG_DEBUG, text.c_str());
+        });
+        hBoxLayout->addWidget(new QLabel(obs_module_text("Protocol"), this));
+        hBoxLayout->addWidget(protocolComboBox);
+
+        widget->setLayout(hBoxLayout);
+        
+        return widget;
+    }
+
 public:
     EditOutputWidgetImpl(const std::string& targetid, QWidget* parent = 0)
         : QDialog(parent)
@@ -303,6 +353,13 @@ public:
             layout->addLayout(sublayout);
         }
         ++currow;
+
+        {
+            auto w = CreateProtocolSelector2(this);
+            layout->addWidget(w);
+        }
+        ++currow;
+
         {
             auto w = CreateOutputSettingsWidget(this);
             layout->addWidget(w);
@@ -458,6 +515,12 @@ public:
             LoadConfig();
             UpdateUI();
         });
+
+        QObject::connect(protocolComboBox, (void (QComboBox::*)(int)) &QComboBox::currentIndexChanged, [this](){
+            SaveConfig();
+            LoadConfig();
+            UpdateUI();
+        });
     }
 
     void LoadEncoders()
@@ -525,6 +588,11 @@ public:
 
     void UpdateUI()
     {
+        signed int newProtocolComboBoxIndex = protocol_values.indexOf(QString::fromUtf8(config_->protocol));
+        // fallback to RTMP if protocol is invalid - do we really need this line?
+        if (newProtocolComboBoxIndex == -1) newProtocolComboBoxIndex = 0;
+        protocolComboBox->setCurrentIndex(newProtocolComboBoxIndex);
+
         auto ve = venc_->currentData();
         if (ve.isValid() && ve.toString() == "")
         {
