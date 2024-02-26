@@ -252,7 +252,7 @@ class EditOutputWidgetImpl : public EditOutputWidget
         // service
         {
             serviceSettings_ = new PropertiesWidget(this);
-            auto service = obs_service_create("rtmp_custom", ("tmp_service_" + targetid_).c_str(), from_json(config_->serviceParam), nullptr);
+            auto service = obs_service_create(GetServiceID(config_->protocol.c_str()), ("tmp_service_" + targetid_).c_str(), from_json(config_->serviceParam), nullptr);
             serviceSettings_->UpdateProperties(
                 obs_service_properties(service),
                 obs_service_get_settings(service)
@@ -264,7 +264,7 @@ class EditOutputWidgetImpl : public EditOutputWidget
         // output
         {
             outputSettings_ = new PropertiesWidget(this);
-            auto output = obs_output_create("rtmp_output", ("tmp_output_" + targetid_).c_str(), from_json(config_->outputParam), nullptr);
+            auto output = obs_output_create(GetOutputID2(config_->protocol.c_str()), ("tmp_output_" + targetid_).c_str(), from_json(config_->outputParam), nullptr);
             outputSettings_->UpdateProperties(
                 obs_output_properties(output),
                 obs_output_get_settings(output)
