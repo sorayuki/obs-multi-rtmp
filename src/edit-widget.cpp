@@ -233,6 +233,18 @@ class EditOutputWidgetImpl : public EditOutputWidget
         menu->exec(QCursor::pos());
     }
 
+    //std::map?
+    static const char *GetOutputID2(const char *protocol) {
+        if (strncmp("SRT",  protocol, 3) == 0)  return "ffmpeg_mpegts_muxer";
+        if (strncmp("WebRTC", protocol,  6) == 0) return "whip_output";
+        return "rtmp_output";
+    }
+    
+    static const char *GetServiceID(const char *protocol) {
+        if (strncmp("WebRTC", protocol, 6) == 0) return "whip_custom";
+        return "rtmp_custom";
+    }
+
 
     QTabWidget* CreateOutputSettingsWidget(QWidget* parent) {
         auto tab = new QTabWidget(parent);
