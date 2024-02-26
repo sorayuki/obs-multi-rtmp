@@ -647,6 +647,7 @@ public:
         auto& global = GlobalMultiOutputConfig();
 
         config_->name = tostdu8(name_->text());
+        config_->protocol = tostdu8(protocolComboBox->itemData(protocolComboBox->currentIndex()).toString());
         config_->syncStart = syncStart_->isChecked();
         config_->syncStop = syncStop_->isChecked();
         config_->outputParam = outputSettings_->Save();
@@ -676,6 +677,7 @@ public:
 
     void LoadTargetConfig(OutputTargetConfig& target) {
         name_->setText(QString::fromUtf8(target.name));
+        protocolComboBox->setCurrentIndex(protocol_values.indexOf(QString::fromUtf8(target.protocol)));
         syncStart_->setChecked(target.syncStart);
         syncStop_->setChecked(target.syncStop);
     }
