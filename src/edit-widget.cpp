@@ -306,7 +306,7 @@ class EditOutputWidgetImpl : public EditOutputWidget
     }
 
     // actual version: a combo box / dropdown menu
-    QWidget *CreateProtocolSelector2(QWidget *parent) {
+    QWidget *CreateProtocolSelector(QWidget *parent) {
         QWidget *widget = new QWidget(this);
         QHBoxLayout *hBoxLayout = new QHBoxLayout();
         protocolComboBox = new QComboBox();
@@ -355,7 +355,7 @@ public:
         ++currow;
 
         {
-            auto w = CreateProtocolSelector2(this);
+            auto w = CreateProtocolSelector(this);
             layout->addWidget(w);
         }
         ++currow;
