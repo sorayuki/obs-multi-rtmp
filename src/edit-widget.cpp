@@ -4,7 +4,6 @@
 #include "obs.hpp"
 #include <QMenu>
 #include <QTabWidget>
-#include <QRadioButton>
 #include <QComboBox>
 
 #include "obs-properties-widget.h"
@@ -284,28 +283,6 @@ class EditOutputWidgetImpl : public EditOutputWidget
         return tab;
     }
 
-    // unused version with a radio group
-    QGroupBox *unusedCreateProtocolSelector(QWidget *parent) {
-        QHBoxLayout *hBoxLayout = new QHBoxLayout();
-	    QGroupBox *groupBox = new QGroupBox(obs_module_text("Protocol"));
-
-        // const char* options[] = {"RTMP", "SRT/RIST", "WHIP (WebRTC)"};        
-
-	    QRadioButton *radio1 = new QRadioButton("RTMP");
-	    QRadioButton *radio2 = new QRadioButton("SRT/RIST");
-	    QRadioButton *radio3 = new QRadioButton("WHIP (WebRTC)");
-	    radio1->setChecked(true);
-
-        // can totally turn into an array
-        hBoxLayout->addWidget(new QLabel(obs_module_text("Protocol"), this));
-        hBoxLayout->addWidget(radio1);
-        hBoxLayout->addWidget(radio2);
-        hBoxLayout->addWidget(radio3);
-        groupBox->setLayout(hBoxLayout);
-        return groupBox;
-    }
-
-    // actual version: a combo box / dropdown menu
     QWidget *CreateProtocolSelector(QWidget *parent) {
         QWidget *widget = new QWidget(this);
         QHBoxLayout *hBoxLayout = new QHBoxLayout();
