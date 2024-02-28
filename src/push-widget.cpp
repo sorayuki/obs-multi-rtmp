@@ -521,12 +521,12 @@ public:
         ReleaseOutput();
     }
 
-    static const char *GetOutputID(const char *url) {
-        // FIXME: get output id from protocol, don't guess by server URL
-        if (strncmp("srt",  url,  3) == 0) return "ffmpeg_mpegts_muxer";
-        if (strncmp("rist", url,  4) == 0) return "ffmpeg_mpegts_muxer";
-        if (strncmp("http", url,  4) == 0) return "whip_output";
-
+    static const char *GetOutputID(std::string protocol) {
+        if (protocol == "SRT_RIST") return "ffmpeg_mpegts_muxer";
+        if (protocol == "WebRTC") return "whip_output";
+        // someday
+        if (protocol == "HLS") return "ffmpeg_hls_muxer";
+        // RTMP(S) or anything else
         return "rtmp_output";
     }
 
@@ -540,11 +540,10 @@ public:
         if (output_ == nullptr)
         {
             obs_data* output_settings = obs_data_create_from_json(config_->outputParam.dump().c_str());
-            auto url = config_->serviceParam.at("server").template get<std::string>().c_str();
             
-            blog(LOG_DEBUG, GetOutputID(url));
+            blog(LOG_DEBUG, GetOutputID(config_->protocol));
 
-            output_ = obs_output_create(GetOutputID(url), "multi-output", output_settings, nullptr);
+            output_ = obs_output_create(GetOutputID(config_->protocol), "multi-output", output_settings, nullptr);
             SetMeAsHandler(output_);
         }
 
