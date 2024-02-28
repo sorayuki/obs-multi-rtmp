@@ -523,7 +523,7 @@ public:
 
     static const char *GetOutputID(std::string protocol) {
         if (protocol == "SRT_RIST") return "ffmpeg_mpegts_muxer";
-        if (protocol == "WebRTC") return "whip_output";
+        if (protocol == "WHIP") return "whip_output";
         // someday
         if (protocol == "HLS") return "ffmpeg_hls_muxer";
         // RTMP(S) or anything else

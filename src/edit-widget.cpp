@@ -113,7 +113,7 @@ class EditOutputWidgetImpl : public EditOutputWidget
     PropertiesWidget* audioEncoderSettings_;
 
     QStringList protocol_options = {"RTMP", "SRT/RIST", "WebRTC (WHIP)"};
-    QStringList protocol_values = {"RTMP", "SRT_RIST", "WebRTC"};
+    QStringList protocol_values = {"RTMP", "SRT_RIST", "WHIP"};
    
     QComboBox* protocolComboBox = 0;
     QComboBox* venc_ = 0;
@@ -241,12 +241,12 @@ class EditOutputWidgetImpl : public EditOutputWidget
     //std::map?
     static const char *GetOutputID2(const char *protocol) {
         if (strncmp("SRT",  protocol, 3) == 0)  return "ffmpeg_mpegts_muxer";
-        if (strncmp("WebRTC", protocol,  6) == 0) return "whip_output";
+        if (strncmp("WHIP", protocol, 4) == 0)  return "whip_output";
         return "rtmp_output";
     }
     
     static const char *GetServiceID(const char *protocol) {
-        if (strncmp("WebRTC", protocol, 6) == 0) return "whip_custom";
+        if (strncmp("WHIP", protocol, 4) == 0) return "whip_custom";
         return "rtmp_custom";
     }
 
