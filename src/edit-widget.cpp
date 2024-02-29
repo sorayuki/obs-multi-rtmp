@@ -238,7 +238,7 @@ class EditOutputWidgetImpl : public EditOutputWidget
         menu->exec(QCursor::pos());
     }
 
-    //std::map?
+    // FIXME: external file with std::map or something like that
     static const char *GetOutputID2(const char *protocol) {
         if (strncmp("SRT",  protocol, 3) == 0)  return "ffmpeg_mpegts_muxer";
         if (strncmp("WHIP", protocol, 4) == 0)  return "whip_output";
@@ -257,25 +257,15 @@ class EditOutputWidgetImpl : public EditOutputWidget
         // service
         {
             serviceSettings_ = new PropertiesWidget(this);
-            auto service = obs_service_create(GetServiceID(config_->protocol.c_str()), ("tmp_service_" + targetid_).c_str(), from_json(config_->serviceParam), nullptr);
-            serviceSettings_->UpdateProperties(
-                obs_service_properties(service),
-                obs_service_get_settings(service)
-            );
-            obs_service_release(service);
+            updateServiceTab();
             tab->addTab(serviceSettings_, obs_module_text("Tab.Service"));
         }
 
         // output
         {
             outputSettings_ = new PropertiesWidget(this);
-            auto output = obs_output_create(GetOutputID2(config_->protocol.c_str()), ("tmp_output_" + targetid_).c_str(), from_json(config_->outputParam), nullptr);
-            outputSettings_->UpdateProperties(
-                obs_output_properties(output),
-                obs_output_get_settings(output)
-            );
-            obs_output_release(output);
-            tab->addTab(outputSettings_, obs_module_text("Tab.Output"));
+	        updateOutputTab();
+	        tab->addTab(outputSettings_, obs_module_text("Tab.Output"));
         }
 
         tab->setCurrentIndex(0);
@@ -293,9 +283,12 @@ class EditOutputWidgetImpl : public EditOutputWidget
             protocolComboBox->addItem(protocol_options[i], protocol_values[i]);
         }
         
-        QObject::connect(protocolComboBox, &QComboBox::currentIndexChanged, [this](){
+        // FIXME: move to update widget signals()
+        QObject::connect(protocolComboBox, &QComboBox::currentTextChanged, [this](){
             auto text = tostdu8(protocolComboBox->itemData(protocolComboBox->currentIndex()).toString());
             blog(LOG_DEBUG, text.c_str());
+            updateServiceTab();
+            updateOutputTab();
         });
         hBoxLayout->addWidget(new QLabel(obs_module_text("Protocol"), this));
         hBoxLayout->addWidget(protocolComboBox);
@@ -303,6 +296,24 @@ class EditOutputWidgetImpl : public EditOutputWidget
         widget->setLayout(hBoxLayout);
         
         return widget;
+    }
+
+    void updateServiceTab()
+    {
+	    auto service = obs_service_create(GetServiceID(config_->protocol.c_str()),("tmp_service_" + targetid_).c_str(),from_json(config_->serviceParam), nullptr);
+	    serviceSettings_->UpdateProperties(
+		    obs_service_properties(service),
+		    obs_service_get_settings(service));
+	    obs_service_release(service);
+    }
+
+    void updateOutputTab()
+    {
+	    auto output = obs_output_create(GetOutputID2(config_->protocol.c_str()), ("tmp_output_" + targetid_).c_str(), from_json(config_->outputParam), nullptr);
+	    outputSettings_->UpdateProperties(
+            obs_output_properties(output), 
+            obs_output_get_settings(output));
+	    obs_output_release(output);
     }
 
 public:
