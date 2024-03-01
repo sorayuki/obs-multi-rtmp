@@ -283,12 +283,9 @@ class EditOutputWidgetImpl : public EditOutputWidget
             protocolComboBox->addItem(protocol_options[i], protocol_values[i]);
         }
         
-        // FIXME: move to update widget signals()
         QObject::connect(protocolComboBox, &QComboBox::currentTextChanged, [this](){
             auto text = tostdu8(protocolComboBox->itemData(protocolComboBox->currentIndex()).toString());
             blog(LOG_DEBUG, text.c_str());
-            updateServiceTab();
-            updateOutputTab();
         });
         hBoxLayout->addWidget(new QLabel(obs_module_text("Protocol"), this));
         hBoxLayout->addWidget(protocolComboBox);
@@ -508,6 +505,8 @@ public:
             SaveConfig();
             LoadConfig();
             UpdateUI();
+            updateServiceTab();
+            updateOutputTab();
         });
     }
 
