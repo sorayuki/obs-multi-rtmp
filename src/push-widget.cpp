@@ -4,6 +4,7 @@
 #include "push-widget.h"
 #include "edit-widget.h"
 #include "output-config.h"
+#include "protocols.h"
 
 #include "obs.hpp"
 
@@ -125,12 +126,10 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         }
         
         ReleaseOutputService();
-
+        
         auto conf = obs_data_create_from_json(config_->serviceParam.dump().c_str());
-        // FIXME: get service id from protocol, don't guess by server URL
-        auto url = config_->serviceParam.at("server").template get<std::string>().c_str();
-        auto service_id = (strncmp("http", url,  4) == 0) ? "whip_custom" : "rtmp_custom";
-	    blog(LOG_INFO, service_id);
+        auto service_id = GetServiceID(config_->protocol);
+
         if (!conf)
             return false;
         
@@ -522,14 +521,6 @@ public:
         ReleaseOutput();
     }
 
-    static const char *GetOutputID(std::string protocol) {
-        if (protocol == "SRT_RIST") return "ffmpeg_mpegts_muxer";
-        if (protocol == "WHIP") return "whip_output";
-        // someday
-        if (protocol == "HLS") return "ffmpeg_hls_muxer";
-        // RTMP(S) or anything else
-        return "rtmp_output";
-    }
 
     void StartStreaming() override {
         if (IsRunning())
