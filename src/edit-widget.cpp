@@ -640,10 +640,10 @@ public:
 
     void UpdateUI()
     {
-        signed int newProtocolComboBoxIndex = protocol_values.indexOf(QString::fromUtf8(config_->protocol));
+        signed int newProtocolIndex = protocol_values.indexOf(QString::fromUtf8(config_->protocol));
         // fallback to RTMP if protocol is invalid - do we really need this line?
-        if (newProtocolComboBoxIndex == -1) newProtocolComboBoxIndex = 0;
-        protocolSelector_->setCurrentIndex(newProtocolComboBoxIndex);
+        if (newProtocolIndex == -1) newProtocolIndex = 0;
+        protocolSelector_->setCurrentIndex(newProtocolIndex);
 
         auto ve = venc_->currentData();
         if (ve.isValid() && ve.toString() == "")
