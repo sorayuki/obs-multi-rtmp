@@ -533,7 +533,7 @@ public:
         {
             obs_data* output_settings = obs_data_create_from_json(config_->outputParam.dump().c_str());
             
-            blog(LOG_DEBUG, GetOutputID(config_->protocol));
+            blog(LOG_DEBUG, "Streaming to output: %s", GetOutputID(config_->protocol));
 
             output_ = obs_output_create(GetOutputID(config_->protocol), "multi-output", output_settings, nullptr);
             SetMeAsHandler(output_);

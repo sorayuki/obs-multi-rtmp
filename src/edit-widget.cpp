@@ -291,10 +291,6 @@ class EditOutputWidgetImpl: public EditOutputWidget
             protocolSelector_->addItem(protocol_labels[i], protocol_values[i]);
         }
         
-        QObject::connect(protocolSelector_, &QComboBox::currentTextChanged, [this](){
-            auto text = tostdu8(protocolSelector_->itemData(protocolSelector_->currentIndex()).toString());
-            blog(LOG_DEBUG, text.c_str());
-        });
         hBoxLayout->addWidget(new QLabel(obs_module_text("Protocol"), this));
         hBoxLayout->addWidget(protocolSelector_);
 
@@ -567,6 +563,7 @@ public:
         });
 
         QObject::connect(protocolSelector_, (void (QComboBox::*)(int)) &QComboBox::currentIndexChanged, [this](){
+            blog(LOG_DEBUG, "Changing protocol to %s", tostdu8(protocolSelector_->currentText()).c_str());
             SaveConfig();
             LoadConfig();
             UpdateUI();
