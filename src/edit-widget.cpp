@@ -149,7 +149,7 @@ class EditOutputWidgetImpl: public EditOutputWidget
     QStringList protocol_labels = {"RTMP", "SRT/RIST", "WebRTC (WHIP)"};
     QStringList protocol_values = {"RTMP", "SRT_RIST", "WHIP"};
 
-    static const char *GetOutputID2(const char *protocol) {
+    static const char *GetOutputID(const char *protocol) {
         if (strncmp("SRT",  protocol, 3) == 0)  return "ffmpeg_mpegts_muxer";
         if (strncmp("WHIP", protocol, 4) == 0)  return "whip_output";
         return "rtmp_output";
@@ -329,7 +329,7 @@ class EditOutputWidgetImpl: public EditOutputWidget
 
     void updateOutputTab()
     {
-	    auto output = obs_output_create(GetOutputID2(config_->protocol.c_str()), ("tmp_output_" + targetid_).c_str(), from_json(config_->outputParam), nullptr);
+	    auto output = obs_output_create(GetOutputID(config_->protocol.c_str()), ("tmp_output_" + targetid_).c_str(), from_json(config_->outputParam), nullptr);
 	    outputSettings_->UpdateProperties(
             obs_output_properties(output), 
             obs_output_get_settings(output));
