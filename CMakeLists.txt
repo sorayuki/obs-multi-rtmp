@@ -48,6 +48,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
   ./src/output-config-legacy.cpp
   ./src/obs-properties-widget.h
   ./src/obs-properties-widget.cpp
+  ./src/protocols.h
+  ./src/protocols.cpp
 )
 
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE

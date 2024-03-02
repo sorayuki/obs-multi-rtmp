@@ -1,15 +1,16 @@
 #include "protocols.h"
+#include <string>
 
-    QStringList protocol_labels = {"RTMP", "SRT/RIST", "WebRTC (WHIP)"};
-    QStringList protocol_values = {"RTMP", "SRT_RIST", "WHIP"};
+    extern const QStringList protocol_labels = {"RTMP", "SRT/RIST", "WebRTC (WHIP)"};
+    extern const QStringList protocol_values = {"RTMP", "SRT_RIST", "WHIP"};
 
-    static const char *GetOutputID(const char *protocol) {
-        if (strncmp("SRT",  protocol, 3) == 0)  return "ffmpeg_mpegts_muxer";
-        if (strncmp("WHIP", protocol, 4) == 0)  return "whip_output";
+    const char *GetOutputID(std::string protocol) {
+        if (protocol == "SRT_RIST") return "ffmpeg_mpegts_muxer";
+        if (protocol == "WHIP")     return "whip_output";
         return "rtmp_output";
     }
     
-    static const char *GetServiceID(const char *protocol) {
-        if (strncmp("WHIP", protocol, 4) == 0) return "whip_custom";
+    const char *GetServiceID(std::string protocol) {
+        if (protocol == "WHIP") return "whip_custom";
         return "rtmp_custom";
     }
