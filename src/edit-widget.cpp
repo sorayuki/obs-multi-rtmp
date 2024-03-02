@@ -115,7 +115,7 @@ class EditOutputWidgetImpl : public EditOutputWidget
     QStringList protocol_options = {"RTMP", "SRT/RIST", "WebRTC (WHIP)"};
     QStringList protocol_values = {"RTMP", "SRT_RIST", "WHIP"};
    
-    QComboBox* protocolComboBox = 0;
+    QComboBox* protocolSelector_ = 0;
     QComboBox* venc_ = 0;
     QComboBox* v_scene_ = 0;
     QLineEdit* v_resolution_ = 0;
@@ -276,19 +276,19 @@ class EditOutputWidgetImpl : public EditOutputWidget
     QWidget *CreateProtocolSelector(QWidget *parent) {
         QWidget *widget = new QWidget(this);
         QHBoxLayout *hBoxLayout = new QHBoxLayout();
-        protocolComboBox = new QComboBox();
+        protocolSelector_ = new QComboBox();
 
         for (int i = 0; i < protocol_values.length(); i++)
         {
-            protocolComboBox->addItem(protocol_options[i], protocol_values[i]);
+            protocolSelector_->addItem(protocol_options[i], protocol_values[i]);
         }
         
-        QObject::connect(protocolComboBox, &QComboBox::currentTextChanged, [this](){
-            auto text = tostdu8(protocolComboBox->itemData(protocolComboBox->currentIndex()).toString());
+        QObject::connect(protocolSelector_, &QComboBox::currentTextChanged, [this](){
+            auto text = tostdu8(protocolSelector_->itemData(protocolSelector_->currentIndex()).toString());
             blog(LOG_DEBUG, text.c_str());
         });
         hBoxLayout->addWidget(new QLabel(obs_module_text("Protocol"), this));
-        hBoxLayout->addWidget(protocolComboBox);
+        hBoxLayout->addWidget(protocolSelector_);
 
         widget->setLayout(hBoxLayout);
         
@@ -501,7 +501,7 @@ public:
             UpdateUI();
         });
 
-        QObject::connect(protocolComboBox, (void (QComboBox::*)(int)) &QComboBox::currentIndexChanged, [this](){
+        QObject::connect(protocolSelector_, (void (QComboBox::*)(int)) &QComboBox::currentIndexChanged, [this](){
             SaveConfig();
             LoadConfig();
             UpdateUI();
@@ -578,7 +578,7 @@ public:
         signed int newProtocolComboBoxIndex = protocol_values.indexOf(QString::fromUtf8(config_->protocol));
         // fallback to RTMP if protocol is invalid - do we really need this line?
         if (newProtocolComboBoxIndex == -1) newProtocolComboBoxIndex = 0;
-        protocolComboBox->setCurrentIndex(newProtocolComboBoxIndex);
+        protocolSelector_->setCurrentIndex(newProtocolComboBoxIndex);
 
         auto ve = venc_->currentData();
         if (ve.isValid() && ve.toString() == "")
@@ -702,7 +702,7 @@ public:
         auto& global = GlobalMultiOutputConfig();
 
         config_->name = tostdu8(name_->text());
-        config_->protocol = tostdu8(protocolComboBox->itemData(protocolComboBox->currentIndex()).toString());
+        config_->protocol = tostdu8(protocolSelector_->itemData(protocolSelector_->currentIndex()).toString());
         config_->syncStart = syncStart_->isChecked();
         config_->syncStop = syncStop_->isChecked();
         config_->outputParam = outputSettings_->Save();
@@ -732,7 +732,7 @@ public:
 
     void LoadTargetConfig(OutputTargetConfig& target) {
         name_->setText(QString::fromUtf8(target.name));
-        protocolComboBox->setCurrentIndex(protocol_values.indexOf(QString::fromUtf8(target.protocol)));
+        protocolSelector_->setCurrentIndex(protocol_values.indexOf(QString::fromUtf8(target.protocol)));
         syncStart_->setChecked(target.syncStart);
         syncStop_->setChecked(target.syncStop);
     }
