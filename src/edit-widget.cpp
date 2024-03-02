@@ -4,6 +4,8 @@
 #include "obs.hpp"
 #include <QMenu>
 #include <QTabWidget>
+#include <QScrollBar>
+#include <qevent.h>
 
 #include "obs-properties-widget.h"
 
@@ -55,10 +57,24 @@ static obs_properties* AddBF(obs_properties* p) {
 }
 
 
+template<class T>
+class EventFilter: public QObject {
+    T lambda_;
+public:
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        return lambda_(watched, event);
+    }
+    
+    EventFilter(QObject* parent, T&& lambda): lambda_(std::move(lambda)) {
+        setParent(parent);
+    }
+};
+
+
 class EditOutputWidgetImpl: public EditOutputWidget
 {
     QWidget* container_;
-    QScrollArea scroll_;
+    QScrollArea* scroll_;
 
     std::string targetid_;
     OutputTargetConfigPtr config_ = nullptr;
@@ -278,16 +294,23 @@ public:
         : QDialog(parent)
         , targetid_(targetid)
     {
-        container_ = new QWidget(this);
-
-        setWindowTitle(obs_module_text("StreamingSettings"));
-
         auto& global = GlobalMultiOutputConfig();
         config_ = FindById(global.targets, targetid_);
         if (config_ == nullptr) {
             return;
         }
         config_ = std::make_shared<OutputTargetConfig>(*config_);
+
+        setWindowTitle(obs_module_text("StreamingSettings"));
+
+        scroll_ = new QScrollArea(this);
+        scroll_->setHorizontalScrollBarPolicy(Qt::ScrollBarPolicy::ScrollBarAsNeeded);
+        scroll_->setVerticalScrollBarPolicy(Qt::ScrollBarPolicy::ScrollBarAsNeeded);
+        scroll_->setSizePolicy(QSizePolicy::Policy::Expanding, QSizePolicy::Policy::Expanding);
+        scroll_->setSizeAdjustPolicy(QScrollArea::SizeAdjustPolicy::AdjustToContents);
+
+        container_ = new QWidget(scroll_);
+        container_->setSizePolicy(QSizePolicy::Policy::Expanding, QSizePolicy::Policy::Expanding);
 
         auto layout = new QVBoxLayout(container_);
 
@@ -433,14 +456,14 @@ public:
         layout->setSizeConstraint(QLayout::SetFixedSize);
         container_->setLayout(layout);
 
-        scroll_.setWidget(container_);
-        // scroll_.setWidgetResizable(true);
+        scroll_->setWidget(container_);
+        scroll_->setWidgetResizable(true);
 
         auto fullLayout = new QGridLayout(this);
-        fullLayout->addWidget(container_, 0, 0);
+        fullLayout->setContentsMargins(0, 0, 0, 0);
+        fullLayout->addWidget(scroll_, 0, 0);
         fullLayout->setRowStretch(0, 1);
         fullLayout->setColumnStretch(0, 1);
-        layout->setSizeConstraint(QLayout::SetFixedSize);
         setLayout(fullLayout);
 
         LoadFPSDenumerator();
@@ -450,6 +473,45 @@ public:
         LoadConfig();
         ConnectWidgetSignals();
         UpdateUI();
+
+        auto resizeCount = std::make_shared<int>(0);
+        container_->installEventFilter(new EventFilter(container_, [this, resizeCount](QObject* watched, QEvent* ev) {
+            if (watched == container_ && ev->type() == QEvent::Resize) {
+                ++*resizeCount;
+                if (*resizeCount == 2) { // why 2? I don't know
+                    auto frameGeo = frameGeometry();
+                    auto clientGeo = geometry();
+
+                    auto sizehint = container_->layout()->sizeHint();
+                    // add frame size
+                    sizehint = sizehint.grownBy(QMargins(
+                        frameGeo.width() - clientGeo.width(),
+                        frameGeo.height() - clientGeo.height(),
+                        0, 0
+                    ));
+                    auto vs = scroll_->verticalScrollBar();
+                    auto hs = scroll_->horizontalScrollBar();
+                    sizehint = sizehint.grownBy(QMargins(
+                        vs ? vs->width() / 2 : 0, hs ? hs->height() / 2 : 0, 
+                        vs ? vs->width() / 2 : 0, hs ? hs->height() / 2 : 0
+                    ));
+                    auto parentCenter = parentWidget()->geometry().center();
+                    QRect g;
+                    g.setSize(sizehint);
+                    g.moveCenter(parentCenter);
+                    auto avail = screen()->availableGeometry();
+                    g = avail.intersected(g);
+
+                    // remove frame size
+                    g.setTop(g.top() + (clientGeo.top() - frameGeo.top()));
+                    g.setBottom(g.bottom() - (frameGeo.bottom() - clientGeo.bottom()));
+                    g.setLeft(g.left() + (clientGeo.left() - frameGeo.left()));
+                    g.setRight(g.right() - (frameGeo.right() - clientGeo.right()));
+                    setGeometry(g);
+                }
+            }
+            return false;
+        }));
     }
 
     void ConnectWidgetSignals()

@@ -64,6 +64,8 @@ namespace {
 
             layout->setContentsMargins(0, 0, 0, 0);
             setLayout(layout);
+
+            setSizePolicy(QSizePolicy::Policy::Expanding, QSizePolicy::Policy::Fixed);
         }
 
         QLineEdit* edit() const { return edit_; }

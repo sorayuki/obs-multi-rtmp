@@ -671,7 +671,7 @@ public:
 
     bool ShowEditDlg() override
     {
-        std::unique_ptr<EditOutputWidget> dlg{ createEditOutputWidget(targetid_, this) };
+        std::unique_ptr<EditOutputWidget> dlg{ createEditOutputWidget(targetid_, (QMainWindow*)obs_frontend_get_main_window()) };
 
         if (dlg->exec() == QDialog::DialogCode::Accepted)
         {
