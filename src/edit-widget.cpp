@@ -145,7 +145,7 @@ class EditOutputWidgetImpl: public EditOutputWidget
 
     QCheckBox* syncStart_ = 0;
     QCheckBox *syncStop_ = 0;
-    
+
     std::vector<std::string> EnumEncodersByCodec(const char* codec)
     {
         if (!codec)
@@ -268,8 +268,8 @@ class EditOutputWidgetImpl: public EditOutputWidget
         // output
         {
             outputSettings_ = new PropertiesWidget(tab);
-	        updateOutputTab();
-	        tab->addTab(outputSettings_, obs_module_text("Tab.Output"));
+            updateOutputTab();
+            tab->addTab(outputSettings_, obs_module_text("Tab.Output"));
         }
 
         QObject::connect(tab, &QTabWidget::currentChanged, [tab](int index) {
@@ -305,20 +305,20 @@ class EditOutputWidgetImpl: public EditOutputWidget
 
     void updateServiceTab()
     {
-	    auto service = obs_service_create(GetServiceID(config_->protocol),("tmp_service_" + targetid_).c_str(),from_json(config_->serviceParam), nullptr);
-	    serviceSettings_->UpdateProperties(
-		    obs_service_properties(service),
-		    obs_service_get_settings(service));
-	    obs_service_release(service);
+        auto service = obs_service_create(GetServiceID(config_->protocol),("tmp_service_" + targetid_).c_str(),from_json(config_->serviceParam), nullptr);
+        serviceSettings_->UpdateProperties(
+            obs_service_properties(service),
+            obs_service_get_settings(service));
+        obs_service_release(service);
     }
 
     void updateOutputTab()
     {
-	    auto output = obs_output_create(GetOutputID(config_->protocol), ("tmp_output_" + targetid_).c_str(), from_json(config_->outputParam), nullptr);
-	    outputSettings_->UpdateProperties(
-            obs_output_properties(output), 
+        auto output = obs_output_create(GetOutputID(config_->protocol), ("tmp_output_" + targetid_).c_str(), from_json(config_->outputParam), nullptr);
+        outputSettings_->UpdateProperties(
+            obs_output_properties(output),
             obs_output_get_settings(output));
-	    obs_output_release(output);
+        obs_output_release(output);
     }
 
 public:
