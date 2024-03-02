@@ -24,15 +24,14 @@ namespace {
 
 
     class QLineEditWithFocus : public QLineEdit {
+        UpdateHandler* updater;
     public:
         template<class ...Args>
         QLineEditWithFocus(UpdateHandler* updater, QWidget* parent)
             : updater(updater)
             , QLineEdit(parent)
         {
-        }
-
-        UpdateHandler* updater;
+        }        
 
         void focusOutEvent(QFocusEvent* e) override {
             QLineEdit::focusOutEvent(e);
@@ -65,6 +64,8 @@ namespace {
 
             layout->setContentsMargins(0, 0, 0, 0);
             setLayout(layout);
+
+            setSizePolicy(QSizePolicy::Policy::Expanding, QSizePolicy::Policy::Fixed);
         }
 
         QLineEdit* edit() const { return edit_; }
@@ -255,8 +256,6 @@ namespace {
 
 
     class QPropertiesWidgetImpl: virtual public QWidget, public QPropertiesWidget, public UpdateHandler {
-        QScrollArea scroll_;
-        QWidget* container_;
         std::unordered_map<std::string, std::shared_ptr<PropertyWidget>> propwids;
         obs_properties* props;
         OBSData settings;
@@ -268,8 +267,6 @@ namespace {
             , props(props)
             , orig_settings(p_settings)
         {
-            container_ = new QWidget(this);
-
             obs_data_release(p_settings);
 
             settings = obs_data_create();
@@ -283,15 +280,6 @@ namespace {
             obs_data_apply(settings, orig_settings);
             
             UpdateUI();
-
-            scroll_.setWidgetResizable(true);
-            scroll_.setWidget(container_);
-
-            auto layout = new QGridLayout(this);
-            layout->setContentsMargins(0, 0, 0, 0);
-            layout->setRowStretch(0, 1);
-            layout->setColumnStretch(0, 1);
-            layout->addWidget(&scroll_, 0, 0);
         }
 
         ~QPropertiesWidgetImpl()
@@ -304,7 +292,7 @@ namespace {
             std::unordered_map<std::string, std::shared_ptr<PropertyWidget>> oldpropwids;
             oldpropwids.swap(propwids);
 
-            auto oldLayout = container_->layout();
+            auto oldLayout = layout();
             if (oldLayout) {
                 for (auto& x : oldpropwids) {
                     if (x.second->label)
@@ -327,7 +315,7 @@ namespace {
                 auto name = obs_property_name(x);
                 auto it = oldpropwids.find(name);
                 if (it == oldpropwids.end()) {
-                    auto newwid = std::make_shared<PropertyWidget>(container_, this, x);
+                    auto newwid = std::make_shared<PropertyWidget>(this, this, x);
                     propwids.insert(std::make_pair(newwid->name, newwid));
                     layout->addWidget(newwid->label, currow, 0);
                     layout->addWidget(newwid->ctrl, currow, 1);
@@ -341,7 +329,7 @@ namespace {
 
             if (oldLayout)
                 delete oldLayout;
-            container_->setLayout(layout);
+            setLayout(layout);
         }
 
         bool isUpdating = false;

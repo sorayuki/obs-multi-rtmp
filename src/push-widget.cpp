@@ -274,6 +274,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
                             {
                                 auto width = std::stoi(match[1].str());
                                 auto height = std::stoi(match[2].str());
+                                obs_encoder_set_gpu_scale_type(venc, obs_scale_type::OBS_SCALE_BICUBIC);
                                 obs_encoder_set_scaled_size(venc, width, height);
                             }
                         }
@@ -676,7 +677,7 @@ public:
 
     bool ShowEditDlg() override
     {
-        std::unique_ptr<EditOutputWidget> dlg{ createEditOutputWidget(targetid_, this) };
+        std::unique_ptr<EditOutputWidget> dlg{ createEditOutputWidget(targetid_, (QMainWindow*)obs_frontend_get_main_window()) };
 
         if (dlg->exec() == QDialog::DialogCode::Accepted)
         {
