@@ -132,7 +132,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         auto protocolInfo = GetProtocolInfos()->GetInfo(config_->protocol.c_str());
         assert(protocolInfo);
         if (!protocolInfo) {
-        	blog(LOG_ERROR, TAG "Invalid protocol, maybe broken config file.");
+        	blog(LOG_ERROR, TAG "Invalid protocol \"%s\", maybe broken config file.", config_->protocol.c_str());
         	return false;
         }
         auto service_id = protocolInfo->serviceId;
@@ -543,7 +543,7 @@ public:
             auto protocolInfo = GetProtocolInfos()->GetInfo(config_->protocol.c_str());
             assert(protocolInfo);
             if (!protocolInfo) {
-	        	blog(LOG_ERROR, TAG "Invalid protocol, maybe broken config file.");
+	        	blog(LOG_ERROR, TAG "Invalid protocol \"%s\", maybe broken config file.", config_->protocol.c_str());
 	        	protocolInfo = GetProtocolInfos()->GetList();
 	        }
             auto output_id = protocolInfo->outputId;

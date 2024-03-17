@@ -281,31 +281,14 @@ class EditOutputWidgetImpl: public EditOutputWidget
         return tab;
     }
 
-    QWidget *CreateProtocolSelector(QWidget *parent) {
-        QWidget *widget = new QWidget(this);
-        QHBoxLayout *hBoxLayout = new QHBoxLayout();
-        protocolSelector_ = new QComboBox();
-
-        auto protocol_cur = GetProtocolInfos()->GetList();
-        while(protocol_cur->protocol) {
-            protocolSelector_->addItem(protocol_cur->label, protocol_cur->protocol);
-            ++protocol_cur;
-        }
-        
-        hBoxLayout->addWidget(new QLabel(obs_module_text("Protocol"), this));
-        hBoxLayout->addWidget(protocolSelector_);
-
-        widget->setLayout(hBoxLayout);
-        
-        return widget;
-    }
-
     void updateServiceTab()
     {
         auto protocol_info = GetProtocolInfos()->GetInfo(config_->protocol.c_str());
         assert(protocol_info);
-        if (!protocol_info)
-            return;
+        if (!protocol_info) {
+        	blog(LOG_ERROR, TAG "Invalid protocol \"%s\", maybe broken config file.", config_->protocol.c_str());
+            protocol_info = GetProtocolInfos()->GetList();
+        }
 
         auto service = obs_service_create(protocol_info->serviceId, ("tmp_service_" + targetid_).c_str(), from_json(config_->serviceParam), nullptr);
         serviceSettings_->UpdateProperties(
@@ -318,8 +301,10 @@ class EditOutputWidgetImpl: public EditOutputWidget
     {
         auto protocol_info = GetProtocolInfos()->GetInfo(config_->protocol.c_str());
         assert(protocol_info);
-        if (!protocol_info)
-            return;
+        if (!protocol_info) {
+        	blog(LOG_ERROR, TAG "Invalid protocol \"%s\", maybe broken config file.", config_->protocol.c_str());
+            protocol_info = GetProtocolInfos()->GetList();
+        }
 
         auto output = obs_output_create(protocol_info->outputId, ("tmp_output_" + targetid_).c_str(), from_json(config_->outputParam), nullptr);
         outputSettings_->UpdateProperties(
@@ -355,16 +340,14 @@ public:
 
         int currow = 0;
         {
-            auto sublayout = new QHBoxLayout(container_);
-            sublayout->addWidget(new QLabel(obs_module_text("StreamingName"), container_));
-            sublayout->addWidget(name_ = new QLineEdit("", container_), 1);
+            auto sublayout = new QGridLayout(container_);
+            sublayout->setColumnStretch(0, 0);
+            sublayout->setColumnStretch(1, 1);
+            sublayout->addWidget(new QLabel(obs_module_text("StreamingName"), container_), 0, 0);
+            sublayout->addWidget(name_ = new QLineEdit("", container_), 0, 1);
+            sublayout->addWidget(new QLabel(obs_module_text("Protocol"), container_), 1, 0);
+            sublayout->addWidget(protocolSelector_ = new QComboBox(container_), 1, 1);
             layout->addLayout(sublayout);
-        }
-        ++currow;
-
-        {
-            auto w = CreateProtocolSelector(this);
-            layout->addWidget(w);
         }
         ++currow;
 
@@ -512,6 +495,7 @@ public:
         fullLayout->setColumnStretch(0, 1);
         setLayout(fullLayout);
 
+        LoadProtocols();
         LoadFPSDenumerator();
         LoadEncoders();
         LoadScenes();
@@ -581,6 +565,15 @@ public:
             updateServiceTab();
             updateOutputTab();
         });
+    }
+
+    void LoadProtocols()
+    {
+        auto protocol_cur = GetProtocolInfos()->GetList();
+        while(protocol_cur->protocol) {
+            protocolSelector_->addItem(protocol_cur->label, protocol_cur->protocol);
+            ++protocol_cur;
+        }
     }
 
     void LoadEncoders()
