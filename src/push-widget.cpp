@@ -4,6 +4,7 @@
 #include "push-widget.h"
 #include "edit-widget.h"
 #include "output-config.h"
+#include "protocols.h"
 
 #include "obs.hpp"
 
@@ -125,12 +126,21 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         }
         
         ReleaseOutputService();
-
+        
         auto conf = obs_data_create_from_json(config_->serviceParam.dump().c_str());
+
+        auto protocolInfo = GetProtocolInfos()->GetInfo(config_->protocol.c_str());
+        assert(protocolInfo);
+        if (!protocolInfo) {
+        	blog(LOG_ERROR, TAG "Invalid protocol \"%s\", maybe broken config file.", config_->protocol.c_str());
+        	return false;
+        }
+        auto service_id = protocolInfo->serviceId;
+
         if (!conf)
             return false;
         
-        auto service = obs_service_create("rtmp_custom", "multi-output-service", conf, nullptr);
+        auto service = obs_service_create(service_id, "multi-output-service", conf, nullptr);
         obs_data_release(conf);
         if (!service)
             return false;
@@ -518,12 +528,6 @@ public:
         ReleaseOutput();
     }
 
-    static const char *GetOutputID(const char *url) {
-        if (strncmp("srt",  url,  3) == 0)  return "ffmpeg_mpegts_muxer";
-        if (strncmp("rist", url,  4) == 0) return "ffmpeg_mpegts_muxer";
-
-        return "rtmp_output";
-    }
 
     void StartStreaming() override {
         if (IsRunning())
@@ -535,11 +539,18 @@ public:
         if (output_ == nullptr)
         {
             obs_data* output_settings = obs_data_create_from_json(config_->outputParam.dump().c_str());
-            auto url = config_->serviceParam.at("server").template get<std::string>().c_str();
             
-            blog(LOG_DEBUG, GetOutputID(url));
+            auto protocolInfo = GetProtocolInfos()->GetInfo(config_->protocol.c_str());
+            assert(protocolInfo);
+            if (!protocolInfo) {
+	        	blog(LOG_ERROR, TAG "Invalid protocol \"%s\", maybe broken config file.", config_->protocol.c_str());
+	        	protocolInfo = GetProtocolInfos()->GetList();
+	        }
+            auto output_id = protocolInfo->outputId;
 
-            output_ = obs_output_create(GetOutputID(url), "multi-output", output_settings, nullptr);
+            blog(LOG_DEBUG, "Streaming to output: %s", output_id);
+
+            output_ = obs_output_create(output_id, "multi-output", output_settings, nullptr);
             SetMeAsHandler(output_);
         }
 

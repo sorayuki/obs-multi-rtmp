@@ -6,8 +6,10 @@
 #include <QTabWidget>
 #include <QScrollBar>
 #include <qevent.h>
+#include <QComboBox>
 
 #include "obs-properties-widget.h"
+#include "protocols.h"
 
 static std::optional<int> ParseStringToInt(const QString& str) {
     try {
@@ -130,6 +132,7 @@ class EditOutputWidgetImpl: public EditOutputWidget
     PropertiesWidget* videoEncoderSettings_;
     PropertiesWidget* audioEncoderSettings_;
    
+    QComboBox* protocolSelector_ = 0;
     QComboBox* venc_ = 0;
     QComboBox* v_scene_ = 0;
     QLineEdit* v_resolution_ = 0;
@@ -252,31 +255,20 @@ class EditOutputWidgetImpl: public EditOutputWidget
         menu->exec(QCursor::pos());
     }
 
-
     QTabWidget* CreateOutputSettingsWidget(QWidget* parent) {
         auto tab = new QTabWidget(parent);
 
         // service
         {
             serviceSettings_ = new PropertiesWidget(tab);
-            auto service = obs_service_create("rtmp_custom", ("tmp_service_" + targetid_).c_str(), from_json(config_->serviceParam), nullptr);
-            serviceSettings_->UpdateProperties(
-                obs_service_properties(service),
-                obs_service_get_settings(service)
-            );
-            obs_service_release(service);
+            updateServiceTab();
             tab->addTab(serviceSettings_, obs_module_text("Tab.Service"));
         }
 
         // output
         {
             outputSettings_ = new PropertiesWidget(tab);
-            auto output = obs_output_create("rtmp_output", ("tmp_output_" + targetid_).c_str(), from_json(config_->outputParam), nullptr);
-            outputSettings_->UpdateProperties(
-                obs_output_properties(output),
-                obs_output_get_settings(output)
-            );
-            obs_output_release(output);
+            updateOutputTab();
             tab->addTab(outputSettings_, obs_module_text("Tab.Output"));
         }
 
@@ -287,6 +279,38 @@ class EditOutputWidgetImpl: public EditOutputWidget
         tab->setCurrentIndex(0);
 
         return tab;
+    }
+
+    void updateServiceTab()
+    {
+        auto protocol_info = GetProtocolInfos()->GetInfo(config_->protocol.c_str());
+        assert(protocol_info);
+        if (!protocol_info) {
+        	blog(LOG_ERROR, TAG "Invalid protocol \"%s\", maybe broken config file.", config_->protocol.c_str());
+            protocol_info = GetProtocolInfos()->GetList();
+        }
+
+        auto service = obs_service_create(protocol_info->serviceId, ("tmp_service_" + targetid_).c_str(), from_json(config_->serviceParam), nullptr);
+        serviceSettings_->UpdateProperties(
+            obs_service_properties(service),
+            obs_service_get_settings(service));
+        obs_service_release(service);
+    }
+
+    void updateOutputTab()
+    {
+        auto protocol_info = GetProtocolInfos()->GetInfo(config_->protocol.c_str());
+        assert(protocol_info);
+        if (!protocol_info) {
+        	blog(LOG_ERROR, TAG "Invalid protocol \"%s\", maybe broken config file.", config_->protocol.c_str());
+            protocol_info = GetProtocolInfos()->GetList();
+        }
+
+        auto output = obs_output_create(protocol_info->outputId, ("tmp_output_" + targetid_).c_str(), from_json(config_->outputParam), nullptr);
+        outputSettings_->UpdateProperties(
+            obs_output_properties(output),
+            obs_output_get_settings(output));
+        obs_output_release(output);
     }
 
 public:
@@ -316,12 +340,17 @@ public:
 
         int currow = 0;
         {
-            auto sublayout = new QHBoxLayout(container_);
-            sublayout->addWidget(new QLabel(obs_module_text("StreamingName"), container_));
-            sublayout->addWidget(name_ = new QLineEdit("", container_), 1);
+            auto sublayout = new QGridLayout(container_);
+            sublayout->setColumnStretch(0, 0);
+            sublayout->setColumnStretch(1, 1);
+            sublayout->addWidget(new QLabel(obs_module_text("StreamingName"), container_), 0, 0);
+            sublayout->addWidget(name_ = new QLineEdit("", container_), 0, 1);
+            sublayout->addWidget(new QLabel(obs_module_text("Protocol"), container_), 1, 0);
+            sublayout->addWidget(protocolSelector_ = new QComboBox(container_), 1, 1);
             layout->addLayout(sublayout);
         }
         ++currow;
+
         {
             auto w = CreateOutputSettingsWidget(container_);
             layout->addWidget(w);
@@ -466,6 +495,7 @@ public:
         fullLayout->setColumnStretch(0, 1);
         setLayout(fullLayout);
 
+        LoadProtocols();
         LoadFPSDenumerator();
         LoadEncoders();
         LoadScenes();
@@ -526,6 +556,24 @@ public:
             LoadConfig();
             UpdateUI();
         });
+
+        QObject::connect(protocolSelector_, (void (QComboBox::*)(int)) &QComboBox::currentIndexChanged, [this](){
+            blog(LOG_DEBUG, "Changing protocol to %s", tostdu8(protocolSelector_->currentText()).c_str());
+            SaveConfig();
+            LoadConfig();
+            UpdateUI();
+            updateServiceTab();
+            updateOutputTab();
+        });
+    }
+
+    void LoadProtocols()
+    {
+        auto protocol_cur = GetProtocolInfos()->GetList();
+        while(protocol_cur->protocol) {
+            protocolSelector_->addItem(protocol_cur->label, protocol_cur->protocol);
+            ++protocol_cur;
+        }
     }
 
     void LoadEncoders()
@@ -543,6 +591,8 @@ public:
 
         aenc_->addItem(obs_module_text("SameAsOBS"), "");
         for(auto x : EnumEncodersByCodec("aac"))
+            aenc_->addItem(ui_text(x).c_str(), x.c_str());
+        for(auto x : EnumEncodersByCodec("opus"))
             aenc_->addItem(ui_text(x).c_str(), x.c_str());
     }
 
@@ -591,6 +641,11 @@ public:
 
     void UpdateUI()
     {
+        auto newProtocolIndex = protocolSelector_->findData(QString::fromUtf8(config_->protocol));
+        // fallback to RTMP if protocol is invalid - do we really need this line?
+        if (newProtocolIndex == -1) newProtocolIndex = 0;
+        protocolSelector_->setCurrentIndex(newProtocolIndex);
+
         auto ve = venc_->currentData();
         if (ve.isValid() && ve.toString() == "")
         {
@@ -713,6 +768,7 @@ public:
         auto& global = GlobalMultiOutputConfig();
 
         config_->name = tostdu8(name_->text());
+        config_->protocol = tostdu8(protocolSelector_->itemData(protocolSelector_->currentIndex()).toString());
         config_->syncStart = syncStart_->isChecked();
         config_->syncStop = syncStop_->isChecked();
         config_->outputParam = outputSettings_->Save();
@@ -742,6 +798,9 @@ public:
 
     void LoadTargetConfig(OutputTargetConfig& target) {
         name_->setText(QString::fromUtf8(target.name));
+        auto protocolIndex = protocolSelector_->findData(QString::fromUtf8(target.protocol));
+        if (protocolIndex < 0) protocolIndex = 0;
+        protocolSelector_->setCurrentIndex(protocolIndex);
         syncStart_->setChecked(target.syncStart);
         syncStop_->setChecked(target.syncStop);
     }
