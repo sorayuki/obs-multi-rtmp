@@ -8,6 +8,8 @@
 #include <qevent.h>
 #include <QComboBox>
 
+#include <regex>
+
 #include "obs-properties-widget.h"
 #include "protocols.h"
 
@@ -129,6 +131,8 @@ class EditOutputWidgetImpl: public EditOutputWidget
 
     PropertiesWidget* serviceSettings_;
     PropertiesWidget* outputSettings_;
+    std::string supported_video_encoders_;
+    std::string supported_audio_encoders_;
     PropertiesWidget* videoEncoderSettings_;
     PropertiesWidget* audioEncoderSettings_;
    
@@ -273,6 +277,18 @@ class EditOutputWidgetImpl: public EditOutputWidget
         }
 
         QObject::connect(tab, &QTabWidget::currentChanged, [tab](int index) {
+            for(int i=0; i < tab->count(); ++i) {
+                auto widget = tab->widget(i);
+                if(i != index)
+                    widget->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
+            }
+
+            auto widget = tab->widget(index);
+            widget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+            widget->resize(widget->minimumSizeHint());
+            widget->adjustSize();
+
+            tab->resize(tab->minimumSizeHint());
             tab->adjustSize();
         });
 
@@ -310,7 +326,12 @@ class EditOutputWidgetImpl: public EditOutputWidget
         outputSettings_->UpdateProperties(
             obs_output_properties(output),
             obs_output_get_settings(output));
+        supported_audio_encoders_ = obs_output_get_supported_audio_codecs(output);
+        supported_video_encoders_ = obs_output_get_supported_video_codecs(output);
         obs_output_release(output);
+
+        if (aenc_ && venc_)
+            LoadEncoders();
     }
 
 public:
@@ -581,19 +602,37 @@ public:
         auto ui_text = [](auto id) {
             return std::string(obs_encoder_get_display_name(id.c_str())) + " [" + id + "]";
         };
-        venc_->addItem(obs_module_text("SameAsOBS"), "");
-        for(auto x : EnumEncodersByCodec("h264"))
-            venc_->addItem(ui_text(x).c_str(), x.c_str());
-        for(auto x : EnumEncodersByCodec("av1"))
-            venc_->addItem(ui_text(x).c_str(), x.c_str());
-        for(auto x : EnumEncodersByCodec("hevc"))
-            venc_->addItem(ui_text(x).c_str(), x.c_str());
 
-        aenc_->addItem(obs_module_text("SameAsOBS"), "");
-        for(auto x : EnumEncodersByCodec("aac"))
-            aenc_->addItem(ui_text(x).c_str(), x.c_str());
-        for(auto x : EnumEncodersByCodec("opus"))
-            aenc_->addItem(ui_text(x).c_str(), x.c_str());
+        std::regex sp(";");
+        {
+            auto old_venc = venc_->currentData();
+            std::sregex_token_iterator it(supported_video_encoders_.begin(), supported_video_encoders_.end(), sp, -1), itend;
+            venc_->clear();
+            venc_->addItem(obs_module_text("SameAsOBS"), "");
+            while(it != itend) {
+                for(auto x : EnumEncodersByCodec(it->str().c_str()))
+                    venc_->addItem(ui_text(x).c_str(), x.c_str());
+                ++it;
+            }
+            auto idx = venc_->findData(old_venc);
+            if (idx >= 0)
+                venc_->setCurrentIndex(idx);
+        }
+
+        {
+            auto old_aenc = aenc_->currentData();
+            std::sregex_token_iterator it(supported_audio_encoders_.begin(), supported_audio_encoders_.end(), sp, -1), itend;
+            aenc_->clear();
+            aenc_->addItem(obs_module_text("SameAsOBS"), "");
+            while(it != itend) {
+                for(auto x : EnumEncodersByCodec(it->str().c_str()))
+                    aenc_->addItem(ui_text(x).c_str(), x.c_str());
+                ++it;
+            }
+            auto idx = aenc_->findData(old_aenc);
+            if (idx >= 0)
+                aenc_->setCurrentIndex(idx);
+        }
     }
 
     void LoadFPSDenumerator()

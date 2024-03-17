@@ -3,13 +3,11 @@
 
 static ProtocolInfo s_infoList[] = {
     // protocol, label, output_id, service_id
-    { "", "RTMP", "rtmp_output", "rtmp_custom" }, // default value
     { "RTMP", "RTMP", "rtmp_output", "rtmp_custom" },
     { "SRT_RIST", "SRT/RIST", "ffmpeg_mpegts_muxer", "rtmp_custom" },
     { "WHIP", "WebRTC (WHIP)", "whip_output", "whip_custom" },
     { nullptr, nullptr, nullptr, nullptr }
 };
-
 
 class ProtocolInfosImpl: public ProtocolInfos {
 public:
