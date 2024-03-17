@@ -1,16 +1,32 @@
 #include "protocols.h"
 #include <string>
 
-    extern const QStringList protocol_labels = {"RTMP", "SRT/RIST", "WebRTC (WHIP)"};
-    extern const QStringList protocol_values = {"RTMP", "SRT_RIST", "WHIP"};
+static ProtocolInfo s_infoList[] = {
+    // protocol, label, output_id, service_id
+    { "RTMP", "RTMP", "rtmp_output", "rtmp_custom" },
+    { "SRT_RIST", "SRT/RIST", "ffmpeg_mpegts_muxer", "rtmp_custom" },
+    { "WHIP", "WebRTC (WHIP)", "whip_output", "whip_custom" },
+    { nullptr, nullptr, nullptr, nullptr }
+};
 
-    const char *GetOutputID(std::string protocol) {
-        if (protocol == "SRT_RIST") return "ffmpeg_mpegts_muxer";
-        if (protocol == "WHIP")     return "whip_output";
-        return "rtmp_output";
+
+class ProtocolInfosImpl: public ProtocolInfos {
+public:
+    const ProtocolInfo* GetInfo(const char* protocol) override {
+        std::string_view to_find{ protocol };
+        for(auto p = s_infoList; p; ++p) {
+            if (to_find == p->protocol)
+                return p;
+        }
+        return nullptr;
     }
-    
-    const char *GetServiceID(std::string protocol) {
-        if (protocol == "WHIP") return "whip_custom";
-        return "rtmp_custom";
+
+    const ProtocolInfo* GetList() override {
+        return s_infoList;
     }
+};
+
+ProtocolInfos* GetProtocolInfos() {
+    static ProtocolInfosImpl impl_;
+    return &impl_;
+}

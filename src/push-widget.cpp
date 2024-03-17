@@ -128,7 +128,14 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         ReleaseOutputService();
         
         auto conf = obs_data_create_from_json(config_->serviceParam.dump().c_str());
-        auto service_id = GetServiceID(config_->protocol);
+
+        auto protocolInfo = GetProtocolInfos()->GetInfo(config_->protocol.c_str());
+        assert(protocolInfo);
+        if (!protocolInfo) {
+        	blog(LOG_ERROR, TAG "Invalid protocol, maybe broken config file.");
+        	return false;
+        }
+        auto service_id = protocolInfo->serviceId;
 
         if (!conf)
             return false;
@@ -533,9 +540,17 @@ public:
         {
             obs_data* output_settings = obs_data_create_from_json(config_->outputParam.dump().c_str());
             
-            blog(LOG_DEBUG, "Streaming to output: %s", GetOutputID(config_->protocol));
+            auto protocolInfo = GetProtocolInfos()->GetInfo(config_->protocol.c_str());
+            assert(protocolInfo);
+            if (!protocolInfo) {
+	        	blog(LOG_ERROR, TAG "Invalid protocol, maybe broken config file.");
+	        	protocolInfo = GetProtocolInfos()->GetList();
+	        }
+            auto output_id = protocolInfo->outputId;
 
-            output_ = obs_output_create(GetOutputID(config_->protocol), "multi-output", output_settings, nullptr);
+            blog(LOG_DEBUG, "Streaming to output: %s", output_id);
+
+            output_ = obs_output_create(output_id, "multi-output", output_settings, nullptr);
             SetMeAsHandler(output_);
         }
 

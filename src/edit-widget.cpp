@@ -286,9 +286,10 @@ class EditOutputWidgetImpl: public EditOutputWidget
         QHBoxLayout *hBoxLayout = new QHBoxLayout();
         protocolSelector_ = new QComboBox();
 
-        for (int i = 0; i < protocol_values.length(); i++)
-        {
-            protocolSelector_->addItem(protocol_labels[i], protocol_values[i]);
+        auto protocol_cur = GetProtocolInfos()->GetList();
+        while(protocol_cur->protocol) {
+            protocolSelector_->addItem(protocol_cur->label, protocol_cur->protocol);
+            ++protocol_cur;
         }
         
         hBoxLayout->addWidget(new QLabel(obs_module_text("Protocol"), this));
@@ -301,7 +302,12 @@ class EditOutputWidgetImpl: public EditOutputWidget
 
     void updateServiceTab()
     {
-        auto service = obs_service_create(GetServiceID(config_->protocol),("tmp_service_" + targetid_).c_str(),from_json(config_->serviceParam), nullptr);
+        auto protocol_info = GetProtocolInfos()->GetInfo(config_->protocol.c_str());
+        assert(protocol_info);
+        if (!protocol_info)
+            return;
+
+        auto service = obs_service_create(protocol_info->serviceId, ("tmp_service_" + targetid_).c_str(), from_json(config_->serviceParam), nullptr);
         serviceSettings_->UpdateProperties(
             obs_service_properties(service),
             obs_service_get_settings(service));
@@ -310,7 +316,12 @@ class EditOutputWidgetImpl: public EditOutputWidget
 
     void updateOutputTab()
     {
-        auto output = obs_output_create(GetOutputID(config_->protocol), ("tmp_output_" + targetid_).c_str(), from_json(config_->outputParam), nullptr);
+        auto protocol_info = GetProtocolInfos()->GetInfo(config_->protocol.c_str());
+        assert(protocol_info);
+        if (!protocol_info)
+            return;
+
+        auto output = obs_output_create(protocol_info->outputId, ("tmp_output_" + targetid_).c_str(), from_json(config_->outputParam), nullptr);
         outputSettings_->UpdateProperties(
             obs_output_properties(output),
             obs_output_get_settings(output));
@@ -637,7 +648,7 @@ public:
 
     void UpdateUI()
     {
-        signed int newProtocolIndex = protocol_values.indexOf(QString::fromUtf8(config_->protocol));
+        auto newProtocolIndex = protocolSelector_->findData(QString::fromUtf8(config_->protocol));
         // fallback to RTMP if protocol is invalid - do we really need this line?
         if (newProtocolIndex == -1) newProtocolIndex = 0;
         protocolSelector_->setCurrentIndex(newProtocolIndex);
@@ -794,7 +805,9 @@ public:
 
     void LoadTargetConfig(OutputTargetConfig& target) {
         name_->setText(QString::fromUtf8(target.name));
-        protocolSelector_->setCurrentIndex(protocol_values.indexOf(QString::fromUtf8(target.protocol)));
+        auto protocolIndex = protocolSelector_->findData(QString::fromUtf8(target.protocol));
+        if (protocolIndex < 0) protocolIndex = 0;
+        protocolSelector_->setCurrentIndex(protocolIndex);
         syncStart_->setChecked(target.syncStart);
         syncStop_->setChecked(target.syncStop);
     }

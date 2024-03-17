@@ -1,10 +1,19 @@
 #pragma once
 
-#include <QStringList>
 #include <string>
+#include <string_view>
 
-extern const QStringList protocol_labels;
-extern const QStringList protocol_values;
+struct ProtocolInfo {
+    const char* protocol;
+    const char* label;
+    const char* outputId;
+    const char* serviceId;
+};
 
-const char *GetOutputID(std::string protocol);
-const char *GetServiceID(std::string protocol);
+class ProtocolInfos {
+public:
+    virtual const ProtocolInfo* GetInfo(const char* protocol) = 0;
+    virtual const ProtocolInfo* GetList() = 0;
+};
+
+ProtocolInfos* GetProtocolInfos();
