@@ -13,7 +13,7 @@ class ProtocolInfosImpl: public ProtocolInfos {
 public:
     const ProtocolInfo* GetInfo(const char* protocol) override {
         std::string_view to_find{ protocol };
-        for(auto p = s_infoList; p; ++p) {
+        for(auto p = s_infoList; p->protocol; ++p) {
             if (to_find == p->protocol)
                 return p;
         }
