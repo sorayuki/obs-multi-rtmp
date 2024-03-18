@@ -120,19 +120,6 @@ namespace {
                 }
                 case OBS_PROPERTY_LIST: {
                     auto cb = new QComboBox(parent);
-                    cbType = obs_property_list_format(p);
-                    auto cnt = obs_property_list_item_count(p);
-                    for(auto i = 0; i < cnt; ++i) {
-                        auto itemname = obs_property_list_item_name(p, i);
-                        QVariant data;
-                        if (cbType == obs_combo_format::OBS_COMBO_FORMAT_INT)
-                            data = obs_property_list_item_int(p, i);
-                        else if (cbType == obs_combo_format::OBS_COMBO_FORMAT_FLOAT)
-                            data = obs_property_list_item_float(p, i);
-                        else if (cbType == obs_combo_format::OBS_COMBO_FORMAT_STRING)
-                            data = LoadCString(obs_property_list_item_string(p, i));
-                        cb->addItem(LoadCString(itemname), data);
-                    }
                     QObject::connect(cb, &QComboBox::currentIndexChanged, [=]() {
                         updater->UpdateUI();
                     });
@@ -151,6 +138,8 @@ namespace {
             QObject::connect(ctrl, &QObject::destroyed, [this]() {
                 ctrl = nullptr;
             });
+
+            ReloadProperty(p);
         }
 
         ~PropertyWidget() {
@@ -158,6 +147,31 @@ namespace {
                 delete label;
             if (ctrl) 
                 delete ctrl;
+        }
+
+        void ReloadProperty(obs_property* p) {
+            if (obs_property_get_type(p) == propType) {
+                switch(propType) {
+                    case OBS_PROPERTY_LIST: {
+                        auto cb = static_cast<QComboBox*>(ctrl);
+                        for(int i = cb->count() - 1; i >= 0; --i)
+                            cb->removeItem(i);
+                        cbType = obs_property_list_format(p);
+                        auto cnt = obs_property_list_item_count(p);
+                        for(auto i = 0; i < cnt; ++i) {
+                            auto itemname = obs_property_list_item_name(p, i);
+                            QVariant data;
+                            if (cbType == obs_combo_format::OBS_COMBO_FORMAT_INT)
+                                data = obs_property_list_item_int(p, i);
+                            else if (cbType == obs_combo_format::OBS_COMBO_FORMAT_FLOAT)
+                                data = obs_property_list_item_float(p, i);
+                            else if (cbType == obs_combo_format::OBS_COMBO_FORMAT_STRING)
+                                data = LoadCString(obs_property_list_item_string(p, i));
+                            cb->addItem(LoadCString(itemname), data);
+                        }
+                    }
+                }
+            }
         }
 
         void LoadData(obs_data* data) {
@@ -278,6 +292,8 @@ namespace {
             obs_data_release(defs);
 
             obs_data_apply(settings, orig_settings);
+
+            obs_properties_apply_settings(props, settings);
             
             UpdateUI();
         }
@@ -316,10 +332,13 @@ namespace {
                 auto it = oldpropwids.find(name);
                 if (it == oldpropwids.end()) {
                     auto newwid = std::make_shared<PropertyWidget>(this, this, x);
+                    newwid->LoadData(settings);
                     propwids.insert(std::make_pair(newwid->name, newwid));
                     layout->addWidget(newwid->label, currow, 0);
                     layout->addWidget(newwid->ctrl, currow, 1);
                 } else {
+                    it->second->ReloadProperty(x);
+                    it->second->LoadData(settings);
                     propwids.insert(std::make_pair(it->first, it->second));
                     layout->addWidget(it->second->label, currow, 0);
                     layout->addWidget(it->second->ctrl, currow, 1);
