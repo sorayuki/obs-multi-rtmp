@@ -6,54 +6,6 @@
 
 include_guard(GLOBAL)
 
-# find_qt: Macro to find best possible Qt version for use with the project:
-macro(find_qt)
-  set(multiValueArgs COMPONENTS COMPONENTS_WIN COMPONENTS_MAC COMPONENTS_LINUX)
-  cmake_parse_arguments(find_qt "" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
-
-  # Do not use versionless targets in the first step to avoid Qt::Core being clobbered by later opportunistic
-  # find_package runs
-  set(QT_NO_CREATE_VERSIONLESS_TARGETS TRUE)
-
-  message(DEBUG "Attempting to find Qt 6")
-  find_package(
-    Qt6
-    COMPONENTS Core
-    REQUIRED)
-
-  # Enable versionless targets for the remaining Qt components
-  set(QT_NO_CREATE_VERSIONLESS_TARGETS FALSE)
-
-  set(qt_components ${find_qt_COMPONENTS})
-  if(OS_WINDOWS)
-    list(APPEND qt_components ${find_qt_COMPONENTS_WIN})
-  elseif(OS_MACOS)
-    list(APPEND qt_components ${find_qt_COMPONENTS_MAC})
-  else()
-    list(APPEND qt_components ${find_qt_COMPONENTS_LINUX})
-  endif()
-  message(DEBUG "Trying to find Qt components ${qt_components}...")
-
-  find_package(Qt6 REQUIRED ${qt_components})
-
-  list(APPEND qt_components Core)
-
-  if("Gui" IN_LIST find_qt_COMPONENTS_LINUX)
-    list(APPEND qt_components "GuiPrivate")
-  endif()
-
-  # Check for versionless targets of each requested component and create if necessary
-  foreach(component IN LISTS qt_components)
-    message(DEBUG "Checking for target Qt::${component}")
-    if(NOT TARGET Qt::${component} AND TARGET Qt6::${component})
-      add_library(Qt::${component} INTERFACE IMPORTED)
-      set_target_properties(Qt::${component} PROPERTIES INTERFACE_LINK_LIBRARIES Qt6::${component})
-    endif()
-    set_property(TARGET Qt::${component} PROPERTY INTERFACE_COMPILE_FEATURES "")
-  endforeach()
-
-endmacro()
-
 # check_uuid: Helper function to check for valid UUID
 function(check_uuid uuid_string return_value)
   set(valid_uuid TRUE)
