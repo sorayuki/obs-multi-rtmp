@@ -6,15 +6,6 @@
     "autosort": true
   },
   "additional_commands": {
-    "find_qt": {
-      "flags": [],
-      "kwargs": {
-        "COMPONENTS": "+",
-        "COMPONENTS_WIN": "+",
-        "COMPONENTS_MACOS": "+",
-        "COMPONENTS_LINUX": "+"
-      }
-    },
     "set_target_properties_obs": {
       "pargs": 1,
       "flags": [],
