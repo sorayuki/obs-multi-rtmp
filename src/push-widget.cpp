@@ -260,7 +260,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         // video encoder
         OBSEncoder venc;
         if (config_->videoConfig.has_value()) {
-            // find shared audio encoder or create new
+            // find shared video encoder or create new
             venc = obs_get_encoder_by_name(VideoEncoderName().c_str());
             if (venc) {
                 obs_encoder_release(venc);
