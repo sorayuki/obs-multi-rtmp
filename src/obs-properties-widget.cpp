@@ -240,7 +240,7 @@ namespace {
             {
                 try {
                     auto val = tostdu8(static_cast<QLineEditWithEye*>(ctrl)->edit()->text());
-                    obs_data_set_int(data, name.c_str(), std::stod(val));
+                    obs_data_set_double(data, name.c_str(), std::stod(val));
                 } catch(...) {
                 }
                 break;
