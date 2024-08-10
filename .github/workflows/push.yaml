@@ -1,4 +1,4 @@
-name: Push to master
+name: Push
 run-name: ${{ github.ref_name }} push run 🚀
 on:
   push:
@@ -10,13 +10,10 @@ on:
       - '*'
 permissions:
   contents: write
-concurrency:
-  group: '${{ github.workflow }} @ ${{ github.ref }}'
-  cancel-in-progress: ${{ github.ref_type == 'tag' }}
 jobs:
   check-format:
     name: Check Formatting 🔍
-    if: github.ref_name == 'master'
+    if: github.ref_name == 'master' || github.ref_name == 'main'
     uses: ./.github/workflows/check-format.yaml
     permissions:
       contents: read
@@ -31,7 +28,7 @@ jobs:
   create-release:
     name: Create Release 🛫
     if: github.ref_type == 'tag'
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: build-project
     defaults:
       run:

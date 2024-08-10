@@ -1,47 +1,47 @@
-name: 'Package plugin'
-description: 'Packages the plugin for specified architecture and build config.'
+name: Package plugin
+description: Packages the plugin for specified architecture and build config.
 inputs:
   target:
-    description: 'Build target for dependencies'
+    description: Build target for dependencies
     required: true
   config:
-    description: 'Build configuration'
+    description: Build configuration
     required: false
-    default: 'RelWithDebInfo'
+    default: RelWithDebInfo
   codesign:
-    description: 'Enable codesigning (macOS only)'
+    description: Enable codesigning (macOS only)
     required: false
     default: 'false'
   notarize:
-    description: 'Enable notarization (macOS only)'
+    description: Enable notarization (macOS only)
     required: false
     default: 'false'
   codesignIdent:
-    description: 'Developer ID for application codesigning (macOS only)'
+    description: Developer ID for application codesigning (macOS only)
     required: false
     default: '-'
   installerIdent:
-    description: 'Developer ID for installer package codesigning (macOS only)'
+    description: Developer ID for installer package codesigning (macOS only)
     required: false
     default: ''
   codesignTeam:
-    description: 'Developer team for codesigning (macOS only)'
+    description: Developer team for codesigning (macOS only)
     required: false
     default: ''
   codesignUser:
-    description: 'Apple ID username for notarization (macOS only)'
+    description: Apple ID username for notarization (macOS only)
     required: false
     default: ''
   codesignPass:
-    description: 'Apple ID password for notarization (macOS only)'
+    description: Apple ID password for notarization (macOS only)
     required: false
     default: ''
   package:
-    description: 'Create Windows or macOS installation package'
+    description: Create Windows or macOS installation package
     required: false
     default: 'false'
   workingDirectory:
-    description: 'Working directory for packaging'
+    description: Working directory for packaging
     required: false
     default: ${{ github.workspace }}
 runs:
@@ -87,14 +87,14 @@ runs:
       run: |
         : Run Ubuntu Packaging
         package_args=(
-          --target linux-${{ inputs.target }}
+          --target ubuntu-${{ inputs.target }}
           --config ${{ inputs.config }}
         )
         if (( ${+RUNNER_DEBUG} )) build_args+=(--debug)
 
         if [[ '${{ inputs.package }}' == 'true' ]] package_args+=(--package)
 
-        .github/scripts/package-linux ${package_args}
+        .github/scripts/package-ubuntu ${package_args}
 
     - name: Run Windows Packaging
       if: runner.os == 'Windows'
@@ -108,10 +108,6 @@ runs:
         $PackageArgs = @{
           Target = '${{ inputs.target }}'
           Configuration = '${{ inputs.config }}'
-        }
-
-        if ( '${{ inputs.package }}' -eq 'true' ) {
-          $PackageArgs += @{BuildInstaller = $true}
         }
 
         .github/scripts/Package-Windows.ps1 @PackageArgs
