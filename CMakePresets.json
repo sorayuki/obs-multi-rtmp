@@ -1,8 +1,8 @@
 {
-  "version": 3,
+  "version": 8,
   "cmakeMinimumRequired": {
     "major": 3,
-    "minor": 22,
+    "minor": 28,
     "patch": 0
   },
   "configurePresets": [
@@ -29,6 +29,7 @@
       "warnings": {"dev": true, "deprecated": true},
       "cacheVariables": {
         "CMAKE_OSX_DEPLOYMENT_TARGET": "11.0",
+        "CMAKE_OSX_ARCHITECTURES": "arm64;x86_64",
         "CODESIGN_IDENTITY": "$penv{CODESIGN_IDENT}",
         "CODESIGN_TEAM": "$penv{CODESIGN_TEAM}"
       }
@@ -40,7 +41,8 @@
       "description": "Build for macOS 11.0+ (Universal binary) for CI",
       "generator": "Xcode",
       "cacheVariables": {
-        "CMAKE_COMPILE_WARNING_AS_ERROR": true
+        "CMAKE_COMPILE_WARNING_AS_ERROR": true,
+        "ENABLE_CCACHE": true
       }
     },
     {
@@ -55,11 +57,8 @@
         "rhs": "Windows"
       },
       "generator": "Visual Studio 17 2022",
-      "architecture": "x64",
-      "warnings": {"dev": true, "deprecated": true},
-      "cacheVariables": {
-        "CMAKE_SYSTEM_VERSION": "10.0.18363.657"
-      }
+      "architecture": "x64,version=10.0.22621",
+      "warnings": {"dev": true, "deprecated": true}
     },
     {
       "name": "windows-ci-x64",
@@ -71,9 +70,9 @@
       }
     },
     {
-      "name": "linux-x86_64",
-      "displayName": "Linux x86_64",
-      "description": "Build for Linux x86_64",
+      "name": "ubuntu-x86_64",
+      "displayName": "Ubuntu x86_64",
+      "description": "Build for Ubuntu x86_64",
       "inherits": ["template"],
       "binaryDir": "${sourceDir}/build_x86_64",
       "condition": {
@@ -84,44 +83,19 @@
       "generator": "Ninja",
       "warnings": {"dev": true, "deprecated": true},
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_INSTALL_LIBDIR": "lib/CMAKE_SYSTEM_PROCESSOR-linux-gnu"
       }
     },
     {
-      "name": "linux-ci-x86_64",
-      "inherits": ["linux-x86_64"],
-      "displayName": "Linux x86_64 CI build",
-      "description": "Build for Linux x86_64 on CI",
+      "name": "ubuntu-ci-x86_64",
+      "inherits": ["ubuntu-x86_64"],
+      "displayName": "Ubuntu x86_64 CI build",
+      "description": "Build for Ubuntu x86_64 on CI",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "CMAKE_COMPILE_WARNING_AS_ERROR": true
-      }
-    },
-    {
-      "name": "linux-aarch64",
-      "displayName": "Linux aarch64",
-      "description": "Build for Linux aarch64",
-      "inherits": ["template"],
-      "binaryDir": "${sourceDir}/build_aarch64",
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Linux"
-      },
-      "generator": "Ninja",
-      "warnings": {"dev": true, "deprecated": true},
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
-      }
-    },
-    {
-      "name": "linux-ci-aarch64",
-      "inherits": ["linux-aarch64"],
-      "displayName": "Linux aarch64 CI build",
-      "description": "Build for Linux aarch64 on CI",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-        "CMAKE_COMPILE_WARNING_AS_ERROR": true
+        "CMAKE_COMPILE_WARNING_AS_ERROR": true,
+        "ENABLE_CCACHE": true
       }
     }
   ],
@@ -131,7 +105,7 @@
       "configurePreset": "macos",
       "displayName": "macOS Universal",
       "description": "macOS build for Universal architectures",
-      "configuration": "Release"
+      "configuration": "RelWithDebInfo"
     },
     {
       "name": "macos-ci",
@@ -155,31 +129,17 @@
       "configuration": "RelWithDebInfo"
     },
     {
-      "name": "linux-x86_64",
-      "configurePreset": "linux-x86_64",
-      "displayName": "Linux x86_64",
-      "description": "Linux build for x86_64",
+      "name": "ubuntu-x86_64",
+      "configurePreset": "ubuntu-x86_64",
+      "displayName": "Ubuntu x86_64",
+      "description": "Ubuntu build for x86_64",
       "configuration": "RelWithDebInfo"
     },
     {
-      "name": "linux-ci-x86_64",
-      "configurePreset": "linux-ci-x86_64",
-      "displayName": "Linux x86_64 CI",
-      "description": "Linux CI build for x86_64",
-      "configuration": "RelWithDebInfo"
-    },
-    {
-      "name": "linux-aarch64",
-      "configurePreset": "linux-aarch64",
-      "displayName": "Linux aarch64",
-      "description": "Linux build for aarch64",
-      "configuration": "RelWithDebInfo"
-    },
-    {
-      "name": "linux-ci-aarch64",
-      "configurePreset": "linux-ci-aarch64",
-      "displayName": "Linux aarch64 CI",
-      "description": "Linux CI build for aarch64",
+      "name": "ubuntu-ci-x86_64",
+      "configurePreset": "ubuntu-ci-x86_64",
+      "displayName": "Ubuntu x86_64 CI",
+      "description": "Ubuntu CI build for x86_64",
       "configuration": "RelWithDebInfo"
     }
   ]

@@ -203,14 +203,6 @@ ${_usage_host:-}"
         local cmake_version
         read -r _ _ cmake_version <<< "$(cmake --version)"
 
-        if [[ ${CPUTYPE} != ${target##*-} ]] {
-          if is-at-least 3.21.0 ${cmake_version}; then
-            cmake_args+=(--toolchain "${project_root}/cmake/linux/toolchains/${target##*-}-linux-gcc.cmake")
-          else
-            cmake_args+=(-D"CMAKE_TOOLCHAIN_FILE=${project_root}/cmake/linux/toolchains/${target##*-}-linux-gcc.cmake")
-          fi
-        }
-
         cmake_build_args+=(--preset ${_preset}-${target##*-} --config ${config})
         if [[ ${generator} == 'Unix Makefiles' ]] {
           cmake_build_args+=(--parallel $(( $(nproc) + 1 )))
