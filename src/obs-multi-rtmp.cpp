@@ -38,14 +38,9 @@ GlobalService& GetGlobalService() {
 
 class MultiOutputWidget : public QWidget
 {
-    int dockLocation_;
-    bool dockVisible_;
-    bool reopenShown_;
-
 public:
     MultiOutputWidget(QWidget* parent = 0)
         : QWidget(parent)
-        , reopenShown_(false)
     {
         setWindowTitle(obs_module_text("Title"));
 
@@ -191,24 +186,6 @@ public:
         fullLayout->setRowStretch(0, 1);
         fullLayout->setColumnStretch(0, 1);
         fullLayout->addWidget(&scroll_, 0, 0);
-    }
-
-    void visibleToggled(bool visible)
-    {
-        dockVisible_ = visible;
-
-        if (visible == false
-            && reopenShown_ == false
-            && !config_has_user_value(obs_frontend_get_global_config(), ConfigSection, "DockVisible"))
-        {
-            reopenShown_ = true;
-            QMessageBox(QMessageBox::Icon::Information, 
-                obs_module_text("Notice.Title"), 
-                obs_module_text("Notice.Reopen"), 
-                QMessageBox::StandardButton::Ok,
-                this
-            ).exec();
-        }
     }
 
     std::vector<PushWidget*> GetAllPushWidgets()

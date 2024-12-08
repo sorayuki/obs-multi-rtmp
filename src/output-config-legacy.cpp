@@ -145,7 +145,7 @@ void ImportLegacyMultiOutputConfig() {
     QJsonObject conf;
     auto base64str = config_get_string(profile_config, ConfigSection, "json");
     if (!base64str || !*base64str) { // compatible with old version
-        base64str = config_get_string(obs_frontend_get_global_config(), ConfigSection, "json");
+        base64str = config_get_string(obs_frontend_get_app_config(), ConfigSection, "json");
     }
 
     if (base64str && *base64str)
@@ -160,7 +160,7 @@ void ImportLegacyMultiOutputConfig() {
             SaveMultiOutputConfig();
 
             // erase legacy config
-            // config_set_string(obs_frontend_get_global_config(), ConfigSection, "json", "");
+            // config_set_string(obs_frontend_get_app_config(), ConfigSection, "json", "");
         }
     }
 }
