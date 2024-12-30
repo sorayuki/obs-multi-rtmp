@@ -87,7 +87,7 @@ function(_setup_obs_studio)
 
   message(STATUS "Build ${label} (${arch})")
   execute_process(
-    COMMAND "${CMAKE_COMMAND}" --build build_${arch} --target obs-frontend-api --config RelWithDebInfo --parallel
+    COMMAND "${CMAKE_COMMAND}" --build build_${arch} --target obs-frontend-api --config Debug --parallel
     WORKING_DIRECTORY "${dependencies_dir}/${_obs_destination}"
     RESULT_VARIABLE _process_result COMMAND_ERROR_IS_FATAL ANY
     OUTPUT_QUIET)
@@ -100,7 +100,7 @@ function(_setup_obs_studio)
     set(_cmake_extra "")
   endif()
   execute_process(
-    COMMAND "${CMAKE_COMMAND}" --install build_${arch} --component Development --config RelWithDebInfo --prefix
+    COMMAND "${CMAKE_COMMAND}" --install build_${arch} --component Development --config Debug --prefix
             "${dependencies_dir}" ${_cmake_extra}
     WORKING_DIRECTORY "${dependencies_dir}/${_obs_destination}"
     RESULT_VARIABLE _process_result COMMAND_ERROR_IS_FATAL ANY
