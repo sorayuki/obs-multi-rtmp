@@ -36,7 +36,7 @@ public:
     static void OnOutputStopped(void* x, calldata_t* param)
     {
         auto thiz = static_cast<IOBSOutputEventHanlder*>(x);
-        thiz->OnStopped(calldata_int(param, "code"));
+        thiz->OnStopped(static_cast<int>(calldata_int(param, "code")));
     }
 
     virtual void OnReconnect() {}
@@ -435,9 +435,9 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
             sprintf(strDuration, "%02d:%02d:%02d", (int)hh.count(), (int)mm.count(), (int)ss.count());
 
             char strFps[32] = { 0 };
-            sprintf(strFps, "%d FPS", static_cast<int>(std::round((new_frames - total_frames_) / interval)));
+            sprintf(strFps, "%d FPS", static_cast<int>(std::round(static_cast<double>((new_frames - total_frames_)) / interval)));
 
-            auto bps = (new_bytes - total_bytes_) * 8 / interval;
+            auto bps = static_cast<double>((new_bytes - total_bytes_)) * 8 / interval;
             auto strBps = [&]()-> std::string {
                 if (bps > 0)
                 {
@@ -561,7 +561,7 @@ public:
             if (profileConfig) {
                 bool useDelay = config_get_bool(profileConfig, "Output", "DelayEnable");
                 bool preserveDelay = config_get_bool(profileConfig, "Output", "DelayPreserve");
-                int delaySec = config_get_int(profileConfig, "Output", "DelaySec");
+                uint delaySec = static_cast<uint>(config_get_uint(profileConfig, "Output", "DelaySec"));
                 obs_output_set_delay(output_,
                     useDelay ? delaySec : 0,
                     preserveDelay ? OBS_OUTPUT_DELAY_PRESERVE : 0

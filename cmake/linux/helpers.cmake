@@ -4,8 +4,6 @@ include_guard(GLOBAL)
 
 include(helpers_common)
 
-set(PLUGIN_FOLDER ${CMAKE_PROJECT_NAME})
-
 # set_target_properties_plugin: Set target properties for use in obs-studio
 function(set_target_properties_plugin target)
   set(options "")
@@ -26,23 +24,10 @@ function(set_target_properties_plugin target)
                SOVERSION ${PLUGIN_VERSION}
                PREFIX "")
 
-  # install(
-  #   TARGETS ${target}
-  #   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-  #   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}/obs-plugins)
-
-  if (${CMAKE_SIZEOF_VOID_P} EQUAL 4)
-    set(OBSARCHNAME "32bit")
-  elseif (${CMAKE_SIZEOF_VOID_P} EQUAL 8)
-    set(OBSARCHNAME "64bit")
-  else ()
-    message(FATAL_ERROR "Unsupport architecture")
-  endif()
-
   install(
     TARGETS ${target}
-    RUNTIME DESTINATION dist/${PLUGIN_FOLDER}/bin/${OBSARCHNAME}
-    LIBRARY DESTINATION dist/${PLUGIN_FOLDER}/bin/${OBSARCHNAME})
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}/obs-plugins)
 
   if(TARGET plugin-support)
     target_link_libraries(${target} PRIVATE plugin-support)
@@ -72,14 +57,9 @@ function(target_install_resources target)
       source_group("Resources/${relative_path}" FILES "${data_file}")
     endforeach()
 
-    # install(
-    #   DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/data/"
-    #   DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/obs/obs-plugins/${target}
-    #   USE_SOURCE_PERMISSIONS)
-    
     install(
       DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/data/"
-      DESTINATION dist/${PLUGIN_FOLDER}/data
+      DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/obs/obs-plugins/${target}
       USE_SOURCE_PERMISSIONS)
   endif()
 endfunction()
@@ -88,9 +68,7 @@ endfunction()
 function(target_add_resource target resource)
   message(DEBUG "Add resource '${resource}' to target ${target} at destination '${target_destination}'...")
 
-  # install(FILES "${resource}" DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/obs/obs-plugins/${target})
-
-  install(FILES "${resource}" DESTINATION dist/${PLUGIN_FOLDER}/data)
+  install(FILES "${resource}" DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/obs/obs-plugins/${target})
 
   source_group("Resources" FILES "${resource}")
 endfunction()
