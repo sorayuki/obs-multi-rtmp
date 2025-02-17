@@ -69,18 +69,16 @@ function Package {
     Compress-Archive -Force @CompressArgs
     Log-Group
 
-    if ( ( $BuildInstaller ) ) {
-        $NsiFile = "${ProjectRoot}/installer.nsi"
-        Log-Information 'Creating NSIS installer...'
+    $NsiFile = "${ProjectRoot}/installer.nsi"
+    Log-Information 'Creating NSIS installer...'
 
-        Push-Location -Stack BuildTemp
-        Ensure-Location -Path "${ProjectRoot}/release"
-        Invoke-External "makensis.exe" ${NsiFile}
-        Copy-Item -Path "${ProjectRoot}/obs-multi-rtmp-setup.exe" -Destination "${OutputName}-Installer.exe"
-        Pop-Location -Stack BuildTemp
+    Push-Location -Stack BuildTemp
+    Ensure-Location -Path "${ProjectRoot}/release"
+    Invoke-External "makensis.exe" ${NsiFile}
+    Copy-Item -Path "${ProjectRoot}/obs-multi-rtmp-setup.exe" -Destination "${OutputName}-Installer.exe"
+    Pop-Location -Stack BuildTemp
 
-        Log-Group
-    }
+    Log-Group
 }
 
 Package
