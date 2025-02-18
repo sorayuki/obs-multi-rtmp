@@ -40,8 +40,5 @@
     "version": "0.6.0.1",
     "author": "SoraYuki",
     "website": "https://github.com/sorayuki",
-    "email": "me@example.com",
-    "uuids": {
-        "windowsApp": "B47DF2B4-6684-47C5-ABE3-E3A7B4504E6B"
-    }
+    "email": "me@example.com"
 }

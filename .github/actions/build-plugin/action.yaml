@@ -1,23 +1,23 @@
-name: 'Set up and build plugin'
-description: 'Builds the plugin for specified architecture and build config'
+name: Set up and build plugin
+description: Builds the plugin for specified architecture and build config
 inputs:
   target:
-    description: 'Target architecture for dependencies'
+    description: Target architecture for dependencies
     required: true
   config:
-    description: 'Build configuration'
+    description: Build configuration
     required: false
-    default: 'RelWithDebInfo'
+    default: RelWithDebInfo
   codesign:
-    description: 'Enable codesigning (macOS only)'
+    description: Enable codesigning (macOS only)
     required: false
     default: 'false'
   codesignIdent:
-    description: 'Developer ID for application codesigning (macOS only)'
+    description: Developer ID for application codesigning (macOS only)
     required: false
     default: '-'
   workingDirectory:
-    description: 'Working directory for packaging'
+    description: Working directory for packaging
     required: false
     default: ${{ github.workspace }}
 runs:
@@ -28,6 +28,7 @@ runs:
       shell: zsh --no-rcs --errexit --pipefail {0}
       working-directory: ${{ inputs.workingDirectory }}
       env:
+        CCACHE_DIR: ${{ inputs.workingDirectory }}/.ccache
         CODESIGN_IDENT: ${{ inputs.codesignIdent }}
         CODESIGN_TEAM: ${{ inputs.codesignTeam }}
       run: |
@@ -55,16 +56,18 @@ runs:
       if: runner.os == 'Linux'
       shell: zsh --no-rcs --errexit --pipefail {0}
       working-directory: ${{ inputs.workingDirectory }}
+      env:
+        CCACHE_DIR: ${{ inputs.workingDirectory }}/.ccache
       run: |
         : Run Ubuntu Build
 
         local -a build_args=(
-          --target linux-${{ inputs.target }}
+          --target ubuntu-${{ inputs.target }}
           --config ${{ inputs.config }}
         )
         if (( ${+RUNNER_DEBUG} )) build_args+=(--debug)
 
-        .github/scripts/build-linux ${build_args}
+        .github/scripts/build-ubuntu ${build_args}
 
     - name: Run Windows Build
       if: runner.os == 'Windows'
@@ -86,7 +89,7 @@ runs:
       if: contains(fromJSON('["Linux", "macOS"]'),runner.os)
       shell: zsh --no-rcs --errexit --pipefail {0}
       env:
-        CCACHE_CONFIGPATH: ${{ inputs.workingDirectory }}/.ccache.conf
+        CCACHE_DIR: ${{ inputs.workingDirectory }}/.ccache
       run: |
         : Create Summary 📊
 
