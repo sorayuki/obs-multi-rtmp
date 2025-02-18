@@ -40,12 +40,8 @@ Page directory "" "" onDirPageLeave
 Page instfiles
 
 Section
-SetOutPath "$INSTDIR\bin\64bit"
-File "release\RelWithDebInfo\obs-plugins\64bit\obs-multi-rtmp.dll"
-File "release\RelWithDebInfo\obs-plugins\64bit\obs-multi-rtmp.pdb"
-
-SetOutPath "$INSTDIR\data\locale"
-File "release\RelWithDebInfo\data\obs-plugins\obs-multi-rtmp\locale\*.ini"
+SetOutPath "$INSTDIR"
+File /r "release\RelWithDebInfo\obs-multi-rtmp\*"
 SectionEnd
 
 Section "Uninstaller"
