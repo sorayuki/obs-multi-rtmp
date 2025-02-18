@@ -62,3 +62,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 )
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})
+
+if (WIN32)
+  install(FILES archive-readme.txt DESTINATION . RENAME Readme.txt)
+endif ()
