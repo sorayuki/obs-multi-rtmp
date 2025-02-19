@@ -59,16 +59,6 @@ function Package {
 
     Remove-Item @RemoveArgs
 
-    Log-Group "Create shortcut..."
-    if ($True) {
-        $WshShell = New-Object -ComObject WScript.Shell
-        $ShortcutPath = "${ProjectRoot}/release/${Configuration}/Copy-Into-Here-To-Install.lnk"
-        $Shortcut = $WshShell.CreateShortcut($ShortcutPath)
-        $Shortcut.TargetPath = "%ALLUSERSPROFILE%\obs-studio\plugins"
-        $Shortcut.Save()
-    }
-    Log-Group
-
     Log-Group "Archiving ${ProductName}..."
     $CompressArgs = @{
         Path = (Get-ChildItem -Path "${ProjectRoot}/release/${Configuration}" -Exclude "${OutputName}*.*")
