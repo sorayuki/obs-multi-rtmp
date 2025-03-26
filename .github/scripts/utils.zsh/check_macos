@@ -1,4 +1,4 @@
-autoload -Uz is-at-least log_group log_info log_error log_status read_codesign
+autoload -Uz is-at-least log_group log_info log_error log_status
 
 local macos_version=$(sw_vers -productVersion)
 

@@ -4,13 +4,22 @@ if [[ "$1" == "${CMAKE_C_COMPILER}" ]] ; then
     shift
 fi
 
+export CCACHE_DIR='${CMAKE_SOURCE_DIR}/.ccache'
+export CCACHE_MAXSIZE='1G'
 export CCACHE_CPP2=true
 export CCACHE_DEPEND=true
 export CCACHE_DIRECT=true
 export CCACHE_FILECLONE=true
 export CCACHE_INODECACHE=true
-export CCACHE_NOCOMPILERCHECK='content'
-export CCACHE_SLOPPINESS='include_file_mtime,include_file_ctime,clang_index_store,system_headers'
+export CCACHE_COMPILERCHECK='content'
+
+CCACHE_SLOPPINESS='file_stat_matches,include_file_mtime,include_file_ctime,system_headers'
+
+if [[ "${CMAKE_C_COMPILER_ID}" == "AppleClang" ]]; then
+    CCACHE_SLOPPINESS="${CCACHE_SLOPPINESS},modules,clang_index_store"
+fi
+export CCACHE_SLOPPINESS
+
 if [[ "${CI}" ]]; then
     export CCACHE_NOHASHDIR=true
 fi

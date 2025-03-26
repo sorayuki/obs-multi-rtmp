@@ -22,13 +22,14 @@ function(_check_dependencies_macos)
 
   _check_dependencies()
 
-  execute_process(COMMAND "xattr" -r -d com.apple.quarantine "${dependencies_dir}"
-                  RESULT_VARIABLE result COMMAND_ERROR_IS_FATAL ANY)
+  execute_process(
+    COMMAND "xattr" -r -d com.apple.quarantine "${dependencies_dir}"
+    RESULT_VARIABLE result
+    COMMAND_ERROR_IS_FATAL ANY
+  )
 
   list(APPEND CMAKE_FRAMEWORK_PATH "${dependencies_dir}/Frameworks")
-  set(CMAKE_FRAMEWORK_PATH
-      ${CMAKE_FRAMEWORK_PATH}
-      PARENT_SCOPE)
+  set(CMAKE_FRAMEWORK_PATH ${CMAKE_FRAMEWORK_PATH} PARENT_SCOPE)
 endfunction()
 
 _check_dependencies_macos()
