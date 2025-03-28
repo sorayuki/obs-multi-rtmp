@@ -31,6 +31,10 @@
 
 #define TAG "[obs-multi-rtmp] "
 
+ // Disable the warning about declaration shadowing because it affects too 
+ // many valid cases. 
+ # pragma GCC diagnostic ignored "-Wshadow"
+
 inline std::string tostdu8(const QString& qs)
 {
     auto b = qs.toUtf8();
