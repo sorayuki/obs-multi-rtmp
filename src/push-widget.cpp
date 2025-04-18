@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "helpers.h"
 #include <regex>
 #include <optional>
 #include "push-widget.h"
@@ -255,11 +256,23 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
 
         // main output
         OBSOutput mainOutput = obs_frontend_get_streaming_output();
+        OBSOutput recordingOutput =  obs_frontend_get_recording_output();
+
         obs_output_release(mainOutput);
+        obs_output_release(recordingOutput);
 
         // video encoder
         OBSEncoder venc;
-        if (config_->videoConfig.has_value()) {
+
+        // Default to main output encoder
+        std::optional<SpecialEncoderType> specialVideoEncoderType = SpecialEncoderType::OBS_STREAMING_ENC;
+        if (config_->videoConfig.has_value())
+        {
+            // If we have a video config, check if it's a special encoder type.
+            specialVideoEncoderType = GetSpecialEncoderType(*config_->videoConfig);
+        }
+
+        if (!specialVideoEncoderType.has_value()) {
             // find shared video encoder or create new
             venc = obs_get_encoder_by_name(VideoEncoderName().c_str());
             if (venc) {
@@ -292,13 +305,29 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
                 }
             }
         } else {
-            venc = obs_output_get_video_encoder(mainOutput);
+            switch (*specialVideoEncoderType) {
+                case OBS_STREAMING_ENC:
+                    venc = obs_output_get_video_encoder(mainOutput);
+                    break;
+                case OBS_RECORDING_ENC:
+                    venc = obs_output_get_video_encoder(recordingOutput);
+                    break;
+            }
             using_main_video_encoder_ = true;
         }
 
         // audio encoder
         OBSEncoder aenc;
-        if (config_->audioConfig.has_value()) {
+
+        // Default to main output encoder
+        std::optional<SpecialEncoderType> specialAudioEncoderType = SpecialEncoderType::OBS_STREAMING_ENC;
+        if (config_->audioConfig.has_value())
+        {
+            // If we have an a udio config, check if it's a special encoder type.
+            specialAudioEncoderType = GetSpecialEncoderType(*config_->audioConfig);
+        }
+
+        if (!specialAudioEncoderType.has_value()) {
             // find shared audio encoder or create new
             aenc = obs_get_encoder_by_name(AudioEncoderName().c_str());
             if (aenc)
@@ -318,7 +347,14 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
                 }
             }
         } else {
-            aenc = obs_output_get_audio_encoder(mainOutput, 0);
+            switch (*specialVideoEncoderType) {
+                case OBS_STREAMING_ENC:
+                    aenc = obs_output_get_audio_encoder(mainOutput, 0);
+                    break;
+                case OBS_RECORDING_ENC:
+                    aenc = obs_output_get_audio_encoder(recordingOutput, 0);
+                    break;
+            }
             using_main_audio_encoder_ = true;
         }
 
