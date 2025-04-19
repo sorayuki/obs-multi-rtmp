@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "helpers.h"
 #include <regex>
 #include <optional>
 #include "push-widget.h"
@@ -255,11 +256,23 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
 
         // main output
         OBSOutput mainOutput = obs_frontend_get_streaming_output();
+        OBSOutput recordingOutput =  obs_frontend_get_recording_output();
+
         obs_output_release(mainOutput);
+        obs_output_release(recordingOutput);
 
         // video encoder
         OBSEncoder venc;
-        if (config_->videoConfig.has_value()) {
+
+        // Default to main output encoder
+        std::optional<SpecialEncoderType> specialVideoEncoderType = SpecialEncoderType::OBS_STREAMING_ENC;
+        if (config_->videoConfig.has_value())
+        {
+            // If we have a video config, check if it's a special encoder type.
+            specialVideoEncoderType = GetSpecialEncoderType(*config_->videoConfig);
+        }
+
+        if (!specialVideoEncoderType.has_value()) {
             // find shared video encoder or create new
             venc = obs_get_encoder_by_name(VideoEncoderName().c_str());
             if (venc) {
@@ -289,16 +302,40 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
                     }
                 } else {
                     blog(LOG_ERROR, TAG "Load video encoder config failed for %s. Sharing with main output.", config_->name.c_str());
+                    using_main_video_encoder_ = true;
                 }
             }
-        } else {
-            venc = obs_output_get_video_encoder(mainOutput);
+        }
+
+        // Above, we either had a special encoder used or a custom encoder config.
+        // If for some reason the custom encoder config was not found, we fell back to the special
+        // encoder type. So at this point `venc` either has a valid value, or is nullptr and specialVideoEncoder was reset.
+        if (specialVideoEncoderType.has_value()) {
+            assert(!venc);
+
+            switch (*specialVideoEncoderType) {
+                case OBS_STREAMING_ENC:
+                    venc = obs_output_get_video_encoder(mainOutput);
+                    break;
+                case OBS_RECORDING_ENC:
+                    venc = obs_output_get_video_encoder(recordingOutput);
+                    break;
+            }
             using_main_video_encoder_ = true;
         }
 
         // audio encoder
         OBSEncoder aenc;
-        if (config_->audioConfig.has_value()) {
+
+        // Default to main output encoder
+        std::optional<SpecialEncoderType> specialAudioEncoderType = SpecialEncoderType::OBS_STREAMING_ENC;
+        if (config_->audioConfig.has_value())
+        {
+            // If we have an audio config, check if it's a special encoder type.
+            specialAudioEncoderType = GetSpecialEncoderType(*config_->audioConfig);
+        }
+
+        if (!specialAudioEncoderType.has_value()) {
             // find shared audio encoder or create new
             aenc = obs_get_encoder_by_name(AudioEncoderName().c_str());
             if (aenc)
@@ -315,14 +352,32 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
                     using_main_audio_encoder_ = false;
                 } else {
                     blog(LOG_ERROR, TAG "Load audio encoder config failed for %s. Sharing with main output.", config_->name.c_str());
+                    specialAudioEncoderType = SpecialEncoderType::OBS_STREAMING_ENC;
                 }
             }
-        } else {
-            aenc = obs_output_get_audio_encoder(mainOutput, 0);
+        }
+
+        // Above, we either had a special encoder used or a custom encoder config.
+        // If for some reason the custom encoder config was not found, we fell back to the special
+        // encoder type. So at this point `aenc` either has a valid value, or is nullptr and specialAudioEncoderType was reset.
+        if (specialAudioEncoderType.has_value()) {
+            // We should never enter this with a valid `aenc`.
+            assert(!aenc);
+
+            switch (*specialVideoEncoderType) {
+                case OBS_STREAMING_ENC:
+                    aenc = obs_output_get_audio_encoder(mainOutput, 0);
+                    break;
+                case OBS_RECORDING_ENC:
+                    aenc = obs_output_get_audio_encoder(recordingOutput, 0);
+                    break;
+            }
             using_main_audio_encoder_ = true;
         }
 
         if (!aenc || !venc) {
+            // If we don't have a valid encoder, we're likely using a special encoder type that
+            // needs to be started by the user (i.e. start streaming or start recording)
             ReleaseOutputEncoder();
 
             auto msgbox = new QMessageBox(QMessageBox::Icon::Critical, 
@@ -432,10 +487,10 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
             duration -= ss;
 
             char strDuration[64] = { 0 };
-            sprintf(strDuration, "%02d:%02d:%02d", (int)hh.count(), (int)mm.count(), (int)ss.count());
+            snprintf(strDuration, sizeof(strDuration), "%02d:%02d:%02d", (int)hh.count(), (int)mm.count(), (int)ss.count());
 
             char strFps[32] = { 0 };
-            sprintf(strFps, "%d FPS", static_cast<int>(std::round((new_frames - total_frames_) / interval)));
+            snprintf(strFps, sizeof(strFps), "%d FPS", static_cast<int>(std::round((new_frames - total_frames_) / interval)));
 
             auto bps = (new_bytes - total_bytes_) * 8 / interval;
             auto strBps = [&]()-> std::string {
