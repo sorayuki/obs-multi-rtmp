@@ -101,7 +101,7 @@ class EditOutputWidgetImpl: public EditOutputWidget
         // owner of props and settings is transfered
         void UpdateProperties(obs_properties* props, obs_data* settings) {
             ResetWid();
-            layout_->addWidget(wid_ = createPropertyWidget(props, settings_ = settings, this), 0, 0, 1, 1);
+            layout_->addWidget(wid_ = createPropertyWidget(props, settings_ = settings, this), 0, 0, 1, 1, Qt::AlignTop);
             obs_data_release(settings);
         }
 
@@ -146,6 +146,7 @@ class EditOutputWidgetImpl: public EditOutputWidget
 
     QComboBox* aenc_ = 0;
     QComboBox* a_mixer_ = 0;
+    QComboBox* a_vod_track_ = nullptr;
     QLabel* a_share_notify_ = 0;
 
     QCheckBox* syncStart_ = 0;
@@ -463,13 +464,26 @@ public:
                         encLayout->addWidget(aenc_ = new QComboBox(gp), currow, curcol++);
                     }
                     ++currow;
+                    const int NUM_MIXER_TRACKS = 6;
                     {
                         int curcol = 0;
                         encLayout->addWidget(new QLabel(obs_module_text("AudioMixerID"), gp), currow, curcol++);
                         encLayout->addWidget(a_mixer_ = new QComboBox(gp), currow, curcol++);
 
-                        for(int i = 1; i <= 6; ++i)
+                        for(int i = 1; i <= NUM_MIXER_TRACKS; ++i)
                             a_mixer_->addItem(QString(std::to_string(i).c_str()), i - 1);
+                    }
+                    ++currow;
+                    {
+                        int curcol = 0;
+                        encLayout->addWidget(new QLabel(obs_module_text("AudioVODTrack"), gp), currow, curcol++);
+                        encLayout->addWidget(a_vod_track_ = new QComboBox(gp), currow, curcol++);
+
+                        // Placeholder item for setting no VOD track
+                        a_vod_track_->addItem("", -1);
+
+                        for(int i = 1; i <= NUM_MIXER_TRACKS; ++i)
+                            a_vod_track_->addItem(QString(std::to_string(i).c_str()), i - 1);
                     }
                     ++currow;
                     {
@@ -731,10 +745,12 @@ public:
         if (ae.isValid() && IsSpecialEncoder(ae.toString().toStdString()))
         {
             a_mixer_->setEnabled(false);
+            a_vod_track_->setEnabled(false);
         }
         else
         {
             a_mixer_->setEnabled(true);
+            a_vod_track_->setEnabled(true);
         }
 
         auto sharedAudioTargets = GetEncoderShareTargets(true);
@@ -818,6 +834,17 @@ public:
         it->encoderId = tostdu8(aenc_->currentData().toString());
         it->mixerId = a_mixer_->currentData().toInt();
         it->encoderParams = audioEncoderSettings_->Save();
+        
+        it->audioTracks.clear();
+
+        // First item is a placeholder
+        if (a_vod_track_->currentIndex() > 0) {
+            auto audio_track = std::make_shared<AudioTrackConfig>();
+
+            audio_track->mixer_track = a_vod_track_->currentData().toInt();
+            audio_track->output_track = 1;
+            it->audioTracks.push_back(audio_track);
+        }
     }
 
     void SaveConfig()
@@ -969,6 +996,20 @@ public:
             if (idx < 0)
                 idx = 0;
             a_mixer_->setCurrentIndex(idx);
+        }
+
+        {
+            if (config.audioTracks.empty()) {
+                a_vod_track_->setCurrentIndex(0);
+            } else {
+                // NOTE: at this time we assume only one audio track. This needs to be updated
+                // if we ever actually add UI support for more.
+                auto idx = a_vod_track_->findData(config.audioTracks.front()->mixer_track);
+                if (idx < 0)
+                    idx = 0;
+                // This is a combobox index, not the track index
+                a_vod_track_->setCurrentIndex(idx);
+            }
         }
 
         {

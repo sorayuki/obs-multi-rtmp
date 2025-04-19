@@ -2,6 +2,7 @@
 #include "helpers.h"
 #include <regex>
 #include <optional>
+#include <tuple>
 #include "push-widget.h"
 #include "edit-widget.h"
 #include "output-config.h"
@@ -113,8 +114,8 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     QPushButton* remove_btn_ = 0;
 
     obs_output_t* output_ = 0;
-    bool using_main_video_encoder_ = true;
-    bool using_main_audio_encoder_ = true;
+    bool using_main_video_encoder_ = false;
+    bool using_main_audio_encoder_ = false;
     obs_view_t* scene_view_ = 0;
     bool isUseDelay_ = false;
 
@@ -211,6 +212,17 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
                 return false;
             }
             obs_encoder_set_audio(aenc, obs_get_audio());
+
+            // Set other audio tracks
+            auto audioConfig = FindById(GlobalMultiOutputConfig().audioConfig, config_->audioConfig.value_or(""));
+            if (audioConfig) {
+                for (auto& track : audioConfig->audioTracks) {
+                    auto enc = obs_output_get_audio_encoder(output_, track->output_track);
+                    if (enc) {
+                        obs_encoder_set_audio(enc, obs_get_audio());
+                    }
+                }
+            }
         }
         
         return true;
@@ -238,8 +250,8 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         return "multi-rtmp-venc" + config_->videoConfig.value_or("");
     }
 
-    std::string AudioEncoderName() {
-        return "multi-rtmp-aenc" + config_->audioConfig.value_or("");
+    std::string AudioEncoderName(int track) {
+        return "multi-rtmp-aenc" + config_->audioConfig.value_or("") + "-track-idx-" + std::to_string(track);
     }
 
     std::optional<std::tuple<int, int>> ParseResolution(const std::optional<std::string>& res) {
@@ -299,7 +311,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         }
     }
 
-    OBSEncoder GetAudioEncoder() {
+    OBSEncoder GetAudioEncoder(int trackIdx = 0, std::optional<int> mixerId = std::nullopt) {
         auto config_id = config_->audioConfig.value_or(OBS_STREAMING_ENC_PLACEHOLDER);
         if (config_id == "" || config_id == OBS_STREAMING_ENC_PLACEHOLDER) {
             OBSOutputAutoRelease stream_output = obs_frontend_get_streaming_output();
@@ -312,14 +324,21 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
             using_main_audio_encoder_ = true;
             return enc.Get();
         } else {
-            OBSEncoderAutoRelease enc = obs_get_encoder_by_name(AudioEncoderName().c_str());
+            OBSEncoderAutoRelease enc = obs_get_encoder_by_name(AudioEncoderName(trackIdx).c_str());
             if (!enc) {
                 auto& global = GlobalMultiOutputConfig();
                 auto audioConfigId = *config_->audioConfig;
                 auto audioConfig = FindById(global.audioConfig, audioConfigId);
                 if (audioConfig) {
                     OBSDataAutoRelease settings = obs_data_create_from_json(audioConfig->encoderParams.dump().c_str());
-                    enc = obs_audio_encoder_create(audioConfig->encoderId.c_str(), AudioEncoderName().c_str(), settings, audioConfig->mixerId, nullptr);
+
+                    // If we were provided with a mixerId, override the audioConfig's mixerId with it
+                    int defaultMixerId = audioConfig->mixerId;
+                    if (auto overrideMixerId = mixerId) {
+                        defaultMixerId = *overrideMixerId;
+                    }
+
+                    enc = obs_audio_encoder_create(audioConfig->encoderId.c_str(), AudioEncoderName(trackIdx).c_str(), settings, defaultMixerId, nullptr);
                 } else {
                     assert(false && "No audio encoder config found with specified id.");
                     blog(LOG_ERROR, TAG "Load audio encoder config failed for %s. Sharing with main output.", config_->name.c_str());
@@ -354,6 +373,24 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         OBSEncoder venc = GetVideoEncoder();
         OBSEncoder aenc = GetAudioEncoder();
 
+        std::vector<std::tuple<int, OBSEncoder>> additionalTracks;
+        if (auto audioConfigId = config_->audioConfig) {
+            auto audioConfig = FindById(global.audioConfig, *audioConfigId);
+
+            if (!audioConfig) {
+                blog(LOG_ERROR, TAG "Load audio encoder config failed for %s. Could not determine additional tracks.", config_->name.c_str());
+            } else {
+                additionalTracks.reserve(audioConfig->audioTracks.size());
+                for (auto& track : audioConfig->audioTracks) {
+                    OBSEncoder enc = GetAudioEncoder(track->output_track, track->mixer_track);
+                    if (enc) {
+                        // Record the output track index and the encoder for later when we set the encoders on the output
+                        additionalTracks.push_back({ track->output_track, enc });
+                    }
+                }
+            }
+        }
+
         if (!aenc || !venc) {
             // If we don't have a valid encoder, we're likely using a special encoder type that
             // needs to be started by the user (i.e. start streaming or start recording)
@@ -370,6 +407,11 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         }
 
         obs_output_set_audio_encoder(output_, obs_encoder_get_ref(aenc), 0);
+        for (auto& track : additionalTracks) {
+            auto trackIdx = std::get<0>(track);
+            auto enc = std::get<1>(track);
+            obs_output_set_audio_encoder(output_, obs_encoder_get_ref(enc), trackIdx);
+        }
         obs_output_set_video_encoder(output_, obs_encoder_get_ref(venc));
 
         return true;

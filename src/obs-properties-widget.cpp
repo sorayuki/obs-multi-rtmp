@@ -220,7 +220,7 @@ namespace {
                 break;
             }
             default:
-                blog(LOG_WARNING, "LoadData did not handle property of type %d", propType);
+                blog(LOG_ERROR, "Unsupported property type %d", propType);
                 break;
             }
         }
@@ -271,7 +271,7 @@ namespace {
                 break;
             }
             default:
-                blog(LOG_WARNING, "SaveData did not handle property of type %d", propType);
+                blog(LOG_ERROR, "Unsupported property type %d", propType);
                 break;
             }
         }

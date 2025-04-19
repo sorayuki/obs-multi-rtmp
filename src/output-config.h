@@ -19,12 +19,18 @@ struct VideoEncoderConfig {
 };
 using VideoEncoderConfigPtr = std::shared_ptr<VideoEncoderConfig>;
 
+struct AudioTrackConfig {
+    int mixer_track;
+    int output_track;
+};
+using AudioTrackConfigPtr = std::shared_ptr<AudioTrackConfig>;
 
 struct AudioEncoderConfig {
     std::string id;
     std::string encoderId;
     nlohmann::json encoderParams;
     int mixerId = 0;
+    std::list<AudioTrackConfigPtr> audioTracks;
 };
 using AudioEncoderConfigPtr = std::shared_ptr<AudioEncoderConfig>; 
 
