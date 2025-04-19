@@ -216,6 +216,9 @@ namespace {
                 }
                 break;
             }
+            default:
+                blog(LOG_ERROR, "Unsupported property type %d", propType);
+                break;
             }
         }
 
@@ -264,6 +267,9 @@ namespace {
                 }
                 break;
             }
+            default:
+                blog(LOG_ERROR, "Unsupported property type %d", propType);
+                break;
             }
         }
     };
