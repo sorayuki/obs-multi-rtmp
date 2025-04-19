@@ -321,7 +321,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
 
         // Default to main output encoder
         std::optional<SpecialEncoderType> specialAudioEncoderType = SpecialEncoderType::OBS_STREAMING_ENC;
-        if (config_->videoConfig.has_value())
+        if (config_->audioConfig.has_value())
         {
             // If we have an a udio config, check if it's a special encoder type.
             specialAudioEncoderType = GetSpecialEncoderType(*config_->audioConfig);
