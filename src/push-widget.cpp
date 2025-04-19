@@ -302,9 +302,17 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
                     }
                 } else {
                     blog(LOG_ERROR, TAG "Load video encoder config failed for %s. Sharing with main output.", config_->name.c_str());
+                    using_main_video_encoder_ = true;
                 }
             }
-        } else {
+        }
+
+        // Above, we either had a special encoder used or a custom encoder config.
+        // If for some reason the custom encoder config was not found, we fell back to the special
+        // encoder type. So at this point `venc` either has a valid value, or is nullptr and specialVideoEncoder was reset.
+        if (specialVideoEncoderType.has_value()) {
+            assert(!venc);
+
             switch (*specialVideoEncoderType) {
                 case OBS_STREAMING_ENC:
                     venc = obs_output_get_video_encoder(mainOutput);
@@ -323,7 +331,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         std::optional<SpecialEncoderType> specialAudioEncoderType = SpecialEncoderType::OBS_STREAMING_ENC;
         if (config_->audioConfig.has_value())
         {
-            // If we have an a udio config, check if it's a special encoder type.
+            // If we have an audio config, check if it's a special encoder type.
             specialAudioEncoderType = GetSpecialEncoderType(*config_->audioConfig);
         }
 
@@ -344,9 +352,18 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
                     using_main_audio_encoder_ = false;
                 } else {
                     blog(LOG_ERROR, TAG "Load audio encoder config failed for %s. Sharing with main output.", config_->name.c_str());
+                    specialAudioEncoderType = SpecialEncoderType::OBS_STREAMING_ENC;
                 }
             }
-        } else {
+        }
+
+        // Above, we either had a special encoder used or a custom encoder config.
+        // If for some reason the custom encoder config was not found, we fell back to the special
+        // encoder type. So at this point `aenc` either has a valid value, or is nullptr and specialAudioEncoderType was reset.
+        if (specialAudioEncoderType.has_value()) {
+            // We should never enter this with a valid `aenc`.
+            assert(!aenc);
+
             switch (*specialVideoEncoderType) {
                 case OBS_STREAMING_ENC:
                     aenc = obs_output_get_audio_encoder(mainOutput, 0);
@@ -359,6 +376,8 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         }
 
         if (!aenc || !venc) {
+            // If we don't have a valid encoder, we're likely using a special encoder type that
+            // needs to be started by the user (i.e. start streaming or start recording)
             ReleaseOutputEncoder();
 
             auto msgbox = new QMessageBox(QMessageBox::Icon::Critical, 
