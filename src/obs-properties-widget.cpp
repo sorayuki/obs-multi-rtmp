@@ -1,4 +1,4 @@
-﻿#include "obs-properties-widget.h"
+#include "obs-properties-widget.h"
 #include "obs.hpp"
 
 #include "json.hpp"
@@ -158,7 +158,7 @@ namespace {
                             cb->removeItem(i);
                         cbType = obs_property_list_format(p);
                         auto cnt = obs_property_list_item_count(p);
-                        for(auto i = 0; i < cnt; ++i) {
+                        for(size_t i = 0; i < cnt; ++i) {
                             auto itemname = obs_property_list_item_name(p, i);
                             QVariant data;
                             if (cbType == obs_combo_format::OBS_COMBO_FORMAT_INT)
@@ -170,6 +170,9 @@ namespace {
                             cb->addItem(LoadCString(itemname), data);
                         }
                     }
+                    default:
+                        blog(LOG_WARNING, "ReloadProperty did not handle property of type %d", propType);
+                        break;
                 }
             }
         }
@@ -216,6 +219,9 @@ namespace {
                 }
                 break;
             }
+            default:
+                blog(LOG_WARNING, "LoadData did not handle property of type %d", propType);
+                break;
             }
         }
 
@@ -264,6 +270,9 @@ namespace {
                 }
                 break;
             }
+            default:
+                blog(LOG_WARNING, "SaveData did not handle property of type %d", propType);
+                break;
             }
         }
     };
