@@ -157,8 +157,8 @@ namespace {
                         for(int i = cb->count() - 1; i >= 0; --i)
                             cb->removeItem(i);
                         cbType = obs_property_list_format(p);
-                        auto cnt = obs_property_list_item_count(p);
-                        for(auto i = 0; i < cnt; ++i) {
+                        size_t cnt = obs_property_list_item_count(p);
+                        for(size_t i = 0; i < cnt; ++i) {
                             auto itemname = obs_property_list_item_name(p, i);
                             QVariant data;
                             if (cbType == obs_combo_format::OBS_COMBO_FORMAT_INT)
@@ -240,7 +240,7 @@ namespace {
             {
                 try {
                     auto val = tostdu8(static_cast<QLineEditWithEye*>(ctrl)->edit()->text());
-                    obs_data_set_int(data, name.c_str(), std::stod(val));
+                    obs_data_set_double(data, name.c_str(), std::stod(val));
                 } catch(...) {
                 }
                 break;
