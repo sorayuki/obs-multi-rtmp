@@ -1001,7 +1001,7 @@ public:
         bool audioConfigLoaded = false;
 
         std::optional<SpecialEncoderType> specialAudioEncoderType = defaultEncoder;
-        if (config_->videoConfig.has_value()) {
+        if (config_->audioConfig.has_value()) {
             // Check if this is a known special config
             specialAudioEncoderType = GetSpecialEncoderType(*config_->audioConfig);
         }
