@@ -598,6 +598,8 @@ public:
         }
     }
 
+    int max_video_encoder_placeholder_index = 0;
+    int max_audio_encoder_placeholder_index = 0;
     void LoadEncoders()
     {
         auto ui_text = [](auto id) {
@@ -612,6 +614,7 @@ public:
             venc_->clear();
 	        venc_->addItem(obs_module_text("SameAsOBS"), OBS_STREAMING_ENC_PLACEHOLDER);
 	        venc_->addItem(obs_module_text("SameAsOBSRecording"), OBS_RECORDING_ENC_PLACEHOLDER);
+            max_video_encoder_placeholder_index = venc_->count() - 1;
 
 	        while(it != itend) {
                 for(auto x : EnumEncodersByCodec(it->str().c_str()))
@@ -630,6 +633,7 @@ public:
             aenc_->clear();
 	        aenc_->addItem(obs_module_text("SameAsOBS"), OBS_STREAMING_ENC_PLACEHOLDER);
 	        aenc_->addItem(obs_module_text("SameAsOBSRecording"), OBS_RECORDING_ENC_PLACEHOLDER);
+            max_audio_encoder_placeholder_index = aenc_->count() - 1;
             
             while(it != itend) {
                 for(auto x : EnumEncodersByCodec(it->str().c_str()))
@@ -695,7 +699,7 @@ public:
         auto ve = venc_->currentData();
 
         // Check for special cases where the encoder is grabbed from some other source (like streaming / recording)
-        if (ve.isValid() && IsSpecialEncoder(ve.toString()))
+        if (ve.isValid() && IsSpecialEncoder(ve.toString().toStdString()))
         {
             v_scene_->setEnabled(false);
             v_resolution_->setEnabled(false);
@@ -724,7 +728,7 @@ public:
         v_share_notify_->setText(QString::fromUtf8(obs_module_text("EncoderShare") + makeShareNotify(sharedVideoTargets)));
 
         auto ae = aenc_->currentData();
-        if (ae.isValid() && IsSpecialEncoder(ae.toString()))
+        if (ae.isValid() && IsSpecialEncoder(ae.toString().toStdString()))
         {
             a_mixer_->setEnabled(false);
         }
@@ -767,7 +771,7 @@ public:
 
 
     void SaveVideoConfig() {
-        if (!config_->videoConfig.has_value() || IsSpecialEncoder(QString::fromStdString(*config_->videoConfig)))
+        if (!config_->videoConfig.has_value() || IsSpecialEncoder(*config_->videoConfig))
             return;
         
         auto& global = GlobalMultiOutputConfig();
@@ -796,7 +800,7 @@ public:
     }
 
     void SaveAudioConfig() {
-        if (!config_->audioConfig.has_value() || IsSpecialEncoder(QString::fromStdString(*config_->audioConfig)))
+        if (!config_->audioConfig.has_value() || IsSpecialEncoder(*config_->audioConfig))
             return;
         
         auto& global = GlobalMultiOutputConfig();
@@ -824,11 +828,12 @@ public:
 
         if (venc_->currentData().isValid()) {
             QString encoderId = venc_->currentData().toString();
-            if (IsSpecialEncoder(encoderId))
+            if (IsSpecialEncoder(encoderId.toStdString()))
                 config_->videoConfig = encoderId.toStdString();
-            else if (!config_->videoConfig.has_value())
+            else if (!config_->videoConfig.has_value()) {
                 config_->videoConfig = GenerateId(global);
-            SaveVideoConfig();
+                SaveVideoConfig();
+            }
         }
         else
         {
@@ -837,11 +842,12 @@ public:
 
         if (aenc_->currentData().isValid()) {
             QString encoderId = aenc_->currentData().toString();
-            if (IsSpecialEncoder(encoderId))
+            if (IsSpecialEncoder(encoderId.toStdString()))
                 config_->audioConfig = encoderId.toStdString();
-            else if (!config_->audioConfig.has_value())
+            else if (!config_->audioConfig.has_value()) {
                 config_->audioConfig = GenerateId(global);
-            SaveAudioConfig();
+                SaveAudioConfig();
+            }
         }
         else
         {
@@ -859,34 +865,37 @@ public:
         syncStop_->setChecked(target.syncStop);
     }
 
-    void LoadVideoConfig(VideoEncoderConfig& config) {
+    using IdOrVideoConfig = std::variant<std::string_view, VideoEncoderConfig*>;
+    void LoadVideoConfig(IdOrVideoConfig idOrConfig) {
+        VideoEncoderConfig* pconfig = nullptr;
         {
-            const QString encoderId = QString::fromStdString(config.encoderId);
-            if (IsSpecialEncoder(encoderId))
-            {
-                if (auto encoderType = GetSpecialEncoderType(config.encoderId))
-                {
-                    venc_->setCurrentIndex((int)*encoderType);
-                }
-                else
-                {
-                    // Maybe an encoder type was removed? Default to the first one.
-                    venc_->setCurrentIndex((int)SpecialEncoderType::OBS_STREAMING_ENC);
-                }
-
-                videoEncoderSettings_->ClearProperties();
+            QString encoderId;
+            if (auto placeholder = std::get_if<std::string_view>(&idOrConfig)) {
+                encoderId = QString::fromStdString(std::string(*placeholder));
+            } else if (auto rconfig = std::get_if<VideoEncoderConfig*>(&idOrConfig)) {
+                encoderId = QString::fromStdString((*rconfig)->encoderId);
+                pconfig = *rconfig;
+            } else {
                 return;
             }
-            
+
             auto idx = venc_->findData(encoderId);
-            if (idx > 0)
+            if (idx > max_video_encoder_placeholder_index)
                 venc_->setCurrentIndex(idx);
             else {
-                venc_->setCurrentIndex(0);
+                if (idx < 0)
+                    idx = 0;
+                venc_->setCurrentIndex(idx);
                 videoEncoderSettings_->ClearProperties();
                 return;
             }
         }
+
+        assert(pconfig != nullptr);
+        if (pconfig == nullptr)
+            return;
+
+        auto& config = *pconfig;
 
         if (config.outputScene.has_value()) {
             auto idx = v_scene_->findData(QString::fromUtf8(*config.outputScene));
@@ -917,30 +926,48 @@ public:
         }
     }
 
-    void LoadAudioConfig(AudioEncoderConfig& config) {
+    using IdOrAudioConfig = std::variant<std::string_view, AudioEncoderConfig*>;
+    void LoadAudioConfig(IdOrAudioConfig idOrConfig) {
+        AudioEncoderConfig* pconfig = nullptr;
         {
-            const QString encoderId = QString::fromStdString(config.encoderId);
-            if (IsSpecialEncoder(encoderId))
-            {
-                if (auto encoderType = GetSpecialEncoderType(config.encoderId))
-                {
-                    aenc_->setCurrentIndex((int)*encoderType);
-                }
-                else
-                {
-                    // Maybe an encoder type was removed? Default to the first one.
-                    aenc_->setCurrentIndex((int)SpecialEncoderType::OBS_STREAMING_ENC);
-                }
-
-                audioEncoderSettings_->ClearProperties();
+            QString encoderId;
+            if (auto placeholder = std::get_if<std::string_view>(&idOrConfig)) {
+                encoderId = QString::fromStdString(std::string(*placeholder));
+            } else if (auto rconfig = std::get_if<AudioEncoderConfig*>(&idOrConfig)) {
+                encoderId = QString::fromStdString((*rconfig)->encoderId);
+                pconfig = *rconfig;
+            } else {
                 return;
             }
 
             auto idx = aenc_->findData(encoderId);
-            if (idx > 0) {
+            if (idx > max_video_encoder_placeholder_index)
+                aenc_->setCurrentIndex(idx);
+            else {
+                if (idx < 0)
+                    idx = 0;
+                aenc_->setCurrentIndex(idx);
+                videoEncoderSettings_->ClearProperties();
+                return;
+            }
+        }
+
+        assert(pconfig != nullptr);
+        if (pconfig == nullptr)
+            return;
+
+        auto& config = *pconfig;
+
+        {
+            const QString encoderId = QString::fromStdString(config.encoderId);
+
+            auto idx = aenc_->findData(encoderId);
+            if (idx > max_audio_encoder_placeholder_index) {
                 aenc_->setCurrentIndex(idx);
             } else {
-                aenc_->setCurrentIndex(0);
+                if (idx < 0)
+                    idx = 0;
+                aenc_->setCurrentIndex(idx);
                 audioEncoderSettings_->ClearProperties();
                 return;
             }
@@ -971,58 +998,26 @@ public:
 
         LoadTargetConfig(*config_);
 
-        bool videoConfigLoaded = false;
-        SpecialEncoderType defaultEncoder = SpecialEncoderType::OBS_STREAMING_ENC;
-
-        std::optional<SpecialEncoderType> specialVideoEncoderType = defaultEncoder;
-        if (config_->videoConfig.has_value()) {
-            // Check if this is a known special config
-            specialVideoEncoderType = GetSpecialEncoderType(*config_->videoConfig);
-        }
-
-        if (specialVideoEncoderType.has_value()) {
-            venc_->setCurrentIndex((int)*specialVideoEncoderType);
-            videoEncoderSettings_->ClearProperties();
-            videoConfigLoaded = true;
+        auto videoConfigId = config_->videoConfig.value_or(OBS_STREAMING_ENC_PLACEHOLDER);
+        if (IsSpecialEncoder(videoConfigId)) {
+            LoadVideoConfig(videoConfigId);
         } else {
-            // This is not a special config, so we need to find the one specified.
             auto it = FindById(global.videoConfig, *config_->videoConfig);
             if (it != nullptr) {
-                LoadVideoConfig(*it);
-                videoConfigLoaded = true;
+                LoadVideoConfig(&*it);
             }
         }
 
-        if (!videoConfigLoaded) {
-            venc_->setCurrentIndex((int)defaultEncoder);
-            videoEncoderSettings_->ClearProperties();
-        }
-
-        bool audioConfigLoaded = false;
-
-        std::optional<SpecialEncoderType> specialAudioEncoderType = defaultEncoder;
-        if (config_->audioConfig.has_value()) {
-            // Check if this is a known special config
-            specialAudioEncoderType = GetSpecialEncoderType(*config_->audioConfig);
-        }
-
-        if (specialAudioEncoderType.has_value()) {
-            aenc_->setCurrentIndex((int)*specialAudioEncoderType);
-            audioEncoderSettings_->ClearProperties();
-            audioConfigLoaded = true;
+        auto audioConfigId = config_->audioConfig.value_or(OBS_STREAMING_ENC_PLACEHOLDER);
+        if (IsSpecialEncoder(audioConfigId)) {
+            LoadAudioConfig(audioConfigId);
         } else {
             auto it = FindById(global.audioConfig, *config_->audioConfig);
             if (it != nullptr) {
-                LoadAudioConfig(*it);
-                audioConfigLoaded = true;
+                LoadAudioConfig(&*it);
             }
         }
-
-        if (audioConfigLoaded == false) {
-            aenc_->setCurrentIndex((int)defaultEncoder);
-            audioEncoderSettings_->ClearProperties();
-        }
-
+        
         UpdateUI();
     }
 };
