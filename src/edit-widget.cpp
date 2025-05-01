@@ -753,6 +753,11 @@ public:
                 return { "OBS" };
             configId = *config_->videoConfig;
         }
+
+        if (IsSpecialEncoder(configId)) {
+		    return { obs_module_text("NoShare") };
+	    }
+
         std::vector<std::string> ret;
         auto& global = GlobalMultiOutputConfig();
         for(auto& x: global.targets) {
@@ -827,13 +832,13 @@ public:
         config_->serviceParam = serviceSettings_->Save();
 
         if (venc_->currentData().isValid()) {
-            QString encoderId = venc_->currentData().toString();
-            if (IsSpecialEncoder(encoderId.toStdString()))
-                config_->videoConfig = encoderId.toStdString();
-            else if (!config_->videoConfig.has_value()) {
+            std::string encoderId = venc_->currentData().toString().toStdString();
+            if (IsSpecialEncoder(encoderId))
+                config_->videoConfig = encoderId;
+	        else if (!config_->videoConfig.has_value() || IsSpecialEncoder(*config_->videoConfig)) {
                 config_->videoConfig = GenerateId(global);
-                SaveVideoConfig();
             }
+		    SaveVideoConfig();
         }
         else
         {
@@ -841,13 +846,14 @@ public:
         }
 
         if (aenc_->currentData().isValid()) {
-            QString encoderId = aenc_->currentData().toString();
-            if (IsSpecialEncoder(encoderId.toStdString()))
-                config_->audioConfig = encoderId.toStdString();
-            else if (!config_->audioConfig.has_value()) {
+            std::string encoderId = aenc_->currentData().toString().toStdString();
+
+            if (IsSpecialEncoder(encoderId))
+                config_->audioConfig = encoderId;
+	        else if (!config_->audioConfig.has_value() || IsSpecialEncoder(*config_->audioConfig)) {
                 config_->audioConfig = GenerateId(global);
-                SaveAudioConfig();
             }
+		    SaveAudioConfig();
         }
         else
         {
@@ -941,13 +947,13 @@ public:
             }
 
             auto idx = aenc_->findData(encoderId);
-            if (idx > max_video_encoder_placeholder_index)
+            if (idx > max_audio_encoder_placeholder_index)
                 aenc_->setCurrentIndex(idx);
             else {
                 if (idx < 0)
                     idx = 0;
                 aenc_->setCurrentIndex(idx);
-                videoEncoderSettings_->ClearProperties();
+                audioEncoderSettings_->ClearProperties();
                 return;
             }
         }
@@ -957,21 +963,6 @@ public:
             return;
 
         auto& config = *pconfig;
-
-        {
-            const QString encoderId = QString::fromStdString(config.encoderId);
-
-            auto idx = aenc_->findData(encoderId);
-            if (idx > max_audio_encoder_placeholder_index) {
-                aenc_->setCurrentIndex(idx);
-            } else {
-                if (idx < 0)
-                    idx = 0;
-                aenc_->setCurrentIndex(idx);
-                audioEncoderSettings_->ClearProperties();
-                return;
-            }
-        }
 
         {
             auto idx = a_mixer_->findData(config.mixerId);
