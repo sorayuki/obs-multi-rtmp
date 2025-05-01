@@ -260,11 +260,13 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     OBSEncoder GetVideoEncoder(const std::string_view& encoder_id) {
         if (encoder_id == "" || encoder_id == OBS_STREAMING_ENC_PLACEHOLDER) {
             OBSOutputAutoRelease stream_output = obs_frontend_get_streaming_output();
-            OBSEncoderAutoRelease enc = obs_output_get_video_encoder(stream_output);
+            OBSEncoder enc = obs_output_get_video_encoder(stream_output);
+            using_main_video_encoder_ = true;
             return enc.Get();
         } else if (encoder_id == OBS_RECORDING_ENC_PLACEHOLDER) {
             OBSOutputAutoRelease stream_output = obs_frontend_get_recording_output();
-            OBSEncoderAutoRelease enc = obs_output_get_video_encoder(stream_output);
+            OBSEncoder enc = obs_output_get_video_encoder(stream_output);
+            using_main_video_encoder_ = true;
             return enc.Get();
         } else {
             OBSEncoderAutoRelease enc = obs_get_encoder_by_name(encoder_id.data());
@@ -284,7 +286,6 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
                             obs_encoder_set_scaled_size(enc, w, h);
                         }
                         obs_encoder_set_frame_rate_divisor(enc, videoConfig->fpsDenumerator);
-                        using_main_video_encoder_ = false;
                     }
                 } else {
                     blog(LOG_ERROR, TAG "Load video encoder config failed for %s. Sharing with main output.", config_->name.c_str());
@@ -292,6 +293,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
                 }
             }
 
+            using_main_audio_encoder_ = false;
             return enc.Get();
         }
     }
@@ -299,11 +301,13 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     OBSEncoder GetAudioEncoder(const std::string_view& encoder_id) {
         if (encoder_id == "" || encoder_id == OBS_STREAMING_ENC_PLACEHOLDER) {
             OBSOutputAutoRelease stream_output = obs_frontend_get_streaming_output();
-            OBSEncoderAutoRelease enc = obs_output_get_audio_encoder(stream_output, 0);
+            OBSEncoder enc = obs_output_get_audio_encoder(stream_output, 0);
+            using_main_audio_encoder_ = true;
             return enc.Get();
         } else if (encoder_id == OBS_RECORDING_ENC_PLACEHOLDER) {
             OBSOutputAutoRelease stream_output = obs_frontend_get_recording_output();
-            OBSEncoderAutoRelease enc = obs_output_get_audio_encoder(stream_output, 0);
+            OBSEncoder enc = obs_output_get_audio_encoder(stream_output, 0);
+            using_main_audio_encoder_ = true;
             return enc.Get();
         } else {
             OBSEncoderAutoRelease enc = obs_get_encoder_by_name(encoder_id.data());
@@ -316,12 +320,12 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
                     obs_data_release(settings);
                     enc = obs_audio_encoder_create(audioConfig->encoderId.c_str(), AudioEncoderName().c_str(), settings, audioConfig->mixerId, nullptr);
                     obs_encoder_release(enc);
-
-                    using_main_audio_encoder_ = false;
                 } else {
                     return GetAudioEncoder(OBS_STREAMING_ENC_PLACEHOLDER);
                 }
             }
+            
+            using_main_audio_encoder_ = false;
             return enc.Get();
         }
     }
