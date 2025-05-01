@@ -242,6 +242,89 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         return "multi-rtmp-aenc" + config_->audioConfig.value_or("");
     }
 
+    std::optional<std::tuple<int, int>> ParseResolution(const std::optional<std::string>& res) {
+        if (!res.has_value())
+            return std::nullopt;
+        std::regex res_pattern(R"__(\s*(\d{1,5})\s*x\s*(\d{1,5})\s*)__");
+        std::smatch match;
+        if (std::regex_match(*res, match, res_pattern))
+        {
+            auto width = std::stoi(match[1].str());
+            auto height = std::stoi(match[2].str());
+            return {{ width, height }};
+        }
+
+        return std::nullopt;
+    }
+
+    OBSEncoder GetVideoEncoder(const std::string_view& encoder_id) {
+        if (encoder_id == "" || encoder_id == OBS_STREAMING_ENC_PLACEHOLDER) {
+            OBSOutputAutoRelease stream_output = obs_frontend_get_streaming_output();
+            OBSEncoderAutoRelease enc = obs_output_get_video_encoder(stream_output);
+            return enc.Get();
+        } else if (encoder_id == OBS_RECORDING_ENC_PLACEHOLDER) {
+            OBSOutputAutoRelease stream_output = obs_frontend_get_recording_output();
+            OBSEncoderAutoRelease enc = obs_output_get_video_encoder(stream_output);
+            return enc.Get();
+        } else {
+            OBSEncoderAutoRelease enc = obs_get_encoder_by_name(encoder_id.data());
+            if (!enc) {
+                auto& global = GlobalMultiOutputConfig();
+                auto videoConfigId = *config_->videoConfig;
+                auto videoConfig = FindById(global.videoConfig, videoConfigId);
+                if (videoConfig) {
+                    OBSData settings = obs_data_create_from_json(videoConfig->encoderParams.dump().c_str());
+                    obs_data_release(settings);
+                    enc = obs_video_encoder_create(videoConfig->encoderId.c_str(), VideoEncoderName().c_str(), settings, nullptr);
+                    if (enc) {
+                        auto wh = ParseResolution(videoConfig->resolution);
+                        if (wh.has_value()) {
+                            obs_encoder_set_gpu_scale_type(enc, obs_scale_type::OBS_SCALE_BICUBIC);
+                            auto [w, h] = *wh;
+                            obs_encoder_set_scaled_size(enc, w, h);
+                        }
+                        obs_encoder_set_frame_rate_divisor(enc, videoConfig->fpsDenumerator);
+                        using_main_video_encoder_ = false;
+                    }
+                } else {
+                    blog(LOG_ERROR, TAG "Load video encoder config failed for %s. Sharing with main output.", config_->name.c_str());
+                    return GetVideoEncoder(OBS_STREAMING_ENC_PLACEHOLDER);
+                }
+            }
+
+            return enc.Get();
+        }
+    }
+
+    OBSEncoder GetAudioEncoder(const std::string_view& encoder_id) {
+        if (encoder_id == "" || encoder_id == OBS_STREAMING_ENC_PLACEHOLDER) {
+            OBSOutputAutoRelease stream_output = obs_frontend_get_streaming_output();
+            OBSEncoderAutoRelease enc = obs_output_get_audio_encoder(stream_output, 0);
+            return enc.Get();
+        } else if (encoder_id == OBS_RECORDING_ENC_PLACEHOLDER) {
+            OBSOutputAutoRelease stream_output = obs_frontend_get_recording_output();
+            OBSEncoderAutoRelease enc = obs_output_get_audio_encoder(stream_output, 0);
+            return enc.Get();
+        } else {
+            OBSEncoderAutoRelease enc = obs_get_encoder_by_name(encoder_id.data());
+            if (!enc) {
+                auto& global = GlobalMultiOutputConfig();
+                auto audioConfigId = *config_->audioConfig;
+                auto audioConfig = FindById(global.audioConfig, audioConfigId);
+                if (audioConfig) {
+                    OBSData settings = obs_data_create_from_json(audioConfig->encoderParams.dump().c_str());
+                    obs_data_release(settings);
+                    enc = obs_audio_encoder_create(audioConfig->encoderId.c_str(), AudioEncoderName().c_str(), settings, audioConfig->mixerId, nullptr);
+                    obs_encoder_release(enc);
+
+                    using_main_audio_encoder_ = false;
+                } else {
+                    return GetAudioEncoder(OBS_STREAMING_ENC_PLACEHOLDER);
+                }
+            }
+            return enc.Get();
+        }
+    }
 
     bool PrepareOutputEncoders()
     {
@@ -261,119 +344,8 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         obs_output_release(mainOutput);
         obs_output_release(recordingOutput);
 
-        // video encoder
-        OBSEncoder venc;
-
-        // Default to main output encoder
-        std::optional<SpecialEncoderType> specialVideoEncoderType = SpecialEncoderType::OBS_STREAMING_ENC;
-        if (config_->videoConfig.has_value())
-        {
-            // If we have a video config, check if it's a special encoder type.
-            specialVideoEncoderType = GetSpecialEncoderType(*config_->videoConfig);
-        }
-
-        if (!specialVideoEncoderType.has_value()) {
-            // find shared video encoder or create new
-            venc = obs_get_encoder_by_name(VideoEncoderName().c_str());
-            if (venc) {
-                obs_encoder_release(venc);
-            } else {
-                auto videoConfigId = *config_->videoConfig;
-                auto videoConfig = FindById(global.videoConfig, videoConfigId);
-                if (videoConfig) {
-                    OBSData settings = obs_data_create_from_json(videoConfig->encoderParams.dump().c_str());
-                    obs_data_release(settings);
-                    venc = obs_video_encoder_create(videoConfig->encoderId.c_str(), VideoEncoderName().c_str(), settings, nullptr);
-                    obs_encoder_release(venc);
-                    if (venc) {
-                        if (videoConfig->resolution.has_value()) {
-                            std::regex res_pattern(R"__(\s*(\d{1,5})\s*x\s*(\d{1,5})\s*)__");
-                            std::smatch match;
-                            if (std::regex_match(*videoConfig->resolution, match, res_pattern))
-                            {
-                                auto width = std::stoi(match[1].str());
-                                auto height = std::stoi(match[2].str());
-                                obs_encoder_set_gpu_scale_type(venc, obs_scale_type::OBS_SCALE_BICUBIC);
-                                obs_encoder_set_scaled_size(venc, width, height);
-                            }
-                        }
-                        obs_encoder_set_frame_rate_divisor(venc, videoConfig->fpsDenumerator);
-                        using_main_video_encoder_ = false;
-                    }
-                } else {
-                    blog(LOG_ERROR, TAG "Load video encoder config failed for %s. Sharing with main output.", config_->name.c_str());
-                    using_main_video_encoder_ = true;
-                }
-            }
-        }
-
-        // Above, we either had a special encoder used or a custom encoder config.
-        // If for some reason the custom encoder config was not found, we fell back to the special
-        // encoder type. So at this point `venc` either has a valid value, or is nullptr and specialVideoEncoder was reset.
-        if (specialVideoEncoderType.has_value()) {
-            assert(!venc);
-
-            switch (*specialVideoEncoderType) {
-                case OBS_STREAMING_ENC:
-                    venc = obs_output_get_video_encoder(mainOutput);
-                    break;
-                case OBS_RECORDING_ENC:
-                    venc = obs_output_get_video_encoder(recordingOutput);
-                    break;
-            }
-            using_main_video_encoder_ = true;
-        }
-
-        // audio encoder
-        OBSEncoder aenc;
-
-        // Default to main output encoder
-        std::optional<SpecialEncoderType> specialAudioEncoderType = SpecialEncoderType::OBS_STREAMING_ENC;
-        if (config_->audioConfig.has_value())
-        {
-            // If we have an audio config, check if it's a special encoder type.
-            specialAudioEncoderType = GetSpecialEncoderType(*config_->audioConfig);
-        }
-
-        if (!specialAudioEncoderType.has_value()) {
-            // find shared audio encoder or create new
-            aenc = obs_get_encoder_by_name(AudioEncoderName().c_str());
-            if (aenc)
-                obs_encoder_release(aenc);
-            else {
-                auto audioConfigId = *config_->audioConfig;
-                auto audioConfig = FindById(global.audioConfig, audioConfigId);
-                if (audioConfig) {
-                    OBSData settings = obs_data_create_from_json(audioConfig->encoderParams.dump().c_str());
-                    obs_data_release(settings);
-                    aenc = obs_audio_encoder_create(audioConfig->encoderId.c_str(), AudioEncoderName().c_str(), settings, audioConfig->mixerId, nullptr);
-                    obs_encoder_release(aenc);
-
-                    using_main_audio_encoder_ = false;
-                } else {
-                    blog(LOG_ERROR, TAG "Load audio encoder config failed for %s. Sharing with main output.", config_->name.c_str());
-                    specialAudioEncoderType = SpecialEncoderType::OBS_STREAMING_ENC;
-                }
-            }
-        }
-
-        // Above, we either had a special encoder used or a custom encoder config.
-        // If for some reason the custom encoder config was not found, we fell back to the special
-        // encoder type. So at this point `aenc` either has a valid value, or is nullptr and specialAudioEncoderType was reset.
-        if (specialAudioEncoderType.has_value()) {
-            // We should never enter this with a valid `aenc`.
-            assert(!aenc);
-
-            switch (*specialVideoEncoderType) {
-                case OBS_STREAMING_ENC:
-                    aenc = obs_output_get_audio_encoder(mainOutput, 0);
-                    break;
-                case OBS_RECORDING_ENC:
-                    aenc = obs_output_get_audio_encoder(recordingOutput, 0);
-                    break;
-            }
-            using_main_audio_encoder_ = true;
-        }
+        OBSEncoder venc = GetVideoEncoder(config_->videoConfig.value_or(OBS_STREAMING_ENC_PLACEHOLDER));
+        OBSEncoder aenc = GetAudioEncoder(config_->audioConfig.value_or(OBS_STREAMING_ENC_PLACEHOLDER));
 
         if (!aenc || !venc) {
             // If we don't have a valid encoder, we're likely using a special encoder type that
