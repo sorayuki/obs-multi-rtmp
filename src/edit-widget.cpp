@@ -672,7 +672,7 @@ public:
 
     void LoadScenes()
     {
-        v_scene_->addItem(obs_module_text("SameAsOBS"), "");
+        v_scene_->addItem(obs_module_text("SameAsOBSScene"), "");
 
         using EnumParam = std::vector<std::string>;
         std::vector<std::string> scenes;
