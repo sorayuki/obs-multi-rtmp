@@ -287,6 +287,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
                         obs_encoder_set_frame_rate_divisor(enc, videoConfig->fpsDenumerator);
                     }
                 } else {
+                    assert(false && "No video encoder config found with specified id.");
                     blog(LOG_ERROR, TAG "Load video encoder config failed for %s. Sharing with main output.", config_->name.c_str());
                     config_->videoConfig = OBS_STREAMING_ENC_PLACEHOLDER;
                     return GetVideoEncoder();
@@ -320,6 +321,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
                     OBSDataAutoRelease settings = obs_data_create_from_json(audioConfig->encoderParams.dump().c_str());
                     enc = obs_audio_encoder_create(audioConfig->encoderId.c_str(), AudioEncoderName().c_str(), settings, audioConfig->mixerId, nullptr);
                 } else {
+                    assert(false && "No audio encoder config found with specified id.");
                     blog(LOG_ERROR, TAG "Load audio encoder config failed for %s. Sharing with main output.", config_->name.c_str());
                     config_->audioConfig = OBS_STREAMING_ENC_PLACEHOLDER;
                     return GetAudioEncoder();
