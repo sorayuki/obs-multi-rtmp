@@ -257,23 +257,23 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         return std::nullopt;
     }
 
-    OBSEncoder GetVideoEncoder(const std::string_view& encoder_id) {
-        if (encoder_id == "" || encoder_id == OBS_STREAMING_ENC_PLACEHOLDER) {
+    OBSEncoder GetVideoEncoder() {
+        auto config_id = config_->videoConfig.value_or(OBS_STREAMING_ENC_PLACEHOLDER);
+        if (config_id == "" || config_id == OBS_STREAMING_ENC_PLACEHOLDER) {
             OBSOutputAutoRelease stream_output = obs_frontend_get_streaming_output();
             OBSEncoder enc = obs_output_get_video_encoder(stream_output);
             using_main_video_encoder_ = true;
             return enc.Get();
-        } else if (encoder_id == OBS_RECORDING_ENC_PLACEHOLDER) {
+        } else if (config_id == OBS_RECORDING_ENC_PLACEHOLDER) {
             OBSOutputAutoRelease stream_output = obs_frontend_get_recording_output();
             OBSEncoder enc = obs_output_get_video_encoder(stream_output);
             using_main_video_encoder_ = true;
             return enc.Get();
         } else {
-            OBSEncoderAutoRelease enc = obs_get_encoder_by_name(encoder_id.data());
+            OBSEncoderAutoRelease enc = obs_get_encoder_by_name(VideoEncoderName().c_str());
             if (!enc) {
                 auto& global = GlobalMultiOutputConfig();
-                auto videoConfigId = *config_->videoConfig;
-                auto videoConfig = FindById(global.videoConfig, videoConfigId);
+                auto videoConfig = FindById(global.videoConfig, config_id);
                 if (videoConfig) {
                     OBSData settings = obs_data_create_from_json(videoConfig->encoderParams.dump().c_str());
                     obs_data_release(settings);
@@ -289,7 +289,8 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
                     }
                 } else {
                     blog(LOG_ERROR, TAG "Load video encoder config failed for %s. Sharing with main output.", config_->name.c_str());
-                    return GetVideoEncoder(OBS_STREAMING_ENC_PLACEHOLDER);
+                    config_->videoConfig = OBS_STREAMING_ENC_PLACEHOLDER;
+                    return GetVideoEncoder();
                 }
             }
 
@@ -298,19 +299,20 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         }
     }
 
-    OBSEncoder GetAudioEncoder(const std::string_view& encoder_id) {
-        if (encoder_id == "" || encoder_id == OBS_STREAMING_ENC_PLACEHOLDER) {
+    OBSEncoder GetAudioEncoder() {
+        auto config_id = config_->audioConfig.value_or(OBS_STREAMING_ENC_PLACEHOLDER);
+        if (config_id == "" || config_id == OBS_STREAMING_ENC_PLACEHOLDER) {
             OBSOutputAutoRelease stream_output = obs_frontend_get_streaming_output();
             OBSEncoder enc = obs_output_get_audio_encoder(stream_output, 0);
             using_main_audio_encoder_ = true;
             return enc.Get();
-        } else if (encoder_id == OBS_RECORDING_ENC_PLACEHOLDER) {
+        } else if (config_id == OBS_RECORDING_ENC_PLACEHOLDER) {
             OBSOutputAutoRelease stream_output = obs_frontend_get_recording_output();
             OBSEncoder enc = obs_output_get_audio_encoder(stream_output, 0);
             using_main_audio_encoder_ = true;
             return enc.Get();
         } else {
-            OBSEncoderAutoRelease enc = obs_get_encoder_by_name(encoder_id.data());
+            OBSEncoderAutoRelease enc = obs_get_encoder_by_name(AudioEncoderName().c_str());
             if (!enc) {
                 auto& global = GlobalMultiOutputConfig();
                 auto audioConfigId = *config_->audioConfig;
@@ -321,7 +323,9 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
                     enc = obs_audio_encoder_create(audioConfig->encoderId.c_str(), AudioEncoderName().c_str(), settings, audioConfig->mixerId, nullptr);
                     obs_encoder_release(enc);
                 } else {
-                    return GetAudioEncoder(OBS_STREAMING_ENC_PLACEHOLDER);
+                    blog(LOG_ERROR, TAG "Load audio encoder config failed for %s. Sharing with main output.", config_->name.c_str());
+                    config_->audioConfig = OBS_STREAMING_ENC_PLACEHOLDER;
+                    return GetAudioEncoder();
                 }
             }
             
@@ -348,8 +352,8 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         obs_output_release(mainOutput);
         obs_output_release(recordingOutput);
 
-        OBSEncoder venc = GetVideoEncoder(config_->videoConfig.value_or(OBS_STREAMING_ENC_PLACEHOLDER));
-        OBSEncoder aenc = GetAudioEncoder(config_->audioConfig.value_or(OBS_STREAMING_ENC_PLACEHOLDER));
+        OBSEncoder venc = GetVideoEncoder();
+        OBSEncoder aenc = GetAudioEncoder();
 
         if (!aenc || !venc) {
             // If we don't have a valid encoder, we're likely using a special encoder type that
