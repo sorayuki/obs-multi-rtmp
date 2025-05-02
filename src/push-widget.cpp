@@ -293,7 +293,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
                 }
             }
 
-            using_main_audio_encoder_ = false;
+            using_main_video_encoder_ = false;
             return enc.Get();
         }
     }
