@@ -275,8 +275,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
                 auto& global = GlobalMultiOutputConfig();
                 auto videoConfig = FindById(global.videoConfig, config_id);
                 if (videoConfig) {
-                    OBSData settings = obs_data_create_from_json(videoConfig->encoderParams.dump().c_str());
-                    obs_data_release(settings);
+                    OBSDataAutoRelease settings = obs_data_create_from_json(videoConfig->encoderParams.dump().c_str());
                     enc = obs_video_encoder_create(videoConfig->encoderId.c_str(), VideoEncoderName().c_str(), settings, nullptr);
                     if (enc) {
                         auto wh = ParseResolution(videoConfig->resolution);
@@ -318,10 +317,8 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
                 auto audioConfigId = *config_->audioConfig;
                 auto audioConfig = FindById(global.audioConfig, audioConfigId);
                 if (audioConfig) {
-                    OBSData settings = obs_data_create_from_json(audioConfig->encoderParams.dump().c_str());
-                    obs_data_release(settings);
+                    OBSDataAutoRelease settings = obs_data_create_from_json(audioConfig->encoderParams.dump().c_str());
                     enc = obs_audio_encoder_create(audioConfig->encoderId.c_str(), AudioEncoderName().c_str(), settings, audioConfig->mixerId, nullptr);
-                    obs_encoder_release(enc);
                 } else {
                     blog(LOG_ERROR, TAG "Load audio encoder config failed for %s. Sharing with main output.", config_->name.c_str());
                     config_->audioConfig = OBS_STREAMING_ENC_PLACEHOLDER;
