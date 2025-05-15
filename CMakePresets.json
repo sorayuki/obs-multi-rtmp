@@ -65,7 +65,7 @@
       "cacheVariables": {
         "QT_VERSION": "6",
         "CMAKE_SYSTEM_VERSION": "10.0.18363.657",
-        "CMAKE_INSTALL_PREFIX": "rundir",
+        "CMAKE_INSTALL_PREFIX": "C:/ProgramData/obs-studio/plugins",
         "CMAKE_COMPILE_WARNING_AS_ERROR": false
       }
     },

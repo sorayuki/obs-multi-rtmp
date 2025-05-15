@@ -47,12 +47,28 @@ static nlohmann::json SaveVideoConfig(VideoEncoderConfig& config) {
     return json;
 }
 
+static nlohmann::json SaveAudioTrackConfig(AudioTrackConfig &config) {
+	nlohmann::json json;
+	json["mixer_track"] = config.mixer_track;
+	json["output_track"] = config.output_track;
+	return json;
+}
+
 static nlohmann::json SaveAudioConfig(AudioEncoderConfig& config) {
     nlohmann::json json;
     json["id"] = config.id;
     json["encoder"] = config.encoderId;
     json["param"] = config.encoderParams;
     json["mixerId"] = config.mixerId;
+
+
+    nlohmann::json audio_tracks(nlohmann::json::value_t::array);
+    for(auto& track: config.audioTracks) {
+        audio_tracks.push_back(SaveAudioTrackConfig(*track));
+    }
+
+    json["audioTracks"] = audio_tracks;
+
     return json;
 }
 
@@ -135,6 +151,14 @@ static VideoEncoderConfigPtr LoadVideoConfig(nlohmann::json& json) {
     return config;
 }
 
+static AudioTrackConfigPtr LoadAudioTrackConfig(nlohmann::json& json) {
+    auto config = std::make_shared<AudioTrackConfig>();
+    config->mixer_track = GetJsonField<int>(json, "mixer_track").value_or(0);
+    config->output_track = GetJsonField<int>(json, "output_track").value_or(0);
+
+    return config;
+}
+
 static AudioEncoderConfigPtr LoadAudioConfig(nlohmann::json& json) {
     auto id = GetJsonField<std::string>(json, "id");
     if (!id.has_value())
@@ -145,6 +169,17 @@ static AudioEncoderConfigPtr LoadAudioConfig(nlohmann::json& json) {
     config->encoderId = GetJsonField<std::string>(json, "encoder").value_or("");
     config->mixerId = GetJsonField<int>(json, "mixerId").value_or(0);
     config->encoderParams = GetJsonField<nlohmann::json>(json, "param").value_or(nlohmann::json{});
+
+    auto it = json.find("audioTracks");
+    if (it != json.end() && it->type() == nlohmann::json::value_t::array) {
+        for(auto& audio_track_json: *it) {
+            if (audio_track_json.type() != nlohmann::json::value_t::object)
+                continue;
+            auto audio_track = LoadAudioTrackConfig(audio_track_json);
+            if (audio_track)
+                config->audioTracks.emplace_back(audio_track);
+        }
+    }
 
     return config;
 }

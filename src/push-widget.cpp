@@ -1,6 +1,8 @@
 #include "pch.h"
+#include "helpers.h"
 #include <regex>
 #include <optional>
+#include <tuple>
 #include "push-widget.h"
 #include "edit-widget.h"
 #include "output-config.h"
@@ -112,8 +114,8 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     QPushButton* remove_btn_ = 0;
 
     obs_output_t* output_ = 0;
-    bool using_main_video_encoder_ = true;
-    bool using_main_audio_encoder_ = true;
+    bool using_main_video_encoder_ = false;
+    bool using_main_audio_encoder_ = false;
     obs_view_t* scene_view_ = 0;
     bool isUseDelay_ = false;
 
@@ -210,6 +212,17 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
                 return false;
             }
             obs_encoder_set_audio(aenc, obs_get_audio());
+
+            // Set other audio tracks
+            auto audioConfig = FindById(GlobalMultiOutputConfig().audioConfig, config_->audioConfig.value_or(""));
+            if (audioConfig) {
+                for (auto& track : audioConfig->audioTracks) {
+                    auto enc = obs_output_get_audio_encoder(output_, track->output_track);
+                    if (enc) {
+                        obs_encoder_set_audio(enc, obs_get_audio());
+                    }
+                }
+            }
         }
         
         return true;
@@ -237,10 +250,107 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         return "multi-rtmp-venc" + config_->videoConfig.value_or("");
     }
 
-    std::string AudioEncoderName() {
-        return "multi-rtmp-aenc" + config_->audioConfig.value_or("");
+    std::string AudioEncoderName(int track) {
+        return "multi-rtmp-aenc" + config_->audioConfig.value_or("") + "-track-idx-" + std::to_string(track);
     }
 
+    std::optional<std::tuple<int, int>> ParseResolution(const std::optional<std::string>& res) {
+        if (!res.has_value())
+            return std::nullopt;
+        std::regex res_pattern(R"__(\s*(\d{1,5})\s*x\s*(\d{1,5})\s*)__");
+        std::smatch match;
+        if (std::regex_match(*res, match, res_pattern))
+        {
+            auto width = std::stoi(match[1].str());
+            auto height = std::stoi(match[2].str());
+            return {{ width, height }};
+        }
+
+        return std::nullopt;
+    }
+
+    OBSEncoder GetVideoEncoder() {
+        auto config_id = config_->videoConfig.value_or(OBS_STREAMING_ENC_PLACEHOLDER);
+        if (config_id == "" || config_id == OBS_STREAMING_ENC_PLACEHOLDER) {
+            OBSOutputAutoRelease stream_output = obs_frontend_get_streaming_output();
+            OBSEncoder enc = obs_output_get_video_encoder(stream_output);
+            using_main_video_encoder_ = true;
+            return enc.Get();
+        } else if (config_id == OBS_RECORDING_ENC_PLACEHOLDER) {
+            OBSOutputAutoRelease stream_output = obs_frontend_get_recording_output();
+            OBSEncoder enc = obs_output_get_video_encoder(stream_output);
+            using_main_video_encoder_ = true;
+            return enc.Get();
+        } else {
+            OBSEncoderAutoRelease enc = obs_get_encoder_by_name(VideoEncoderName().c_str());
+            if (!enc) {
+                auto& global = GlobalMultiOutputConfig();
+                auto videoConfig = FindById(global.videoConfig, config_id);
+                if (videoConfig) {
+                    OBSDataAutoRelease settings = obs_data_create_from_json(videoConfig->encoderParams.dump().c_str());
+                    enc = obs_video_encoder_create(videoConfig->encoderId.c_str(), VideoEncoderName().c_str(), settings, nullptr);
+                    if (enc) {
+                        auto wh = ParseResolution(videoConfig->resolution);
+                        if (wh.has_value()) {
+                            obs_encoder_set_gpu_scale_type(enc, obs_scale_type::OBS_SCALE_BICUBIC);
+                            auto [w, h] = *wh;
+                            obs_encoder_set_scaled_size(enc, w, h);
+                        }
+                        obs_encoder_set_frame_rate_divisor(enc, videoConfig->fpsDenumerator);
+                    }
+                } else {
+                    assert(false && "No video encoder config found with specified id.");
+                    blog(LOG_ERROR, TAG "Load video encoder config failed for %s. Sharing with main output.", config_->name.c_str());
+                    config_->videoConfig = OBS_STREAMING_ENC_PLACEHOLDER;
+                    return GetVideoEncoder();
+                }
+            }
+
+            using_main_video_encoder_ = false;
+            return enc.Get();
+        }
+    }
+
+    OBSEncoder GetAudioEncoder(int trackIdx = 0, std::optional<int> mixerId = std::nullopt) {
+        auto config_id = config_->audioConfig.value_or(OBS_STREAMING_ENC_PLACEHOLDER);
+        if (config_id == "" || config_id == OBS_STREAMING_ENC_PLACEHOLDER) {
+            OBSOutputAutoRelease stream_output = obs_frontend_get_streaming_output();
+            OBSEncoder enc = obs_output_get_audio_encoder(stream_output, 0);
+            using_main_audio_encoder_ = true;
+            return enc.Get();
+        } else if (config_id == OBS_RECORDING_ENC_PLACEHOLDER) {
+            OBSOutputAutoRelease stream_output = obs_frontend_get_recording_output();
+            OBSEncoder enc = obs_output_get_audio_encoder(stream_output, 0);
+            using_main_audio_encoder_ = true;
+            return enc.Get();
+        } else {
+            OBSEncoderAutoRelease enc = obs_get_encoder_by_name(AudioEncoderName(trackIdx).c_str());
+            if (!enc) {
+                auto& global = GlobalMultiOutputConfig();
+                auto audioConfigId = *config_->audioConfig;
+                auto audioConfig = FindById(global.audioConfig, audioConfigId);
+                if (audioConfig) {
+                    OBSDataAutoRelease settings = obs_data_create_from_json(audioConfig->encoderParams.dump().c_str());
+
+                    // If we were provided with a mixerId, override the audioConfig's mixerId with it
+                    int defaultMixerId = audioConfig->mixerId;
+                    if (auto overrideMixerId = mixerId) {
+                        defaultMixerId = *overrideMixerId;
+                    }
+
+                    enc = obs_audio_encoder_create(audioConfig->encoderId.c_str(), AudioEncoderName(trackIdx).c_str(), settings, defaultMixerId, nullptr);
+                } else {
+                    assert(false && "No audio encoder config found with specified id.");
+                    blog(LOG_ERROR, TAG "Load audio encoder config failed for %s. Sharing with main output.", config_->name.c_str());
+                    config_->audioConfig = OBS_STREAMING_ENC_PLACEHOLDER;
+                    return GetAudioEncoder();
+                }
+            }
+            
+            using_main_audio_encoder_ = false;
+            return enc.Get();
+        }
+    }
 
     bool PrepareOutputEncoders()
     {
@@ -255,74 +365,35 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
 
         // main output
         OBSOutput mainOutput = obs_frontend_get_streaming_output();
+        OBSOutput recordingOutput =  obs_frontend_get_recording_output();
+
         obs_output_release(mainOutput);
+        obs_output_release(recordingOutput);
 
-        // video encoder
-        OBSEncoder venc;
-        if (config_->videoConfig.has_value()) {
-            // find shared video encoder or create new
-            venc = obs_get_encoder_by_name(VideoEncoderName().c_str());
-            if (venc) {
-                obs_encoder_release(venc);
+        OBSEncoder venc = GetVideoEncoder();
+        OBSEncoder aenc = GetAudioEncoder();
+
+        std::vector<std::tuple<int, OBSEncoder>> additionalTracks;
+        if (auto audioConfigId = config_->audioConfig) {
+            auto audioConfig = FindById(global.audioConfig, *audioConfigId);
+
+            if (!audioConfig) {
+                blog(LOG_ERROR, TAG "Load audio encoder config failed for %s. Could not determine additional tracks.", config_->name.c_str());
             } else {
-                auto videoConfigId = *config_->videoConfig;
-                auto videoConfig = FindById(global.videoConfig, videoConfigId);
-                if (videoConfig) {
-                    OBSData settings = obs_data_create_from_json(videoConfig->encoderParams.dump().c_str());
-                    obs_data_release(settings);
-                    venc = obs_video_encoder_create(videoConfig->encoderId.c_str(), VideoEncoderName().c_str(), settings, nullptr);
-                    obs_encoder_release(venc);
-                    if (venc) {
-                        if (videoConfig->resolution.has_value()) {
-                            std::regex res_pattern(R"__(\s*(\d{1,5})\s*x\s*(\d{1,5})\s*)__");
-                            std::smatch match;
-                            if (std::regex_match(*videoConfig->resolution, match, res_pattern))
-                            {
-                                auto width = std::stoi(match[1].str());
-                                auto height = std::stoi(match[2].str());
-                                obs_encoder_set_gpu_scale_type(venc, obs_scale_type::OBS_SCALE_BICUBIC);
-                                obs_encoder_set_scaled_size(venc, width, height);
-                            }
-                        }
-                        obs_encoder_set_frame_rate_divisor(venc, videoConfig->fpsDenumerator);
-                        using_main_video_encoder_ = false;
+                additionalTracks.reserve(audioConfig->audioTracks.size());
+                for (auto& track : audioConfig->audioTracks) {
+                    OBSEncoder enc = GetAudioEncoder(track->output_track, track->mixer_track);
+                    if (enc) {
+                        // Record the output track index and the encoder for later when we set the encoders on the output
+                        additionalTracks.push_back({ track->output_track, enc });
                     }
-                } else {
-                    blog(LOG_ERROR, TAG "Load video encoder config failed for %s. Sharing with main output.", config_->name.c_str());
                 }
             }
-        } else {
-            venc = obs_output_get_video_encoder(mainOutput);
-            using_main_video_encoder_ = true;
-        }
-
-        // audio encoder
-        OBSEncoder aenc;
-        if (config_->audioConfig.has_value()) {
-            // find shared audio encoder or create new
-            aenc = obs_get_encoder_by_name(AudioEncoderName().c_str());
-            if (aenc)
-                obs_encoder_release(aenc);
-            else {
-                auto audioConfigId = *config_->audioConfig;
-                auto audioConfig = FindById(global.audioConfig, audioConfigId);
-                if (audioConfig) {
-                    OBSData settings = obs_data_create_from_json(audioConfig->encoderParams.dump().c_str());
-                    obs_data_release(settings);
-                    aenc = obs_audio_encoder_create(audioConfig->encoderId.c_str(), AudioEncoderName().c_str(), settings, audioConfig->mixerId, nullptr);
-                    obs_encoder_release(aenc);
-
-                    using_main_audio_encoder_ = false;
-                } else {
-                    blog(LOG_ERROR, TAG "Load audio encoder config failed for %s. Sharing with main output.", config_->name.c_str());
-                }
-            }
-        } else {
-            aenc = obs_output_get_audio_encoder(mainOutput, 0);
-            using_main_audio_encoder_ = true;
         }
 
         if (!aenc || !venc) {
+            // If we don't have a valid encoder, we're likely using a special encoder type that
+            // needs to be started by the user (i.e. start streaming or start recording)
             ReleaseOutputEncoder();
 
             auto msgbox = new QMessageBox(QMessageBox::Icon::Critical, 
@@ -336,6 +407,11 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         }
 
         obs_output_set_audio_encoder(output_, obs_encoder_get_ref(aenc), 0);
+        for (auto& track : additionalTracks) {
+            auto trackIdx = std::get<0>(track);
+            auto enc = std::get<1>(track);
+            obs_output_set_audio_encoder(output_, obs_encoder_get_ref(enc), trackIdx);
+        }
         obs_output_set_video_encoder(output_, obs_encoder_get_ref(venc));
 
         return true;
@@ -432,10 +508,10 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
             duration -= ss;
 
             char strDuration[64] = { 0 };
-            sprintf(strDuration, "%02d:%02d:%02d", (int)hh.count(), (int)mm.count(), (int)ss.count());
+            snprintf(strDuration, sizeof(strDuration), "%02d:%02d:%02d", (int)hh.count(), (int)mm.count(), (int)ss.count());
 
             char strFps[32] = { 0 };
-            sprintf(strFps, "%d FPS", static_cast<int>(std::round((new_frames - total_frames_) / interval)));
+            snprintf(strFps, sizeof(strFps), "%d FPS", static_cast<int>(std::round((new_frames - total_frames_) / interval)));
 
             auto bps = (new_bytes - total_bytes_) * 8 / interval;
             auto strBps = [&]()-> std::string {

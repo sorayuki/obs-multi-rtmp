@@ -11,6 +11,7 @@
 #include <regex>
 
 #include "obs-properties-widget.h"
+#include "helpers.h"
 #include "protocols.h"
 
 static std::optional<int> ParseStringToInt(const QString& str) {
@@ -100,7 +101,7 @@ class EditOutputWidgetImpl: public EditOutputWidget
         // owner of props and settings is transfered
         void UpdateProperties(obs_properties* props, obs_data* settings) {
             ResetWid();
-            layout_->addWidget(wid_ = createPropertyWidget(props, settings_ = settings, this), 0, 0, 1, 1);
+            layout_->addWidget(wid_ = createPropertyWidget(props, settings_ = settings, this), 0, 0, 1, 1, Qt::AlignTop);
             obs_data_release(settings);
         }
 
@@ -145,6 +146,7 @@ class EditOutputWidgetImpl: public EditOutputWidget
 
     QComboBox* aenc_ = 0;
     QComboBox* a_mixer_ = 0;
+    QComboBox* a_vod_track_ = nullptr;
     QLabel* a_share_notify_ = 0;
 
     QCheckBox* syncStart_ = 0;
@@ -462,13 +464,26 @@ public:
                         encLayout->addWidget(aenc_ = new QComboBox(gp), currow, curcol++);
                     }
                     ++currow;
+                    const int NUM_MIXER_TRACKS = 6;
                     {
                         int curcol = 0;
                         encLayout->addWidget(new QLabel(obs_module_text("AudioMixerID"), gp), currow, curcol++);
                         encLayout->addWidget(a_mixer_ = new QComboBox(gp), currow, curcol++);
 
-                        for(int i = 1; i <= 6; ++i)
+                        for(int i = 1; i <= NUM_MIXER_TRACKS; ++i)
                             a_mixer_->addItem(QString(std::to_string(i).c_str()), i - 1);
+                    }
+                    ++currow;
+                    {
+                        int curcol = 0;
+                        encLayout->addWidget(new QLabel(obs_module_text("AudioVODTrack"), gp), currow, curcol++);
+                        encLayout->addWidget(a_vod_track_ = new QComboBox(gp), currow, curcol++);
+
+                        // Placeholder item for setting no VOD track
+                        a_vod_track_->addItem("", -1);
+
+                        for(int i = 1; i <= NUM_MIXER_TRACKS; ++i)
+                            a_vod_track_->addItem(QString(std::to_string(i).c_str()), i - 1);
                     }
                     ++currow;
                     {
@@ -597,6 +612,8 @@ public:
         }
     }
 
+    int max_video_encoder_placeholder_index = 0;
+    int max_audio_encoder_placeholder_index = 0;
     void LoadEncoders()
     {
         auto ui_text = [](auto id) {
@@ -605,11 +622,15 @@ public:
 
         std::regex sp(";");
         {
+            // Video encoders
             auto old_venc = venc_->currentData();
             std::sregex_token_iterator it(supported_video_encoders_.begin(), supported_video_encoders_.end(), sp, -1), itend;
             venc_->clear();
-            venc_->addItem(obs_module_text("SameAsOBS"), "");
-            while(it != itend) {
+	        venc_->addItem(obs_module_text("SameAsOBS"), OBS_STREAMING_ENC_PLACEHOLDER);
+	        venc_->addItem(obs_module_text("SameAsOBSRecording"), OBS_RECORDING_ENC_PLACEHOLDER);
+            max_video_encoder_placeholder_index = venc_->count() - 1;
+
+	        while(it != itend) {
                 for(auto x : EnumEncodersByCodec(it->str().c_str()))
                     venc_->addItem(ui_text(x).c_str(), x.c_str());
                 ++it;
@@ -620,10 +641,14 @@ public:
         }
 
         {
+            // Audio encoders
             auto old_aenc = aenc_->currentData();
             std::sregex_token_iterator it(supported_audio_encoders_.begin(), supported_audio_encoders_.end(), sp, -1), itend;
             aenc_->clear();
-            aenc_->addItem(obs_module_text("SameAsOBS"), "");
+	        aenc_->addItem(obs_module_text("SameAsOBS"), OBS_STREAMING_ENC_PLACEHOLDER);
+	        aenc_->addItem(obs_module_text("SameAsOBSRecording"), OBS_RECORDING_ENC_PLACEHOLDER);
+            max_audio_encoder_placeholder_index = aenc_->count() - 1;
+            
             while(it != itend) {
                 for(auto x : EnumEncodersByCodec(it->str().c_str()))
                     aenc_->addItem(ui_text(x).c_str(), x.c_str());
@@ -661,7 +686,7 @@ public:
 
     void LoadScenes()
     {
-        v_scene_->addItem(obs_module_text("SameAsOBS"), "");
+        v_scene_->addItem(obs_module_text("SameAsOBSScene"), "");
 
         using EnumParam = std::vector<std::string>;
         std::vector<std::string> scenes;
@@ -686,7 +711,9 @@ public:
         protocolSelector_->setCurrentIndex(newProtocolIndex);
 
         auto ve = venc_->currentData();
-        if (ve.isValid() && ve.toString() == "")
+
+        // Check for special cases where the encoder is grabbed from some other source (like streaming / recording)
+        if (ve.isValid() && IsSpecialEncoder(ve.toString().toStdString()))
         {
             v_scene_->setEnabled(false);
             v_resolution_->setEnabled(false);
@@ -715,13 +742,15 @@ public:
         v_share_notify_->setText(QString::fromUtf8(obs_module_text("EncoderShare") + makeShareNotify(sharedVideoTargets)));
 
         auto ae = aenc_->currentData();
-        if (ae.isValid() && ae.toString() == "")
+        if (ae.isValid() && IsSpecialEncoder(ae.toString().toStdString()))
         {
             a_mixer_->setEnabled(false);
+            a_vod_track_->setEnabled(false);
         }
         else
         {
             a_mixer_->setEnabled(true);
+            a_vod_track_->setEnabled(true);
         }
 
         auto sharedAudioTargets = GetEncoderShareTargets(true);
@@ -740,6 +769,11 @@ public:
                 return { "OBS" };
             configId = *config_->videoConfig;
         }
+
+        if (IsSpecialEncoder(configId)) {
+		    return { obs_module_text("NoShare") };
+	    }
+
         std::vector<std::string> ret;
         auto& global = GlobalMultiOutputConfig();
         for(auto& x: global.targets) {
@@ -758,7 +792,7 @@ public:
 
 
     void SaveVideoConfig() {
-        if (!config_->videoConfig.has_value())
+        if (!config_->videoConfig.has_value() || IsSpecialEncoder(*config_->videoConfig))
             return;
         
         auto& global = GlobalMultiOutputConfig();
@@ -787,7 +821,7 @@ public:
     }
 
     void SaveAudioConfig() {
-        if (!config_->audioConfig.has_value())
+        if (!config_->audioConfig.has_value() || IsSpecialEncoder(*config_->audioConfig))
             return;
         
         auto& global = GlobalMultiOutputConfig();
@@ -800,6 +834,17 @@ public:
         it->encoderId = tostdu8(aenc_->currentData().toString());
         it->mixerId = a_mixer_->currentData().toInt();
         it->encoderParams = audioEncoderSettings_->Save();
+        
+        it->audioTracks.clear();
+
+        // First item is a placeholder
+        if (a_vod_track_->currentIndex() > 0) {
+            auto audio_track = std::make_shared<AudioTrackConfig>();
+
+            audio_track->mixer_track = a_vod_track_->currentData().toInt();
+            audio_track->output_track = 1;
+            it->audioTracks.push_back(audio_track);
+        }
     }
 
     void SaveConfig()
@@ -813,20 +858,29 @@ public:
         config_->outputParam = outputSettings_->Save();
         config_->serviceParam = serviceSettings_->Save();
 
-        if (venc_->currentIndex() > 0 && venc_->currentData().isValid()) {
-            if (!config_->videoConfig.has_value())
+        if (venc_->currentData().isValid()) {
+            std::string encoderId = venc_->currentData().toString().toStdString();
+            if (IsSpecialEncoder(encoderId))
+                config_->videoConfig = encoderId;
+	        else if (!config_->videoConfig.has_value() || IsSpecialEncoder(*config_->videoConfig)) {
                 config_->videoConfig = GenerateId(global);
-            SaveVideoConfig();
+            }
+		    SaveVideoConfig();
         }
         else
         {
             config_->videoConfig.reset();
         }
 
-        if (aenc_->currentIndex() > 0 && aenc_->currentData().isValid()) {
-            if (!config_->audioConfig.has_value())
+        if (aenc_->currentData().isValid()) {
+            std::string encoderId = aenc_->currentData().toString().toStdString();
+
+            if (IsSpecialEncoder(encoderId))
+                config_->audioConfig = encoderId;
+	        else if (!config_->audioConfig.has_value() || IsSpecialEncoder(*config_->audioConfig)) {
                 config_->audioConfig = GenerateId(global);
-            SaveAudioConfig();
+            }
+		    SaveAudioConfig();
         }
         else
         {
@@ -844,17 +898,37 @@ public:
         syncStop_->setChecked(target.syncStop);
     }
 
-    void LoadVideoConfig(VideoEncoderConfig& config) {
+    using IdOrVideoConfig = std::variant<std::string_view, VideoEncoderConfig*>;
+    void LoadVideoConfig(IdOrVideoConfig idOrConfig) {
+        VideoEncoderConfig* pconfig = nullptr;
         {
-            auto idx = venc_->findData(QString::fromUtf8(config.encoderId));
-            if (idx > 0)
+            QString encoderId;
+            if (auto placeholder = std::get_if<std::string_view>(&idOrConfig)) {
+                encoderId = QString::fromStdString(std::string(*placeholder));
+            } else if (auto rconfig = std::get_if<VideoEncoderConfig*>(&idOrConfig)) {
+                encoderId = QString::fromStdString((*rconfig)->encoderId);
+                pconfig = *rconfig;
+            } else {
+                return;
+            }
+
+            auto idx = venc_->findData(encoderId);
+            if (idx > max_video_encoder_placeholder_index)
                 venc_->setCurrentIndex(idx);
             else {
-                venc_->setCurrentIndex(0);
+                if (idx < 0)
+                    idx = 0;
+                venc_->setCurrentIndex(idx);
                 videoEncoderSettings_->ClearProperties();
                 return;
             }
         }
+
+        assert(pconfig != nullptr);
+        if (pconfig == nullptr)
+            return;
+
+        auto& config = *pconfig;
 
         if (config.outputScene.has_value()) {
             auto idx = v_scene_->findData(QString::fromUtf8(*config.outputScene));
@@ -885,23 +959,57 @@ public:
         }
     }
 
-    void LoadAudioConfig(AudioEncoderConfig& config) {
+    using IdOrAudioConfig = std::variant<std::string_view, AudioEncoderConfig*>;
+    void LoadAudioConfig(IdOrAudioConfig idOrConfig) {
+        AudioEncoderConfig* pconfig = nullptr;
         {
-            auto idx = aenc_->findData(QString::fromUtf8(config.encoderId));
-            if (idx > 0) {
-                aenc_->setCurrentIndex(idx);
+            QString encoderId;
+            if (auto placeholder = std::get_if<std::string_view>(&idOrConfig)) {
+                encoderId = QString::fromStdString(std::string(*placeholder));
+            } else if (auto rconfig = std::get_if<AudioEncoderConfig*>(&idOrConfig)) {
+                encoderId = QString::fromStdString((*rconfig)->encoderId);
+                pconfig = *rconfig;
             } else {
-                aenc_->setCurrentIndex(0);
+                return;
+            }
+
+            auto idx = aenc_->findData(encoderId);
+            if (idx > max_audio_encoder_placeholder_index)
+                aenc_->setCurrentIndex(idx);
+            else {
+                if (idx < 0)
+                    idx = 0;
+                aenc_->setCurrentIndex(idx);
                 audioEncoderSettings_->ClearProperties();
                 return;
             }
         }
+
+        assert(pconfig != nullptr);
+        if (pconfig == nullptr)
+            return;
+
+        auto& config = *pconfig;
 
         {
             auto idx = a_mixer_->findData(config.mixerId);
             if (idx < 0)
                 idx = 0;
             a_mixer_->setCurrentIndex(idx);
+        }
+
+        {
+            if (config.audioTracks.empty()) {
+                a_vod_track_->setCurrentIndex(0);
+            } else {
+                // NOTE: at this time we assume only one audio track. This needs to be updated
+                // if we ever actually add UI support for more.
+                auto idx = a_vod_track_->findData(config.audioTracks.front()->mixer_track);
+                if (idx < 0)
+                    idx = 0;
+                // This is a combobox index, not the track index
+                a_vod_track_->setCurrentIndex(idx);
+            }
         }
 
         {
@@ -922,32 +1030,26 @@ public:
 
         LoadTargetConfig(*config_);
 
-        bool videoConfigLoaded = false;
-        if (config_->videoConfig.has_value()) {
+        auto videoConfigId = config_->videoConfig.value_or(OBS_STREAMING_ENC_PLACEHOLDER);
+        if (IsSpecialEncoder(videoConfigId)) {
+            LoadVideoConfig(videoConfigId);
+        } else {
             auto it = FindById(global.videoConfig, *config_->videoConfig);
             if (it != nullptr) {
-                LoadVideoConfig(*it);
-                videoConfigLoaded = true;
+                LoadVideoConfig(&*it);
             }
         }
-        if (!videoConfigLoaded) {
-            venc_->setCurrentIndex(0);
-            videoEncoderSettings_->ClearProperties();
-        }
 
-        bool audioConfigLoaded = false;
-        if (config_->audioConfig.has_value()) {
+        auto audioConfigId = config_->audioConfig.value_or(OBS_STREAMING_ENC_PLACEHOLDER);
+        if (IsSpecialEncoder(audioConfigId)) {
+            LoadAudioConfig(audioConfigId);
+        } else {
             auto it = FindById(global.audioConfig, *config_->audioConfig);
             if (it != nullptr) {
-                LoadAudioConfig(*it);
-                audioConfigLoaded = true;
+                LoadAudioConfig(&*it);
             }
         }
-        if (audioConfigLoaded == false) {
-            aenc_->setCurrentIndex(0);
-            audioEncoderSettings_->ClearProperties();
-        }
-
+        
         UpdateUI();
     }
 };
