@@ -49,7 +49,6 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
   ./src/json-util.hpp
   ./src/output-config.h
   ./src/output-config.cpp
-  ./src/output-config-legacy.cpp
   ./src/obs-properties-widget.h
   ./src/obs-properties-widget.cpp
   ./src/protocols.h
@@ -60,7 +59,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
   ./dep/nlohmann-json
-  .deps/obs-studio-30.0.0/libobs
+  .deps/obs-studio-31.0.0/libobs
 )
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})

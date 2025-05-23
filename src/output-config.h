@@ -74,6 +74,4 @@ void SaveMultiOutputConfig();
 
 bool LoadMultiOutputConfig();
 
-void ImportLegacyMultiOutputConfig();
-
 std::string GenerateId(MultiOutputConfig& config);

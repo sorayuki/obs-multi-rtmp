@@ -214,14 +214,12 @@ public:
         }
         GlobalMultiOutputConfig() = {};
 
-        if (LoadMultiOutputConfig() == false) {
-            ImportLegacyMultiOutputConfig();
-        }
-        
-        for(auto x: GlobalMultiOutputConfig().targets)
-        {
-            auto pushwidget = createPushWidget(x->id, container_);
-            itemLayout_->addWidget(pushwidget);
+        if (LoadMultiOutputConfig()) {
+            for(auto x: GlobalMultiOutputConfig().targets)
+            {
+                auto pushwidget = createPushWidget(x->id, container_);
+                itemLayout_->addWidget(pushwidget);
+            }
         }
     }
 
