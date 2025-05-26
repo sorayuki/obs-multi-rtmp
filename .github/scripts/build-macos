@@ -44,7 +44,7 @@ build() {
 
   fpath=("${SCRIPT_HOME}/utils.zsh" ${fpath})
   autoload -Uz log_group log_info log_error log_output check_macos setup_ccache
-
+  export SDKROOT="$(/usr/bin/xcrun --show-sdk-path --sdk macosx)"
   if [[ ! -r ${buildspec_file} ]] {
     log_error \
       'No buildspec.json found. Please create a build specification for your project.'
