@@ -79,6 +79,30 @@ function Build {
     Log-Group "Installing ${ProductName}..."
     Invoke-External cmake @CmakeInstallArgs
 
+    # begin rearrange directory structure
+    $buildspecPath = (Join-Path $ProjectRoot "buildspec.json")
+    if (-Not (Test-Path $buildspecPath)) {
+        throw "buildspec.json not found in project root: $buildspecPath"
+    }
+    $PluginName = $(Get-Content $buildspecPath -Raw | ConvertFrom-Json).name
+    
+    $InstallPrefix = "${ProjectRoot}/release/${Configuration}"
+    
+    $installed_bindir = (Join-Path $InstallPrefix $PluginName "bin" "64bit")
+    $portable_bindir = (Join-Path $InstallPrefix "obs-plugins" "64bit")
+    Ensure-Location -Path $portable_bindir
+    Remove-Item $portable_bindir -Recurse -Force -ErrorAction Stop
+    Move-Item -Path $installed_bindir -Destination $portable_bindir -Force -ErrorAction Stop
+    
+    $installed_datadir = (Join-Path $InstallPrefix $PluginName "data")
+    $portable_datadir = (Join-Path $InstallPrefix "data" "obs-plugins" $PluginName)
+    Ensure-Location -Path $portable_datadir
+    Remove-Item $portable_datadir -Recurse -Force -ErrorAction Stop
+    Move-Item -Path $installed_datadir -Destination $portable_datadir -Force -ErrorAction Stop
+    
+    Remove-Item (Join-Path $InstallPrefix $PluginName) -Recurse -Force -ErrorAction Stop
+    # end
+
     Pop-Location -Stack BuildTemp
     Log-Group
 }
