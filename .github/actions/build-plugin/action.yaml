@@ -16,6 +16,10 @@ inputs:
     description: Developer ID for application codesigning (macOS only)
     required: false
     default: '-'
+  codesignTeam:
+    description: Team ID for application codesigning (macOS only)
+    required: false
+    default: ''
   workingDirectory:
     description: Working directory for packaging
     required: false
