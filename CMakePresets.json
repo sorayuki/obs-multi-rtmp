@@ -97,6 +97,24 @@
       }
     },
     {
+      "name": "ubuntu-aarch64",
+      "displayName": "Ubuntu arm64",
+      "description": "Build for Ubuntu arm64",
+      "inherits": ["template"],
+      "binaryDir": "${sourceDir}/build_aarch64",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "generator": "Ninja",
+      "warnings": {"dev": true, "deprecated": true},
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_INSTALL_LIBDIR": "lib/CMAKE_SYSTEM_PROCESSOR-linux-gnu"
+      }
+    },
+    {
       "name": "ubuntu-ci-x86_64",
       "inherits": ["ubuntu-x86_64"],
       "displayName": "Ubuntu x86_64 CI build",
@@ -142,6 +160,13 @@
       "configurePreset": "ubuntu-x86_64",
       "displayName": "Ubuntu x86_64",
       "description": "Ubuntu build for x86_64",
+      "configuration": "RelWithDebInfo"
+    },
+    {
+      "name": "ubuntu-aarch64",
+      "configurePreset": "ubuntu-aarch64",
+      "displayName": "Ubuntu arm64",
+      "description": "Ubuntu build for arm64",
       "configuration": "RelWithDebInfo"
     },
     {
