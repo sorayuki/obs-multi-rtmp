@@ -37,7 +37,7 @@
         }
     },
     "name": "obs-multi-rtmp",
-    "version": "0.7.2.0",
+    "version": "0.7.3.0",
     "author": "SoraYuki",
     "website": "https://github.com/sorayuki",
     "email": "me@example.com"
