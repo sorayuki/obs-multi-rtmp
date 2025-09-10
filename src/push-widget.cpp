@@ -763,6 +763,7 @@ public:
 
         if (dlg->exec() == QDialog::DialogCode::Accepted)
         {
+            SaveMultiOutputConfig();
             LoadConfig();
             return true;
         }
