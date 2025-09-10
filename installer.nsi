@@ -41,8 +41,8 @@ Page instfiles
 
 Section
 SetOutPath "$INSTDIR\bin\64bit"
-File /r "release\RelWithDebInfo\obs-plugins\64bit\"
+File /r "release\Release\obs-plugins\64bit\"
 SetOutPath "$INSTDIR\data"
-File /r "release\RelWithDebInfo\data\obs-plugins\obs-multi-rtmp\"
+File /r "release\Release\data\obs-plugins\obs-multi-rtmp\"
 SectionEnd
 
