@@ -90,14 +90,18 @@ function Build {
     
     $installed_bindir = (Join-Path $InstallPrefix $PluginName "bin" "64bit")
     $portable_bindir = (Join-Path $InstallPrefix "obs-plugins" "64bit")
+    if (Test-Path $portable_bindir) {
+        Remove-Item $portable_bindir -Recurse -Force -ErrorAction Stop
+    }
     Ensure-Location -Path $portable_bindir
-    Remove-Item $portable_bindir -Recurse -Force -ErrorAction Stop
     Move-Item -Path $installed_bindir -Destination $portable_bindir -Force -ErrorAction Stop
     
     $installed_datadir = (Join-Path $InstallPrefix $PluginName "data")
     $portable_datadir = (Join-Path $InstallPrefix "data" "obs-plugins" $PluginName)
+    if (Test-Path $portable_datadir) {
+        Remove-Item $portable_datadir -Recurse -Force -ErrorAction Stop
+    }
     Ensure-Location -Path $portable_datadir
-    Remove-Item $portable_datadir -Recurse -Force -ErrorAction Stop
     Move-Item -Path $installed_datadir -Destination $portable_datadir -Force -ErrorAction Stop
     
     Remove-Item (Join-Path $InstallPrefix $PluginName) -Recurse -Force -ErrorAction Stop
