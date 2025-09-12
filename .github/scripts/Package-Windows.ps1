@@ -60,13 +60,39 @@ function Package {
     Remove-Item @RemoveArgs
 
     Log-Group "Archiving ${ProductName}..."
-    $CompressArgs = @{
-        Path = (Get-ChildItem -Path "${ProjectRoot}/release/${Configuration}" -Exclude "${OutputName}*.*")
-        CompressionLevel = 'Optimal'
-        DestinationPath = "${ProjectRoot}/release/${OutputName}.zip"
-        Verbose = ($Env:CI -ne $null)
+    # $CompressArgs = @{
+    #     Path = (Get-ChildItem -Path "${ProjectRoot}/release/${Configuration}" -Exclude "${OutputName}*.*")
+    #     CompressionLevel = 'Optimal'
+    #     DestinationPath = "${ProjectRoot}/release/${OutputName}.zip"
+    #     Verbose = ($Env:CI -ne $null)
+    # }
+    # Compress-Archive -Force @CompressArgs
+    
+    if (-not ([AppDomain]::CurrentDomain.GetAssemblies() | Where-Object { $_.GetType('System.IO.Compression.ZipFile', $false) })) {
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
     }
-    Compress-Archive -Force @CompressArgs
+    $zipf = New-Object System.IO.Compression.ZipArchive -ArgumentList ([System.IO.File]::OpenWrite("${ProjectRoot}/release/${OutputName}.zip"), [System.IO.Compression.ZipArchiveMode]::Create)
+    function AddDirectory{
+        param( [string] $DestDir, [string] $SourceDir )
+        Log-Information "Adding directory: ${SourceDir} to ${DestDir}"
+        $Entries = Get-ChildItem -Path $SourceDir -Recurse
+        foreach( $Entry in $Entries ) {
+            $RelativePath = $Entry.FullName.Substring($SourceDir.Length).TrimStart('\')
+            $ZipEntryPath = "$DestDir/${RelativePath}"
+            if ( $Entry.PSIsContainer -eq $false ) {
+                Log-Information "Adding file entry: ${ZipEntryPath}"
+                $stream = $zipf.CreateEntry($ZipEntryPath, [System.IO.Compression.CompressionLevel]::Optimal)
+                $fileStream = [System.IO.File]::OpenRead($Entry.FullName)
+                $entryStream = $stream.Open()
+                $fileStream.CopyTo($entryStream)
+                $entryStream.Close()
+                $fileStream.Close()
+            }
+        }
+    }
+    AddDirectory "obs-plugins/64bit" "${ProjectRoot}/release/${Configuration}/${ProductName}/bin/64bit"
+    AddDirectory "data/obs-plugins/${ProductName}" "${ProjectRoot}/release/${Configuration}/${ProductName}/data"
+    $zipf.Dispose()
     Log-Group
 
     $NsiFile = "${ProjectRoot}/installer.nsi"
