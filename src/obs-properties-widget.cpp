@@ -53,7 +53,11 @@ namespace {
                 edit_->setEchoMode(QLineEdit::EchoMode::Password);
                 layout->addWidget(eye_ = new QCheckBox(u8"👀", this));
 
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
                 QObject::connect(eye_, &QCheckBox::checkStateChanged, [=](Qt::CheckState newstate) {
+#else
+                QObject::connect(eye_, &QCheckBox::stateChanged, [=](int newstate) {
+#endif
                     if (newstate == Qt::CheckState::Checked) {
                         edit_->setEchoMode(QLineEdit::EchoMode::Normal);
                     } else {
@@ -92,7 +96,11 @@ namespace {
             switch(propType = obs_property_get_type(p)) {
                 case OBS_PROPERTY_BOOL: {
                     auto cb = new QCheckBox(parent);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
                     QObject::connect(cb, &QCheckBox::checkStateChanged, [=](Qt::CheckState) {
+#else
+                    QObject::connect(cb, &QCheckBox::stateChanged, [=](int) {
+#endif
                         updater->UpdateUI();
                     });
                     ctrl = cb;
