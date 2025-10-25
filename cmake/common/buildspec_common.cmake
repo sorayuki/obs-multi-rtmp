@@ -199,6 +199,19 @@ function(_check_dependencies)
       file(MAKE_DIRECTORY "${dependencies_dir}/${destination}")
       if(dependency STREQUAL obs-studio)
         file(ARCHIVE_EXTRACT INPUT "${dependencies_dir}/${file}" DESTINATION "${dependencies_dir}")
+
+        # Patch OBS Studio CMakeLists.txt to enable Swift language for macOS
+        if(OS_MACOS)
+          set(obs_cmake_file "${dependencies_dir}/${destination}/CMakeLists.txt")
+          if(EXISTS "${obs_cmake_file}")
+            file(READ "${obs_cmake_file}" obs_cmake_content)
+            string(REGEX REPLACE
+              "(project\\(obs-studio VERSION [^)]+\\))"
+              "\\1\n\nif(APPLE)\n  enable_language(Swift)\nendif()"
+              obs_cmake_content "${obs_cmake_content}")
+            file(WRITE "${obs_cmake_file}" "${obs_cmake_content}")
+          endif()
+        endif()
       else()
         file(ARCHIVE_EXTRACT INPUT "${dependencies_dir}/${file}" DESTINATION "${dependencies_dir}/${destination}")
       endif()
