@@ -585,7 +585,8 @@ public:
                     if (it != global.targets.end()) {
                         global.targets.erase(it);
                     }
-                    delete this;
+                    // delete this;
+                    this->deleteLater();
                     SaveMultiOutputConfig();
                 });
             }

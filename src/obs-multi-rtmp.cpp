@@ -66,7 +66,8 @@ public:
                 });
                 if (it != global.targets.end())
                     global.targets.erase(it);
-                delete pushwidget;
+                // delete pushwidget;
+                pushwidget->deleteLater();
             }
         });
         layout_->addWidget(addButton);
