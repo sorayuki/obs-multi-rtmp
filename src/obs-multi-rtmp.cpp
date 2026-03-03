@@ -52,22 +52,15 @@ public:
         auto addButton = new QPushButton(obs_module_text("Btn.NewTarget"), container_);
         QObject::connect(addButton, &QPushButton::clicked, [this]() {
             auto& global = GlobalMultiOutputConfig();
-            auto newid = GenerateId(global);
+            auto newId = GenerateId(global);
             auto target = std::make_shared<OutputTargetConfig>();
-            target->id = newid;
+            target->id = newId;
             global.targets.emplace_back(target);
-            auto pushwidget = createPushWidget(newid, container_);
-            itemLayout_->addWidget(pushwidget);
-            if (pushwidget->ShowEditDlg())
+            auto pushWidget = AddPushWidget(newId);
+            if (pushWidget->ShowEditDlg()) {
                 SaveConfig();
-            else {
-                auto it = std::find_if(global.targets.begin(), global.targets.end(), [newid](auto& x) {
-                    return x->id == newid;
-                });
-                if (it != global.targets.end())
-                    global.targets.erase(it);
-                // delete pushwidget;
-                pushwidget->deleteLater();
+            } else {
+                DeletePushWidget(newId);
             }
         });
         layout_->addWidget(addButton);
@@ -90,11 +83,38 @@ public:
             for (auto x : GetAllPushWidgets())
                 x->StopStreaming();
         });
-        
-        // load config
-        itemLayout_ = new QVBoxLayout(container_);
+ 
+        // load and show outputs
+        outputsContainer_ = new QListWidget(container_);
+        outputsContainer_->setDragDropMode(QAbstractItemView::InternalMove);
+        outputsContainer_->setSelectionMode(QAbstractItemView::SingleSelection);
+        outputsContainer_->setDropIndicatorShown(true);
+        outputsContainer_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+        outputsContainer_->setStyleSheet(
+            "QListWidget {"
+            "   padding: 0px;"
+            "   margin: 0px;"
+            "   border: none;"
+            "   background: transparent;"
+            "}"
+            "QListWidget::item:selected, QListWidget::item:active {"
+            "   border: none;"
+            "   background: transparent;"
+            "}"
+            "QListWidget::item:hover, QListWidget::item:hover:selected, QListWidget::item:hover:active {"
+            "   border: none;"
+            "   background: rgba(127, 127, 127, 0.1);"
+            "   cursor: move;"
+            "}"
+        );
         LoadConfig();
-        layout_->addLayout(itemLayout_);
+        connect(
+            outputsContainer_->model(),
+            &QAbstractItemModel::rowsMoved,
+            this,
+            &MultiOutputWidget::OnOutputMoved
+        );
+        layout_->addWidget(outputsContainer_);
 
         // donate
         if (std::string("\xe5\xa4\x9a\xe8\xb7\xaf\xe6\x8e\xa8\xe6\xb5\x81") == obs_module_text("Title"))
@@ -189,16 +209,13 @@ public:
         fullLayout->addWidget(&scroll_, 0, 0);
     }
 
-    std::vector<PushWidget*> GetAllPushWidgets()
+    std::list<PushWidget*> GetAllPushWidgets()
     {
-        std::vector<PushWidget*> result;
-        for(auto& c : container_->children())
+        std::list<PushWidget*> result;
+        for(auto& c : outputsContainer_->findChildren<QWidget *>("push-widget"))
         {
-            if (c->objectName() == "push-widget")
-            {
-                auto w = dynamic_cast<PushWidget*>(c);
-                result.push_back(w);
-            }
+            auto w = dynamic_cast<PushWidget*>(c);
+            result.push_back(w);
         }
         return result;
     }
@@ -208,27 +225,111 @@ public:
         SaveMultiOutputConfig();
     }
 
+    void OnOutputMoved(
+        const QModelIndex &parent,
+        int start,
+        int end,
+        const QModelIndex &destination,
+        int row
+    )
+    {
+        // To fix the compiler warning about unused parameters
+        (void)parent;
+        (void)end;
+        (void)destination;
+
+        // Move an output in targets list to same index as in the drag-drop signal
+        auto targetsList = &(GlobalMultiOutputConfig().targets);
+        auto itToMove = targetsList->begin();
+        std::advance(itToMove, start);
+
+        auto itNewPos = targetsList->begin();
+        std::advance(itNewPos, row);
+
+        targetsList->splice(itNewPos, *targetsList, itToMove);
+
+        SaveConfig();
+        outputsContainer_->clearSelection();
+    }
+
     void LoadConfig()
     {
-        for(auto x: GetAllPushWidgets()) {
-            delete x;
-        }
-        GlobalMultiOutputConfig() = {};
+        outputsContainer_->clear();
 
-        if (LoadMultiOutputConfig()) {
-            for(auto x: GlobalMultiOutputConfig().targets)
-            {
-                auto pushwidget = createPushWidget(x->id, container_);
-                itemLayout_->addWidget(pushwidget);
-            }
+        GlobalMultiOutputConfig() = {};
+        if (!LoadMultiOutputConfig()) {
+            return;
+        }
+
+        for(auto x: GlobalMultiOutputConfig().targets)
+        {
+            AddPushWidget(x->id);
         }
     }
 
 private:
+    // Main widget of this module's dock
     QWidget* container_ = 0;
-    QScrollArea scroll_;
-    QVBoxLayout* itemLayout_ = 0;
+    // The layout of the root widget
     QVBoxLayout* layout_ = 0;
+    // Scrollable area in case of overflows of content
+    QScrollArea scroll_;
+    // Widget, that contains output source widgets
+    QListWidget* outputsContainer_ = 0;
+
+    void DeletePushWidget(const std::string& targetId)
+    {
+        // Delete from model
+        auto outputTargets = &(GlobalMultiOutputConfig().targets);
+        auto currentTarget = std::find_if(outputTargets->begin(), outputTargets->end(), [&targetId](auto& x) { return x->id == targetId; });
+        if (currentTarget == outputTargets->end()) {
+            return;
+        }
+        outputTargets->erase(currentTarget);
+
+        // Delete from List View
+        const QString id = QString::fromStdString(targetId);
+        for(auto listItem: outputsContainer_->findItems("", Qt::MatchContains)) {
+            if (listItem->data(Qt::UserRole).toString() != id) {
+                continue;
+            }
+            int row = outputsContainer_->row(listItem);
+            auto removedItem = outputsContainer_->takeItem(row);
+            auto pushWidget = outputsContainer_->itemWidget(removedItem);
+            delete removedItem;
+            if (pushWidget) {
+                pushWidget->deleteLater();
+            }
+        }
+    }
+
+    PushWidget* AddPushWidget(const std::string& targetId)
+    {
+        auto pushWidget = createPushWidget(targetId, outputsContainer_->viewport());
+
+        QListWidgetItem* listItem = new QListWidgetItem(outputsContainer_);
+        listItem->setData(Qt::UserRole, QString::fromStdString(targetId));
+        listItem->setSizeHint(pushWidget->sizeHint());
+        outputsContainer_->addItem(listItem);
+        outputsContainer_->setItemWidget(listItem, pushWidget);
+
+        QObject::connect(pushWidget->GetDeleteButton(), &QPushButton::clicked, [this, targetId]() {
+            auto msgbox = new QMessageBox(
+                QMessageBox::Icon::Question,
+                obs_module_text("Question.Title"),
+                obs_module_text("Question.Delete"),
+                QMessageBox::Yes | QMessageBox::No,
+                this
+            );
+            if (msgbox->exec() != QMessageBox::Yes) {
+                return;
+            }
+            DeletePushWidget(targetId);
+            SaveConfig();
+        });
+
+        return pushWidget;
+    }
 };
 
 OBS_DECLARE_MODULE()
