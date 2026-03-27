@@ -3,6 +3,7 @@
 #include <list>
 #include <regex>
 #include <filesystem>
+#include <unordered_map>
 
 #include "push-widget.h"
 #include "plugin-support.h"
@@ -212,10 +213,17 @@ public:
     std::list<PushWidget*> GetAllPushWidgets()
     {
         std::list<PushWidget*> result;
-        for(auto& c : outputsContainer_->findChildren<QWidget *>("push-widget"))
-        {
-            auto w = dynamic_cast<PushWidget*>(c);
-            result.push_back(w);
+        for (int row = 0; row < outputsContainer_->count(); ++row) {
+            auto item = outputsContainer_->item(row);
+            if (!item) {
+                continue;
+            }
+
+            auto widget = outputsContainer_->itemWidget(item);
+            auto pushWidget = dynamic_cast<PushWidget*>(widget);
+            if (pushWidget) {
+                result.push_back(pushWidget);
+            }
         }
         return result;
     }
@@ -233,20 +241,58 @@ public:
         int row
     )
     {
-        // To fix the compiler warning about unused parameters
-        (void)parent;
-        (void)end;
-        (void)destination;
+        // QListWidget uses a single root parent for internal move operations.
+        if (parent != destination) {
+            return;
+        }
 
-        // Move an output in targets list to same index as in the drag-drop signal
-        auto targetsList = &(GlobalMultiOutputConfig().targets);
-        auto itToMove = targetsList->begin();
-        std::advance(itToMove, start);
+        const int count = outputsContainer_->count();
+        if (count <= 0 || start < 0 || end < start || row < 0 || row > count) {
+            return;
+        }
 
-        auto itNewPos = targetsList->begin();
-        std::advance(itNewPos, row);
+        auto &targets = GlobalMultiOutputConfig().targets;
+        std::unordered_map<std::string, OutputTargetConfigPtr> targetById;
+        targetById.reserve(targets.size());
+        for (auto &target : targets) {
+            if (target) {
+                targetById.emplace(target->id, target);
+            }
+        }
 
-        targetsList->splice(itNewPos, *targetsList, itToMove);
+        std::remove_reference_t<decltype(targets)> reordered;
+        for (int i = 0; i < count; ++i) {
+            auto item = outputsContainer_->item(i);
+            if (!item) {
+                continue;
+            }
+
+            auto id = item->data(Qt::UserRole).toString().toStdString();
+            auto it = targetById.find(id);
+            if (it == targetById.end()) {
+                continue;
+            }
+
+            reordered.emplace_back(it->second);
+            targetById.erase(it);
+        }
+
+        // Keep unmatched items in their previous order to avoid accidental loss.
+        if (!targetById.empty()) {
+            for (auto &target : targets) {
+                if (!target) {
+                    continue;
+                }
+                auto it = targetById.find(target->id);
+                if (it == targetById.end()) {
+                    continue;
+                }
+                reordered.emplace_back(it->second);
+                targetById.erase(it);
+            }
+        }
+
+        targets.swap(reordered);
 
         SaveConfig();
         outputsContainer_->clearSelection();
@@ -307,7 +353,7 @@ private:
     {
         auto pushWidget = createPushWidget(targetId, outputsContainer_->viewport());
 
-        QListWidgetItem* listItem = new QListWidgetItem(outputsContainer_);
+        QListWidgetItem* listItem = new QListWidgetItem();
         listItem->setData(Qt::UserRole, QString::fromStdString(targetId));
         listItem->setSizeHint(pushWidget->sizeHint());
         outputsContainer_->addItem(listItem);
