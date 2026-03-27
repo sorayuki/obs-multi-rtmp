@@ -17,6 +17,8 @@
 #include <QThread>
 #include <QTabWidget>
 #include <QLineEdit>
+#include <QListWidget>
+#include <QSizePolicy>
 #include <QTimer>
 #include <QMessageBox>
 #include <QComboBox>

@@ -238,8 +238,6 @@ static MultiOutputConfig LoadMultiOutputConfig(const std::string& content) {
     }
 }
 
-
-
 void SaveMultiOutputConfig() {
     auto profiledir = obs_frontend_get_current_profile_path();
     if (profiledir) {

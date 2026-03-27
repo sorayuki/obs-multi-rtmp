@@ -119,6 +119,9 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     obs_view_t* scene_view_ = 0;
     bool isUseDelay_ = false;
 
+    QPushButton* GetDeleteButton() {
+        return remove_btn_;
+    }
 
     bool PrepareOutputService()
     {
@@ -156,19 +159,18 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     {
         if (!output_)
             return true;
-        else if (output_ && obs_output_active(output_) == false)
-        {
-            auto service = obs_output_get_service(output_);
-            if (service)
-            {
-                obs_output_set_service(output_, nullptr);
-                obs_service_release(service);
-            }
-            return true;
-        }
-        else {
+
+        if (obs_output_active(output_)) {
             return false;
         }
+        
+        auto service = obs_output_get_service(output_);
+        if (service)
+        {
+            obs_output_set_service(output_, nullptr);
+            obs_service_release(service);
+        }
+        return true;
     }
 
 
@@ -571,26 +573,6 @@ public:
         });
 
         layout->addWidget(remove_btn_ = new QPushButton(obs_module_text("Btn.Delete"), this), 1, 2);
-        QObject::connect(remove_btn_, &QPushButton::clicked, [this]() {
-            auto msgbox = new QMessageBox(QMessageBox::Icon::Question,
-                obs_module_text("Question.Title"),
-                obs_module_text("Question.Delete"),
-                QMessageBox::Yes | QMessageBox::No,
-                this
-            );
-            if (msgbox->exec() == QMessageBox::Yes) {
-                GetGlobalService().RunInUIThread([this]() {
-                    auto& global = GlobalMultiOutputConfig();
-                    auto it = std::find_if(global.targets.begin(), global.targets.end(), [&](auto& x) { return x->id == targetid_; });
-                    if (it != global.targets.end()) {
-                        global.targets.erase(it);
-                    }
-                    // delete this;
-                    this->deleteLater();
-                    SaveMultiOutputConfig();
-                });
-            }
-        });
 
         layout->addWidget(msg_ = new QLabel(u8"", this), 2, 0, 1, 3);
         msg_->setWordWrap(true);
@@ -609,14 +591,14 @@ public:
     void StartStreaming() override {
         if (IsRunning())
             return;
-        
+
         // recreate output
         ReleaseOutput();
 
         if (output_ == nullptr)
         {
             obs_data* output_settings = obs_data_create_from_json(config_->outputParam.dump().c_str());
-            
+
             auto protocolInfo = GetProtocolInfos()->GetInfo(config_->protocol.c_str());
             assert(protocolInfo);
             if (!protocolInfo) {
@@ -728,26 +710,18 @@ public:
 
     bool IsRunning()
     {
-        if (output_ == nullptr)
-            return false;
-        if (output_ != nullptr && obs_output_active(output_) == false)
-            return false;
-        if (output_ != nullptr && obs_output_active(output_) == true)
-            return true;
-        assert(false);
-        return false;
+        return output_ != nullptr && obs_output_active(output_); 
     }
 
     void StartStop()
     {
-        if (IsRunning() == false)
-        {
-            StartStreaming();
-        }
-        else if (output_ != nullptr)
+        if (IsRunning())
         {
             StopStreaming();
+            return;
         }
+
+        StartStreaming();
     }
 
     void Stop()
