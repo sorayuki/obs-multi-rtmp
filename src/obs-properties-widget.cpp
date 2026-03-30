@@ -151,9 +151,9 @@ namespace {
         }
 
         ~PropertyWidget() {
-            if (label) 
+            if (label)
                 delete label;
-            if (ctrl) 
+            if (ctrl)
                 delete ctrl;
         }
 
@@ -291,6 +291,7 @@ namespace {
         obs_properties* props;
         OBSData settings;
         OBSData orig_settings;
+        std::function<void()> geometryChangeCallback_;
 
     public:
         QPropertiesWidgetImpl(obs_properties* props, obs_data* p_settings, QWidget* parent)
@@ -321,6 +322,10 @@ namespace {
                 obs_properties_destroy(props);
         }
 
+        void SetGeometryChangeCallback(std::function<void()> callback) override {
+            geometryChangeCallback_ = std::move(callback);
+        }
+
         void LoadProperties() {
             std::unordered_map<std::string, std::shared_ptr<PropertyWidget>> oldpropwids;
             oldpropwids.swap(propwids);
@@ -339,6 +344,7 @@ namespace {
             layout->setColumnStretch(0, 0);
             layout->setColumnStretch(1, 1);
             layout->setContentsMargins(0, 0, 0, 0);
+            layout->setSizeConstraint(QLayout::SetMinAndMaxSize);
             auto x = obs_properties_first(props);
             int currow = 0;
             do {
@@ -366,6 +372,7 @@ namespace {
             if (oldLayout)
                 delete oldLayout;
             setLayout(layout);
+            NotifyGeometryChanged();
         }
 
         bool isUpdating = false;
@@ -392,6 +399,14 @@ namespace {
 
         void Save() {
             obs_data_apply(orig_settings, settings);
+        }
+
+    private:
+        void NotifyGeometryChanged() {
+            updateGeometry();
+            adjustSize();
+            if (geometryChangeCallback_)
+                geometryChangeCallback_();
         }
     };
 };

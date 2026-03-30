@@ -4,7 +4,6 @@
 #include "obs.hpp"
 #include <QMenu>
 #include <QTabWidget>
-#include <QScrollBar>
 #include <qevent.h>
 #include <QComboBox>
 
@@ -62,52 +61,132 @@ static obs_properties* AddBF(obs_properties* p) {
 }
 
 
-template<class T>
-class EventFilter: public QObject {
-    T lambda_;
-public:
-    bool eventFilter(QObject *watched, QEvent *event) override {
-        return lambda_(watched, event);
-    }
-    
-    EventFilter(QObject* parent, T&& lambda): lambda_(std::move(lambda)) {
-        setParent(parent);
-    }
-};
-
-
 class EditOutputWidgetImpl: public EditOutputWidget
 {
+    class ContentSizeTabWidget: public QTabWidget {
+    public:
+        using QTabWidget::QTabWidget;
+
+        QSize sizeHint() const override {
+            return CalculateTabSize([](QWidget* widget) { return widget->sizeHint(); });
+        }
+
+        QSize minimumSizeHint() const override {
+            return CalculateTabSize([](QWidget* widget) { return widget->minimumSizeHint(); });
+        }
+
+    private:
+        template<class T>
+        QSize CalculateTabSize(T getWidgetSize) const {
+            auto current = currentWidget();
+            auto bar = tabBar();
+            if (!current || !bar)
+                return QTabWidget::sizeHint();
+
+            auto pageSize = getWidgetSize(current);
+            if (!pageSize.isValid())
+                pageSize = current->sizeHint();
+
+            auto tabSize = bar->sizeHint();
+            auto result = pageSize;
+            switch (tabPosition()) {
+            case QTabWidget::West:
+            case QTabWidget::East:
+                result.rwidth() += tabSize.width();
+                result.setHeight((std::max)(result.height(), tabSize.height()));
+                break;
+            case QTabWidget::North:
+            case QTabWidget::South:
+            default:
+                result.setWidth((std::max)(result.width(), tabSize.width()));
+                result.rheight() += tabSize.height();
+                break;
+            }
+
+            const int frame = style()->pixelMetric(QStyle::PM_DefaultFrameWidth, nullptr, this) * 2;
+            result.rwidth() += frame;
+            result.rheight() += frame;
+            return result;
+        }
+    };
+
+    class ContentSizeScrollArea: public QScrollArea {
+    public:
+        using QScrollArea::QScrollArea;
+
+        QSize sizeHint() const override {
+            auto hint = viewportSizeHint();
+            if (!hint.isValid())
+                return QScrollArea::sizeHint();
+
+            const int frame = frameWidth() * 2;
+            hint.rwidth() += frame;
+            hint.rheight() += frame;
+            return hint;
+        }
+
+        QSize minimumSizeHint() const override {
+            return QScrollArea::minimumSizeHint();
+        }
+
+    protected:
+        QSize viewportSizeHint() const override {
+            auto content = widget();
+            if (!content)
+                return QScrollArea::viewportSizeHint();
+
+            if (auto contentLayout = content->layout()) {
+                auto hint = contentLayout->sizeHint();
+                if (hint.isValid())
+                    return hint;
+            }
+
+            auto hint = content->sizeHint();
+            if (hint.isValid())
+                return hint;
+
+            return QScrollArea::viewportSizeHint();
+        }
+    };
+
     QWidget* container_;
-    QScrollArea* scroll_;
+    ContentSizeScrollArea* scroll_;
+    ContentSizeTabWidget* outputSettingsTabs_ = nullptr;
 
     std::string targetid_;
     OutputTargetConfigPtr config_ = nullptr;
 
     QLineEdit* name_ = 0;
+    bool resizeToContentPending_ = false;
 
     class PropertiesWidget: public QWidget {
     public:
-        PropertiesWidget(QWidget* parent)
+        PropertiesWidget(std::function<void()> onContentSizeChanged, QWidget* parent)
             : QWidget(parent)
+            , onContentSizeChanged_(std::move(onContentSizeChanged))
         {
             layout_ = new QGridLayout(this);
-            layout_->setRowStretch(0, 1);
             layout_->setColumnStretch(0, 1);
             layout_->setContentsMargins(0, 0, 0, 0);
+            layout_->setSizeConstraint(QLayout::SetMinAndMaxSize);
             setLayout(layout_);
         }
 
         // owner of props and settings is transfered
         void UpdateProperties(obs_properties* props, obs_data* settings) {
             ResetWid();
-            layout_->addWidget(wid_ = createPropertyWidget(props, settings_ = settings, this), 0, 0, 1, 1, Qt::AlignTop);
+            wid_ = createPropertyWidget(props, settings_ = settings, this);
+            layout_->addWidget(wid_, 0, 0, 1, 1, Qt::AlignTop);
+            wid_->SetGeometryChangeCallback(onContentSizeChanged_);
+            NotifyContentSizeChanged();
             obs_data_release(settings);
         }
 
         void ClearProperties() {
             ResetWid();
-            layout_->addWidget(new QWidget(this), 0, 0, 1, 1);
+            placeholder_ = new QWidget(this);
+            layout_->addWidget(placeholder_, 0, 0, 1, 1);
+            NotifyContentSizeChanged();
         }
 
         nlohmann::json Save() {
@@ -120,13 +199,27 @@ class EditOutputWidgetImpl: public EditOutputWidget
     private:
         QGridLayout* layout_ = nullptr;
         QPropertiesWidget* wid_ = nullptr;
+        QWidget* placeholder_ = nullptr;
         OBSData settings_;
+        std::function<void()> onContentSizeChanged_;
 
         void ResetWid() {
             if (wid_) {
                 delete wid_;
                 wid_ = nullptr;
             }
+            if (placeholder_) {
+                delete placeholder_;
+                placeholder_ = nullptr;
+            }
+        }
+
+        void NotifyContentSizeChanged() {
+            layout_->activate();
+            updateGeometry();
+            adjustSize();
+            if (onContentSizeChanged_)
+                onContentSizeChanged_();
         }
     };
 
@@ -261,37 +354,86 @@ class EditOutputWidgetImpl: public EditOutputWidget
         menu->exec(QCursor::pos());
     }
 
+    void RefreshContentGeometry() {
+        layout()->activate();
+        if (outputSettingsTabs_) {
+            outputSettingsTabs_->adjustSize();
+            outputSettingsTabs_->updateGeometry();
+        }
+        container_->layout()->activate();
+        container_->adjustSize();
+        container_->updateGeometry();
+        scroll_->adjustSize();
+        scroll_->updateGeometry();
+    }
+
+    QSize CalculateMaximumDialogSize() const {
+        QSize maxSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
+        auto currentScreen = screen();
+        if (!currentScreen)
+            return maxSize;
+
+        auto available = currentScreen->availableGeometry().size();
+        auto frame = frameSize() - size();
+        return QSize(
+            (std::max)(0, available.width() - frame.width()),
+            (std::max)(0, available.height() - frame.height()));
+    }
+
+    void ApplyAutoDialogSize() {
+        auto targetSize = sizeHint();
+        if (!targetSize.isValid())
+            return;
+
+        auto maxSize = CalculateMaximumDialogSize();
+        setMaximumSize(maxSize);
+        resize(targetSize.boundedTo(maxSize).expandedTo(minimumSizeHint()));
+    }
+
+    void ScheduleResizeToContent() {
+        if (resizeToContentPending_)
+            return;
+
+        resizeToContentPending_ = true;
+        QTimer::singleShot(0, this, [this]() {
+            resizeToContentPending_ = false;
+            ResizeToContent();
+        });
+    }
+
+    void ResizeToContent() {
+        if (!layout() || !container_ || !container_->layout() || !scroll_)
+            return;
+
+        RefreshContentGeometry();
+        ApplyAutoDialogSize();
+    }
+
+protected:
+    void showEvent(QShowEvent* event) override {
+        QDialog::showEvent(event);
+        ScheduleResizeToContent();
+    }
+
     QTabWidget* CreateOutputSettingsWidget(QWidget* parent) {
-        auto tab = new QTabWidget(parent);
+        auto tab = outputSettingsTabs_ = new ContentSizeTabWidget(parent);
 
         // service
         {
-            serviceSettings_ = new PropertiesWidget(tab);
+            serviceSettings_ = new PropertiesWidget([this]() { ScheduleResizeToContent(); }, tab);
             updateServiceTab();
             tab->addTab(serviceSettings_, obs_module_text("Tab.Service"));
         }
 
         // output
         {
-            outputSettings_ = new PropertiesWidget(tab);
+            outputSettings_ = new PropertiesWidget([this]() { ScheduleResizeToContent(); }, tab);
             updateOutputTab();
             tab->addTab(outputSettings_, obs_module_text("Tab.Output"));
         }
 
-        QObject::connect(tab, &QTabWidget::currentChanged, [tab](int index) {
-            for(int i=0; i < tab->count(); ++i) {
-                auto widget = tab->widget(i);
-                if(i != index)
-                    widget->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
-            }
-
-            auto widget = tab->widget(index);
-            widget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
-            widget->resize(widget->minimumSizeHint());
-            widget->adjustSize();
-
-            tab->resize(tab->minimumSizeHint());
-            tab->adjustSize();
+        QObject::connect(tab, &QTabWidget::currentChanged, [this](int) {
+            ScheduleResizeToContent();
         });
 
         tab->setCurrentIndex(0);
@@ -350,16 +492,17 @@ public:
 
         setWindowTitle(obs_module_text("StreamingSettings"));
 
-        scroll_ = new QScrollArea(this);
+        scroll_ = new ContentSizeScrollArea(this);
         scroll_->setHorizontalScrollBarPolicy(Qt::ScrollBarPolicy::ScrollBarAsNeeded);
         scroll_->setVerticalScrollBarPolicy(Qt::ScrollBarPolicy::ScrollBarAsNeeded);
-        scroll_->setSizePolicy(QSizePolicy::Policy::Expanding, QSizePolicy::Policy::Expanding);
+        scroll_->setSizePolicy(QSizePolicy::Policy::Preferred, QSizePolicy::Policy::Preferred);
         scroll_->setSizeAdjustPolicy(QScrollArea::SizeAdjustPolicy::AdjustToContents);
 
         container_ = new QWidget(scroll_);
-        container_->setSizePolicy(QSizePolicy::Policy::Expanding, QSizePolicy::Policy::Expanding);
+        container_->setSizePolicy(QSizePolicy::Policy::Preferred, QSizePolicy::Policy::Preferred);
 
         auto layout = new QVBoxLayout(container_);
+        layout->setAlignment(Qt::AlignTop);
 
         int currow = 0;
         {
@@ -431,8 +574,7 @@ public:
                     }
                     ++currow;
                     {
-                        encLayout->addWidget(videoEncoderSettings_ = new PropertiesWidget(gp), currow, 0, 1, 2);
-                        // videoEncoderSettings_->setMinimumHeight(180);
+                        encLayout->addWidget(videoEncoderSettings_ = new PropertiesWidget([this]() { ScheduleResizeToContent(); }, gp), currow, 0, 1, 2);
                     }
                     gp->setLayout(encLayout);
                 }
@@ -487,7 +629,7 @@ public:
                     }
                     ++currow;
                     {
-                        encLayout->addWidget(audioEncoderSettings_ = new PropertiesWidget(gp), currow, 0, 1, 2);
+                        encLayout->addWidget(audioEncoderSettings_ = new PropertiesWidget([this]() { ScheduleResizeToContent(); }, gp), currow, 0, 1, 2);
                     }
                     gp->setLayout(encLayout);
                 }
@@ -518,11 +660,11 @@ public:
             layout->addWidget(okbtn);
         }
 
-        layout->setSizeConstraint(QLayout::SetFixedSize);
+        layout->setSizeConstraint(QLayout::SetMinAndMaxSize);
         container_->setLayout(layout);
 
         scroll_->setWidget(container_);
-        scroll_->setWidgetResizable(true);
+        scroll_->setWidgetResizable(false);
 
         auto fullLayout = new QGridLayout(this);
         fullLayout->setContentsMargins(0, 0, 0, 0);
@@ -539,45 +681,6 @@ public:
         LoadConfig();
         ConnectWidgetSignals();
         UpdateUI();
-
-        auto resizeCount = std::make_shared<int>(0);
-        container_->installEventFilter(new EventFilter(container_, [this, resizeCount](QObject* watched, QEvent* ev) {
-            if (watched == container_ && ev->type() == QEvent::Resize) {
-                ++*resizeCount;
-                if (*resizeCount == 2) { // why 2? I don't know
-                    auto frameGeo = frameGeometry();
-                    auto clientGeo = geometry();
-
-                    auto sizehint = container_->layout()->sizeHint();
-                    // add frame size
-                    sizehint = sizehint.grownBy(QMargins(
-                        frameGeo.width() - clientGeo.width(),
-                        frameGeo.height() - clientGeo.height(),
-                        0, 0
-                    ));
-                    auto vs = scroll_->verticalScrollBar();
-                    auto hs = scroll_->horizontalScrollBar();
-                    sizehint = sizehint.grownBy(QMargins(
-                        vs ? vs->width() / 2 : 0, hs ? hs->height() / 2 : 0, 
-                        vs ? vs->width() / 2 : 0, hs ? hs->height() / 2 : 0
-                    ));
-                    auto parentCenter = parentWidget()->geometry().center();
-                    QRect g;
-                    g.setSize(sizehint);
-                    g.moveCenter(parentCenter);
-                    auto avail = screen()->availableGeometry();
-                    g = avail.intersected(g);
-
-                    // remove frame size
-                    g.setTop(g.top() + (clientGeo.top() - frameGeo.top()));
-                    g.setBottom(g.bottom() - (frameGeo.bottom() - clientGeo.bottom()));
-                    g.setLeft(g.left() + (clientGeo.left() - frameGeo.left()));
-                    g.setRight(g.right() - (frameGeo.right() - clientGeo.right()));
-                    setGeometry(g);
-                }
-            }
-            return false;
-        }));
     }
 
     void ConnectWidgetSignals()
