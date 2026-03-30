@@ -37,6 +37,64 @@ GlobalService& GetGlobalService() {
 }
 
 
+class OutputsListWidget : public QListWidget
+{
+public:
+    using QListWidget::QListWidget;
+
+    QSize sizeHint() const override
+    {
+        QSize hint = QListWidget::sizeHint();
+        hint.setHeight(ContentHeight());
+        return hint;
+    }
+
+    QSize minimumSizeHint() const override
+    {
+        return sizeHint();
+    }
+
+protected:
+    bool event(QEvent *event) override
+    {
+        const bool handled = QListWidget::event(event);
+
+        switch (event->type()) {
+        case QEvent::FontChange:
+        case QEvent::LayoutRequest:
+        case QEvent::PolishRequest:
+        case QEvent::Show:
+        case QEvent::StyleChange:
+            updateGeometry();
+            break;
+        default:
+            break;
+        }
+
+        return handled;
+    }
+
+private:
+    int ContentHeight() const
+    {
+        auto *widget = const_cast<OutputsListWidget *>(this);
+        widget->doItemsLayout();
+
+        int totalHeight = frameWidth() * 2;
+        const int itemCount = count();
+        for (int i = 0; i < itemCount; ++i) {
+            totalHeight += sizeHintForRow(i);
+        }
+
+        if (itemCount > 1) {
+            totalHeight += (itemCount - 1) * spacing();
+        }
+
+        return (std::max)(totalHeight, frameWidth() * 2);
+    }
+};
+
+
 class MultiOutputWidget : public QWidget
 {
 public:
@@ -48,6 +106,7 @@ public:
         container_ = new QWidget(&scroll_);
         layout_ = new QVBoxLayout(container_);
         layout_->setAlignment(Qt::AlignmentFlag::AlignTop);
+        layout_->setSizeConstraint(QLayout::SetMinAndMaxSize);
 
         // init widget
         auto addButton = new QPushButton(obs_module_text("Btn.NewTarget"), container_);
@@ -86,11 +145,14 @@ public:
         });
  
         // load and show outputs
-        outputsContainer_ = new QListWidget(container_);
+        outputsContainer_ = new OutputsListWidget(container_);
         outputsContainer_->setDragDropMode(QAbstractItemView::InternalMove);
         outputsContainer_->setSelectionMode(QAbstractItemView::SingleSelection);
         outputsContainer_->setDropIndicatorShown(true);
-        outputsContainer_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+        outputsContainer_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Maximum);
+        outputsContainer_->setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContents);
+        outputsContainer_->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        outputsContainer_->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
         outputsContainer_->setStyleSheet(
             "QListWidget {"
             "   padding: 0px;"
