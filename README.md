@@ -52,3 +52,30 @@ If you find this tool useful and want to doante, here is the link. (Please do no
 
 This project uses obs-plugintemplate.   
 Please refer to obs-plugintemplate to understand how it works.
+
+### macOS
+
+Requirements:
+
+- macOS 12 or newer
+- Xcode 16 or newer, selected with `xcode-select`
+- CMake 3.28 or newer
+- Homebrew tools used by the OBS plugin template (`brew bundle --file .github/scripts/.Brewfile`)
+
+Build a universal macOS plugin with:
+
+```sh
+cmake --preset macos
+cmake --build --preset macos
+cmake --install build_macos --config RelWithDebInfo
+```
+
+The install step places `obs-multi-rtmp.plugin` in:
+
+```text
+~/Library/Application Support/obs-studio/plugins
+```
+
+The macOS preset downloads the OBS, obs-deps, and Qt dependency archives described
+in `buildspec.json` into `.deps`. If you keep those dependencies somewhere else,
+pass their location through `CMAKE_PREFIX_PATH` or set `OBS_PLUGIN_DEPENDENCY_DIR`.

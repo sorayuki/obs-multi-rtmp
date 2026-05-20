@@ -13,9 +13,28 @@ include(helpers)
 
 add_library(${CMAKE_PROJECT_NAME} MODULE)
 
-list(APPEND CMAKE_PREFIX_PATH ${CMAKE_CURRENT_SOURCE_DIR}/.deps/obs-studio-31.0.0/build_x64/libobs)
-list(APPEND CMAKE_PREFIX_PATH ${CMAKE_CURRENT_SOURCE_DIR}/.deps/obs-studio-31.0.0/build_x64/deps/w32-pthreads)
-list(APPEND CMAKE_PREFIX_PATH ${CMAKE_CURRENT_SOURCE_DIR}/.deps/obs-studio-31.0.0/build_x64/UI/obs-frontend-api)
+set(
+  OBS_PLUGIN_DEPENDENCY_DIR
+  "${CMAKE_CURRENT_SOURCE_DIR}/.deps"
+  CACHE PATH
+  "Directory containing OBS, obs-deps, and Qt dependencies"
+)
+
+if(OS_WINDOWS)
+  foreach(_obs_version 32.0.0 31.0.0)
+    set(_obs_build_dir "${OBS_PLUGIN_DEPENDENCY_DIR}/obs-studio-${_obs_version}/build_x64")
+    if(EXISTS "${_obs_build_dir}")
+      list(
+        APPEND
+        CMAKE_PREFIX_PATH
+        "${_obs_build_dir}/libobs"
+        "${_obs_build_dir}/deps/w32-pthreads"
+        "${_obs_build_dir}/UI/obs-frontend-api"
+      )
+      break()
+    endif()
+  endforeach()
+endif()
 
 find_package(libobs REQUIRED)
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::libobs)
@@ -26,7 +45,7 @@ if(ENABLE_FRONTEND_API)
 endif()
 
 if(ENABLE_QT)
-  find_package(Qt6 COMPONENTS Widgets Core)
+  find_package(Qt6 REQUIRED COMPONENTS Widgets Core)
   target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE Qt6::Core Qt6::Widgets)
   target_compile_options(
     ${CMAKE_PROJECT_NAME}
@@ -59,7 +78,6 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
   ./dep/nlohmann-json
-  .deps/obs-studio-31.0.0/libobs
 )
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})
