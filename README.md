@@ -1,3 +1,12 @@
+# obs-multi-rtmp macOS support fork
+
+このリポジトリは [sorayuki/obs-multi-rtmp](https://github.com/sorayuki/obs-multi-rtmp)
+を fork し、macOS でビルド・利用できるように対応したバージョンです。
+
+This repository is a fork of
+[sorayuki/obs-multi-rtmp](https://github.com/sorayuki/obs-multi-rtmp) with
+macOS build and usage support added.
+
 # [Homepage / 主页](https://sorayuki.github.io/obs-multi-rtmp)
 
 ## 为什么首页是日语？ / Why is the homepage in Japanese?
