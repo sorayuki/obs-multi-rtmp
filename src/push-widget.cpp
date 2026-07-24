@@ -802,10 +802,10 @@ public:
                     SetMsg(obs_module_text("Error.Unknown"));
                     break;
             }
-        });
 
-        ReleaseOutputEncoder();
-        ReleaseOutputSceneView();
+            ReleaseOutputEncoder();
+            ReleaseOutputSceneView();
+        });
     }
 };
 
