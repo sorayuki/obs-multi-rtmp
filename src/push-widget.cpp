@@ -1,12 +1,12 @@
 #include "pch.h"
 #include "helpers.h"
-#include <regex>
 #include <optional>
 #include <tuple>
 #include "push-widget.h"
 #include "edit-widget.h"
 #include "output-config.h"
 #include "protocols.h"
+#include "stream-format.h"
 
 #include "obs.hpp"
 
@@ -256,21 +256,6 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         return "multi-rtmp-aenc" + config_->audioConfig.value_or("") + "-track-idx-" + std::to_string(track);
     }
 
-    std::optional<std::tuple<int, int>> ParseResolution(const std::optional<std::string>& res) {
-        if (!res.has_value())
-            return std::nullopt;
-        std::regex res_pattern(R"__(\s*(\d{1,5})\s*x\s*(\d{1,5})\s*)__");
-        std::smatch match;
-        if (std::regex_match(*res, match, res_pattern))
-        {
-            auto width = std::stoi(match[1].str());
-            auto height = std::stoi(match[2].str());
-            return {{ width, height }};
-        }
-
-        return std::nullopt;
-    }
-
     OBSEncoder GetVideoEncoder() {
         auto config_id = config_->videoConfig.value_or(OBS_STREAMING_ENC_PLACEHOLDER);
         if (config_id == "" || config_id == OBS_STREAMING_ENC_PLACEHOLDER) {
@@ -292,7 +277,9 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
                     OBSDataAutoRelease settings = obs_data_create_from_json(videoConfig->encoderParams.dump().c_str());
                     enc = obs_video_encoder_create(videoConfig->encoderId.c_str(), VideoEncoderName().c_str(), settings, nullptr);
                     if (enc) {
-                        auto wh = ParseResolution(videoConfig->resolution);
+                        std::optional<std::pair<int, int>> wh;
+                        if (videoConfig->resolution)
+                            wh = ParseResolution(*videoConfig->resolution);
                         if (wh.has_value()) {
                             obs_encoder_set_gpu_scale_type(enc, obs_scale_type::OBS_SCALE_BICUBIC);
                             auto [w, h] = *wh;
@@ -490,10 +477,6 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         if (!output_)
             return;
 
-        static const char* units[] = {
-            "bps", "Kbps", "Mbps", "Gbps", "Tbps", "Pbps", "Ebps", "Zbps", "Ybps"
-        };
-
         auto new_bytes = obs_output_get_total_bytes(output_);
         auto new_frames = obs_output_get_total_frames(output_);
         auto now = clock::now();
@@ -501,40 +484,12 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         auto interval = std::chrono::duration_cast<std::chrono::duration<double>>(now - last_info_time_).count();
         if (interval > 0)
         {
-            auto duration = now - begin_time_;
-            auto hh = duration_cast<hours>(duration);
-            duration -= hh;
-            auto mm = duration_cast<minutes>(duration);
-            duration -= mm;
-            auto ss = duration_cast<seconds>(duration);
-            duration -= ss;
-
-            char strDuration[64] = { 0 };
-            snprintf(strDuration, sizeof(strDuration), "%02d:%02d:%02d", (int)hh.count(), (int)mm.count(), (int)ss.count());
-
-            char strFps[32] = { 0 };
-            snprintf(strFps, sizeof(strFps), "%d FPS", static_cast<int>(std::round((new_frames - total_frames_) / interval)));
-
+            auto duration = duration_cast<std::chrono::seconds>(now - begin_time_);
+            std::string strDuration = FormatDuration(duration);
+            int fps = static_cast<int>(std::round((new_frames - total_frames_) / interval));
             auto bps = (new_bytes - total_bytes_) * 8 / interval;
-            auto strBps = [&]()-> std::string {
-                if (bps > 0)
-                {
-                    int unitMaxIndex = sizeof(units) / sizeof(*units);
-                    int unitIndex = static_cast<int>(log10(bps) / 3);
-                    if (unitIndex >= unitMaxIndex)
-                        unitIndex = unitMaxIndex - 1;
-                    auto strVal = std::to_string(bps / pow(1000, unitIndex)).substr(0, 4);
-                    if (!strVal.empty() && strVal.back() == '.')
-                        strVal.pop_back();
-                    return strVal + " " + units[unitIndex];
-                }
-                else
-                {
-                    return "0 bps";
-                }
-            }();
-            
-            msg_->setText((std::string(strDuration) + "  " + strBps + "  " + strFps).c_str());
+            msg_->setText((strDuration + "  " + FormatBitrate(bps)
+                           + "  " + std::to_string(fps) + " FPS").c_str());
         }
 
         total_frames_ = new_frames;

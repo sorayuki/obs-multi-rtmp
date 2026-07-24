@@ -55,6 +55,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
   ./src/protocols.cpp
   ./src/helpers.h
   ./src/helpers.cpp
+  ./src/stream-format.h
+  ./src/stream-format.cpp
 )
 
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
