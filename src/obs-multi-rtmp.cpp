@@ -5,11 +5,15 @@
 #include <filesystem>
 #include <unordered_map>
 
+#include <QFileDialog>
+#include <QFile>
+
 #include "push-widget.h"
 #include "plugin-support.h"
 
 #include "output-config.h"
 #include "target-order.h"
+#include "config-serialization.h"
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -133,6 +137,10 @@ public:
         allBtnLayout->addWidget(startAllButton);
         auto stopAllButton = new QPushButton(obs_module_text("Btn.StopAll"), allBtnContainer);
         allBtnLayout->addWidget(stopAllButton);
+        auto exportBtn = new QPushButton(obs_module_text("Btn.Export"), allBtnContainer);
+        allBtnLayout->addWidget(exportBtn);
+        auto importBtn = new QPushButton(obs_module_text("Btn.Import"), allBtnContainer);
+        allBtnLayout->addWidget(importBtn);
         allBtnContainer->setLayout(allBtnLayout);
         layout_->addWidget(allBtnContainer);
 
@@ -144,7 +152,56 @@ public:
             for (auto x : GetAllPushWidgets())
                 x->StopStreaming();
         });
- 
+
+        QObject::connect(exportBtn, &QPushButton::clicked, [this]() {
+            auto path = QFileDialog::getSaveFileName(this, obs_module_text("Btn.Export"),
+                "obs-multi-rtmp.json", "JSON (*.json)");
+            if (path.isEmpty()) return;
+            auto content = ConfigToJsonString(GlobalMultiOutputConfig());
+            QFile f(path);
+            if (f.open(QIODevice::WriteOnly)) {
+                f.write(content.c_str());
+                f.close();
+            }
+        });
+
+        QObject::connect(importBtn, &QPushButton::clicked, [this]() {
+            auto path = QFileDialog::getOpenFileName(this, obs_module_text("Btn.Import"),
+                "", "JSON (*.json)");
+            if (path.isEmpty()) return;
+            QFile f(path);
+            if (!f.open(QIODevice::ReadOnly)) return;
+            auto bytes = f.readAll();
+            f.close();
+            std::string err;
+            auto imported = ConfigFromJsonString(bytes.constData(), &err);
+            if (!err.empty()) {
+                QMessageBox::warning(this, obs_module_text("Btn.Import"), QString::fromStdString(err));
+                return;
+            }
+
+            QMessageBox box(QMessageBox::Question, obs_module_text("Btn.Import"),
+                obs_module_text("Import.ReplaceOrMerge"),
+                QMessageBox::NoButton, this);
+            auto* replaceBtn = box.addButton(obs_module_text("Import.Replace"), QMessageBox::AcceptRole);
+            auto* mergeBtn = box.addButton(obs_module_text("Import.Merge"), QMessageBox::AcceptRole);
+            box.addButton(QMessageBox::Cancel);
+            box.exec();
+            if (box.clickedButton() == replaceBtn) {
+                GlobalMultiOutputConfig() = imported;
+            } else if (box.clickedButton() == mergeBtn) {
+                RemapImportedIds(imported, GlobalMultiOutputConfig());
+                auto& g = GlobalMultiOutputConfig();
+                for (auto& t : imported.targets) g.targets.push_back(t);
+                for (auto& v : imported.videoConfig) g.videoConfig.push_back(v);
+                for (auto& a : imported.audioConfig) g.audioConfig.push_back(a);
+            } else {
+                return;
+            }
+            SaveConfig();
+            LoadConfig();
+        });
+
         // load and show outputs
         outputsContainer_ = new OutputsListWidget(container_);
         outputsContainer_->setDragDropMode(QAbstractItemView::InternalMove);
