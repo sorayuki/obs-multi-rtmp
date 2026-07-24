@@ -249,16 +249,40 @@ std::string GenerateUniqueId(std::unordered_set<std::string>& usedIds) {
 // `usedIds` so later lists (and later items in the same list) see it too.
 // Returns the old-id -> new-id map for ids that were actually rewritten, so
 // callers can fix up references (e.g. a target's videoConfig/audioConfig).
+//
+// If two (or more) items in `items` share the same original id (a
+// malformed/messy import), a string reference from outside this list (e.g. a
+// target's videoConfig/audioConfig) cannot distinguish which of them it
+// meant, so we resolve that ambiguity consistently as "first occurrence
+// wins":
+//   - If the FIRST item holding a given original id doesn't need to move
+//     (no collision), it keeps that id -- it stays the unambiguous, still
+//     valid owner, so no remap entry is recorded for it at all. Any later
+//     duplicate still gets its own fresh id (to avoid a same-list id clash)
+//     but must NOT be recorded as a remap target, or a reference to the
+//     original id would be silently redirected away from the first
+//     occurrence to this unrelated later duplicate.
+//   - If the first occurrence itself has to move (it collides with
+//     `existing` or an earlier list), that first remap is what gets
+//     recorded; later duplicates also move but never overwrite that entry.
+// `keptOriginalIds` tracks ids that some earlier item in *this* list already
+// legitimately kept unchanged, so we know not to let a later duplicate's
+// remap hijack that id's entry.
 template<class ListT>
 std::unordered_map<std::string, std::string> RemapIdsInPlace(ListT& items, std::unordered_set<std::string>& usedIds) {
     std::unordered_map<std::string, std::string> remap;
+    std::unordered_set<std::string> keptOriginalIds;
     for (auto& item : items) {
         if (!item)
             continue;
-        if (usedIds.find(item->id) != usedIds.end()) {
+        auto originalId = item->id;
+        if (usedIds.find(originalId) != usedIds.end()) {
             auto newId = GenerateUniqueId(usedIds);
-            remap[item->id] = newId;
+            if (keptOriginalIds.find(originalId) == keptOriginalIds.end())
+                remap.emplace(originalId, newId);
             item->id = newId;
+        } else {
+            keptOriginalIds.insert(originalId);
         }
         usedIds.insert(item->id);
     }

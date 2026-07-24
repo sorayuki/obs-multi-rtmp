@@ -101,3 +101,42 @@ TEST_CASE("ConfigFromJsonString reports parse errors via errorOut") {
     CHECK(cfg.targets.empty());
     CHECK_FALSE(err.empty());
 }
+
+TEST_CASE("RemapImportedIds resolves an imported duplicate that also collides with existing to the first occurrence") {
+    // existing already owns "v1"
+    MultiOutputConfig existing;
+    auto ev = std::make_shared<VideoEncoderConfig>(); ev->id = "v1";
+    existing.videoConfig.push_back(ev);
+
+    // imported has TWO video configs both (still) named "v1" -- a
+    // malformed/messy import, e.g. from concatenating two source files
+    // before Task 2.1 hands them to RemapImportedIds -- plus a target that
+    // was meant to reference the first ("A").
+    MultiOutputConfig imported;
+    auto a = std::make_shared<VideoEncoderConfig>(); a->id = "v1"; a->encoderId = "A";
+    auto b = std::make_shared<VideoEncoderConfig>(); b->id = "v1"; b->encoderId = "B";
+    imported.videoConfig.push_back(a);
+    imported.videoConfig.push_back(b);
+
+    auto t = std::make_shared<OutputTargetConfig>();
+    t->id = "target-1";
+    t->videoConfig = "v1"; // meant for A, the first occurrence
+    imported.targets.push_back(t);
+
+    RemapImportedIds(imported, existing);
+
+    // both duplicates must have moved off "v1" (it collides with existing)
+    // and must not collide with each other either.
+    auto it = imported.videoConfig.begin();
+    auto& remappedA = *it; ++it;
+    auto& remappedB = *it;
+    CHECK(remappedA->id != "v1");
+    CHECK(remappedB->id != "v1");
+    CHECK(remappedA->id != remappedB->id);
+
+    // the target's reference must consistently resolve to the FIRST
+    // occurrence (A), never silently hijacked to B.
+    REQUIRE(imported.targets.front()->videoConfig.has_value());
+    CHECK(*imported.targets.front()->videoConfig == remappedA->id);
+    CHECK(*imported.targets.front()->videoConfig != remappedB->id);
+}
