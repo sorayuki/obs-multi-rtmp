@@ -49,6 +49,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
   ./src/json-util.hpp
   ./src/output-config.h
   ./src/output-config.cpp
+  ./src/config-serialization.h
+  ./src/config-serialization.cpp
   ./src/obs-properties-widget.h
   ./src/obs-properties-widget.cpp
   ./src/protocols.h

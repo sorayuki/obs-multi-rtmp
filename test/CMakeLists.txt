@@ -14,6 +14,8 @@ add_executable(obs-multi-rtmp-tests
   stream_format_test.cpp
   ../src/target-order.cpp
   target_order_test.cpp
+  ../src/config-serialization.cpp
+  config_serialization_test.cpp
 )
 
 target_include_directories(obs-multi-rtmp-tests PRIVATE

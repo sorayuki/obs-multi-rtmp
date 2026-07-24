@@ -41,6 +41,9 @@ struct OutputTargetConfig {
     std::string protocol;
     bool syncStart = false;
     bool syncStop = false;
+    bool autoStart = false;
+    bool autoRestart = false;
+    int maxRestarts = 5;
 
     nlohmann::json serviceParam;
     nlohmann::json outputParam;
