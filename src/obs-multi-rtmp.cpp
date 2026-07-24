@@ -14,6 +14,7 @@
 #include "output-config.h"
 #include "target-order.h"
 #include "config-serialization.h"
+#include "stream-format.h"
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -112,6 +113,20 @@ public:
         layout_ = new QVBoxLayout(container_);
         layout_->setAlignment(Qt::AlignmentFlag::AlignTop);
         layout_->setSizeConstraint(QLayout::SetMinAndMaxSize);
+
+        // Aggregate upload bitrate meter, shown at the top of the dock.
+        totalRate_ = new QLabel(container_);
+        totalRate_->setText((std::string(obs_module_text("Label.TotalUpload")) + ": " + FormatBitrate(0)).c_str());
+        layout_->addWidget(totalRate_);
+
+        totalRateTimer_ = new QTimer(this);
+        totalRateTimer_->setInterval(1000);
+        QObject::connect(totalRateTimer_, &QTimer::timeout, [this]() {
+            double total = 0;
+            for (auto* w : GetAllPushWidgets()) total += w->CurrentBitrateBps();
+            totalRate_->setText((std::string(obs_module_text("Label.TotalUpload")) + ": " + FormatBitrate(total)).c_str());
+        });
+        totalRateTimer_->start();
 
         // init widget
         auto addButton = new QPushButton(obs_module_text("Btn.NewTarget"), container_);
@@ -408,6 +423,11 @@ public:
     }
 
 private:
+    // Aggregate upload bitrate label + the timer that refreshes it once a
+    // second by summing CurrentBitrateBps() across all push widgets.
+    QLabel* totalRate_ = 0;
+    QTimer* totalRateTimer_ = 0;
+
     // Main widget of this module's dock
     QWidget* container_ = 0;
     // The layout of the root widget

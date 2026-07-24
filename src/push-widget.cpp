@@ -111,6 +111,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     clock::time_point last_info_time_;
     uint64_t total_frames_ = 0;
     uint64_t total_bytes_ = 0;
+    double last_bitrate_bps_ = 0;
     QTimer* timer_ = 0;
 
     QPushButton* edit_btn_ = 0;
@@ -501,6 +502,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
             std::string strDuration = FormatDuration(duration);
             int fps = static_cast<int>(std::round((new_frames - total_frames_) / interval));
             auto bps = (new_bytes - total_bytes_) * 8 / interval;
+            last_bitrate_bps_ = bps;
             msg_->setText((strDuration + "  " + FormatBitrate(bps)
                            + "  " + std::to_string(fps) + " FPS"
                            + "  " + QString::asprintf("%.1f%% drop", droppedPct).toStdString()).c_str());
@@ -677,6 +679,7 @@ public:
     {
         total_frames_ = 0;
         total_bytes_ = 0;
+        last_bitrate_bps_ = 0;
         last_info_time_ = clock::now();
         msg_->setText("");
         msg_->setStyleSheet("");
@@ -684,9 +687,13 @@ public:
         health_->setText("");
     }
 
-    bool IsRunning()
+    bool IsRunning() const
     {
-        return output_ != nullptr && obs_output_active(output_); 
+        return output_ != nullptr && obs_output_active(output_);
+    }
+
+    double CurrentBitrateBps() const override {
+        return IsRunning() ? last_bitrate_bps_ : 0.0;
     }
 
     void StartStop() override

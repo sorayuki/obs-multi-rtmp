@@ -9,6 +9,7 @@ public:
     virtual void StartStop() = 0;
     virtual void OnOBSEvent(obs_frontend_event ev) = 0;
     virtual QPushButton* GetDeleteButton() = 0;
+    virtual double CurrentBitrateBps() const = 0;
 };
 
 PushWidget* createPushWidget(const std::string& targetId, QWidget* parent = 0);
