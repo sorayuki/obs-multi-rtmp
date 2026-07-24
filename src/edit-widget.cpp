@@ -12,6 +12,7 @@
 #include "obs-properties-widget.h"
 #include "helpers.h"
 #include "protocols.h"
+#include "platform-presets.h"
 
 static std::optional<int> ParseStringToInt(const QString& str) {
     try {
@@ -231,6 +232,7 @@ class EditOutputWidgetImpl: public EditOutputWidget
     PropertiesWidget* audioEncoderSettings_;
    
     QComboBox* protocolSelector_ = 0;
+    QComboBox* presetCombo_ = 0;
     QComboBox* venc_ = 0;
     QComboBox* v_scene_ = 0;
     QLineEdit* v_resolution_ = 0;
@@ -420,9 +422,20 @@ protected:
 
         // service
         {
-            serviceSettings_ = new PropertiesWidget([this]() { ScheduleResizeToContent(); }, tab);
+            auto serviceTab = new QWidget(tab);
+            auto serviceTabLayout = new QVBoxLayout(serviceTab);
+            serviceTabLayout->setContentsMargins(0, 0, 0, 0);
+
+            presetCombo_ = new QComboBox(serviceTab);
+            for (auto& preset : GetPlatformPresets())
+                presetCombo_->addItem(QString::fromUtf8(preset.name.c_str()));
+            serviceTabLayout->addWidget(presetCombo_);
+
+            serviceSettings_ = new PropertiesWidget([this]() { ScheduleResizeToContent(); }, serviceTab);
             updateServiceTab();
-            tab->addTab(serviceSettings_, obs_module_text("Tab.Service"));
+            serviceTabLayout->addWidget(serviceSettings_);
+
+            tab->addTab(serviceTab, obs_module_text("Tab.Service"));
         }
 
         // output
@@ -701,6 +714,19 @@ public:
             UpdateUI();
             updateServiceTab();
             updateOutputTab();
+        });
+
+        QObject::connect(presetCombo_, (void (QComboBox::*)(int)) &QComboBox::currentIndexChanged, [this](int index){
+            auto& presets = GetPlatformPresets();
+            if (index < 0 || static_cast<size_t>(index) >= presets.size())
+                return;
+            auto& preset = presets[index];
+            if (preset.name == "Custom")
+                return;
+            blog(LOG_DEBUG, "Applying platform preset \"%s\" to service tab", preset.name.c_str());
+            SaveConfig();
+            config_->serviceParam = ApplyPresetServer(config_->serviceParam, preset.serverUrl);
+            updateServiceTab(); // re-render the service properties with the new server
         });
     }
 

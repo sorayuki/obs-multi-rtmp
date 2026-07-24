@@ -65,6 +65,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
   ./src/stream-health.cpp
   ./src/notifier.h
   ./src/notifier.cpp
+  ./src/platform-presets.h
+  ./src/platform-presets.cpp
 )
 
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE

@@ -18,6 +18,8 @@ add_executable(obs-multi-rtmp-tests
   config_serialization_test.cpp
   ../src/stream-health.cpp
   stream_health_test.cpp
+  ../src/platform-presets.cpp
+  platform_presets_test.cpp
 )
 
 target_include_directories(obs-multi-rtmp-tests PRIVATE
