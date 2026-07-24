@@ -61,6 +61,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
   ./src/stream-format.cpp
   ./src/target-order.h
   ./src/target-order.cpp
+  ./src/stream-health.h
+  ./src/stream-health.cpp
 )
 
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE

@@ -7,6 +7,7 @@
 #include "output-config.h"
 #include "protocols.h"
 #include "stream-format.h"
+#include "stream-health.h"
 
 #include "obs.hpp"
 
@@ -101,6 +102,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
 
     QPushButton* btn_ = 0;
     QLabel* name_ = 0;
+    QLabel* health_ = 0;
     QLabel* msg_ = 0;
 
     using clock = std::chrono::steady_clock;
@@ -479,6 +481,17 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         auto new_frames = obs_output_get_total_frames(output_);
         auto now = clock::now();
 
+        auto dropped = obs_output_get_frames_dropped(output_);
+        auto total = obs_output_get_total_frames(output_);
+        float congestion = obs_output_get_congestion(output_);
+        switch (HealthFromStats(dropped, total, congestion)) {
+            case StreamHealth::Good: health_->setStyleSheet("color:#2ecc71;"); break;
+            case StreamHealth::Warn: health_->setStyleSheet("color:#f1c40f;"); break;
+            case StreamHealth::Bad:  health_->setStyleSheet("color:#e74c3c;"); break;
+        }
+        health_->setText(QString::fromUtf8("\xe2\x97\x8f")); // ●
+        double droppedPct = total > 0 ? 100.0 * dropped / total : 0.0;
+
         auto interval = std::chrono::duration_cast<std::chrono::duration<double>>(now - last_info_time_).count();
         if (interval > 0)
         {
@@ -487,7 +500,8 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
             int fps = static_cast<int>(std::round((new_frames - total_frames_) / interval));
             auto bps = (new_bytes - total_bytes_) * 8 / interval;
             msg_->setText((strDuration + "  " + FormatBitrate(bps)
-                           + "  " + std::to_string(fps) + " FPS").c_str());
+                           + "  " + std::to_string(fps) + " FPS"
+                           + "  " + QString::asprintf("%.1f%% drop", droppedPct).toStdString()).c_str());
         }
 
         total_frames_ = new_frames;
@@ -515,6 +529,10 @@ public:
 
         auto layout = new QGridLayout(this);
         layout->addWidget(name_ = new QLabel(obs_module_text("NewStreaming"), this), 0, 0, 1, 3);
+        layout->addWidget(health_ = new QLabel(this), 0, 3);
+        health_->setFixedWidth(14);
+        health_->setAlignment(Qt::AlignCenter);
+        health_->setStyleSheet("color:#888888;");
         layout->addWidget(btn_ = new QPushButton(obs_module_text("Btn.Start"), this), 1, 0);
         QObject::connect(btn_, &QPushButton::clicked, [this]() {
             StartStop();
@@ -659,6 +677,8 @@ public:
         total_bytes_ = 0;
         last_info_time_ = clock::now();
         msg_->setText("");
+        health_->setStyleSheet("color:#888888;");
+        health_->setText("");
     }
 
     bool IsRunning()
