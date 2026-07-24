@@ -481,8 +481,9 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         auto new_frames = obs_output_get_total_frames(output_);
         auto now = clock::now();
 
-        auto dropped = obs_output_get_frames_dropped(output_);
-        auto total = obs_output_get_total_frames(output_);
+        int droppedRaw = obs_output_get_frames_dropped(output_);
+        uint64_t dropped = droppedRaw > 0 ? static_cast<uint64_t>(droppedRaw) : 0;
+        uint64_t total = new_frames > 0 ? static_cast<uint64_t>(new_frames) : 0;
         float congestion = obs_output_get_congestion(output_);
         switch (HealthFromStats(dropped, total, congestion)) {
             case StreamHealth::Good: health_->setStyleSheet("color:#2ecc71;"); break;
