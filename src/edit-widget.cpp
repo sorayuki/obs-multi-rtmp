@@ -721,7 +721,14 @@ public:
             if (index < 0 || static_cast<size_t>(index) >= presets.size())
                 return;
             auto& preset = presets[index];
-            if (preset.name == "Custom")
+            // "Custom" (kCustomPresetName) is the sentinel "leave the server
+            // field exactly as-is" entry -- it's the ONLY preset for which we
+            // skip calling ApplyPresetServer. Every other preset, including
+            // the label-only Kick/TikTok ones (empty serverUrl), is applied
+            // below; ApplyPresetServer always writes "server" now, so this
+            // also CLEARS the field for Kick/TikTok rather than leaving
+            // behind a stale URL from whatever preset was selected before.
+            if (preset.name == kCustomPresetName)
                 return;
             blog(LOG_DEBUG, "Applying platform preset \"%s\" to service tab", preset.name.c_str());
             SaveConfig();

@@ -19,12 +19,16 @@ const std::vector<PlatformPreset>& GetPlatformPresets() {
     // hours (and streaming access itself is gated behind TikTok's Creator
     // Network / follower-count requirements). Hardcoding a single URL for
     // either would be actively wrong for most users, so those two presets
-    // intentionally ship an empty serverUrl: selecting them leaves the
-    // "server" field untouched (same as "Custom"), just labeled for
-    // convenience. The user must copy their own server URL from the
-    // platform's dashboard.
+    // intentionally ship an empty serverUrl. Unlike "Custom", these are NOT
+    // treated as a no-op by the caller: selecting "Kick" or "TikTok" in the
+    // UI calls ApplyPresetServer same as any other non-Custom preset, which
+    // CLEARS the "server" field. That's deliberate -- it makes it obvious
+    // the user must paste their own per-account/session ingest URL, instead
+    // of silently leaving behind whatever server URL a previously selected
+    // preset (e.g. YouTube) had filled in. "Custom" (kCustomPresetName) is
+    // the only entry the caller leaves genuinely untouched.
     static const std::vector<PlatformPreset> presets = {
-        {"Custom", ""},
+        {kCustomPresetName, ""},
         {"Twitch", "rtmp://live.twitch.tv/app"},
         {"YouTube", "rtmp://a.rtmp.youtube.com/live2"},
         {"Kick", ""},
@@ -37,7 +41,11 @@ const std::vector<PlatformPreset>& GetPlatformPresets() {
 nlohmann::json ApplyPresetServer(nlohmann::json serviceParam, const std::string& serverUrl) {
     if (serviceParam.is_null() || !serviceParam.is_object())
         serviceParam = nlohmann::json::object();
-    if (!serverUrl.empty())
-        serviceParam["server"] = serverUrl;
+    // Always write "server" -- including clearing it to "" when serverUrl
+    // is empty -- so a caller cycling between presets never leaves a stale
+    // URL from a different platform sitting in the field. The "leave it
+    // alone" behavior belongs to the "Custom" sentinel, which callers
+    // implement by not calling this function at all (see kCustomPresetName).
+    serviceParam["server"] = serverUrl;
     return serviceParam;
 }
