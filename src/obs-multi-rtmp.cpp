@@ -293,39 +293,7 @@ public:
 
     void SaveConfig()
     {
-        // Snapshot every currently-registered hotkey's key bindings (this
-        // plugin's global Start All/Stop All hotkeys, its per-target
-        // toggle hotkeys, and anything else OBS has registered) and stash
-        // the JSON in our own config alongside targets/videoConfig/
-        // audioConfig. OBS's own scene-collection-level hotkey persistence
-        // already covers ordinary hotkeys, but this plugin's per-target
-        // hotkeys are (re-)registered dynamically from this plugin's own
-        // config file, on its own schedule -- independent of when OBS loads
-        // its own hotkey bindings -- so we keep a private copy to restore
-        // from once those hotkeys exist again (see LoadConfig / Step 3).
-        OBSDataAutoRelease hk = obs_hotkeys_save();
-        if (hk) {
-            GlobalMultiOutputConfig().hotkeysBlob = obs_data_get_json(hk);
-        }
-
         SaveMultiOutputConfig();
-    }
-
-    // Restores hotkey key-bindings previously captured by SaveConfig().
-    // obs_hotkeys_load() binds saved combinations to hotkeys purely by
-    // registered name, so this must only be called once every hotkey name
-    // referenced by the stored blob has actually been (re-)registered --
-    // see the call sites in LoadConfig() and obs_module_load() for why each
-    // needs its own call.
-    void RestoreHotkeyBindings()
-    {
-        auto& blob = GlobalMultiOutputConfig().hotkeysBlob;
-        if (!blob.has_value())
-            return;
-
-        OBSDataAutoRelease hkData = obs_data_create_from_json(blob->c_str());
-        if (hkData)
-            obs_hotkeys_load(hkData);
     }
 
     void OnOutputMoved(
@@ -380,20 +348,6 @@ public:
         {
             AddPushWidget(x->id);
         }
-
-        // CRITICAL ORDERING: RestoreHotkeyBindings() (obs_hotkeys_load)
-        // must run only AFTER every per-target hotkey has been
-        // (re-)registered by the AddPushWidget() calls immediately above.
-        // obs_hotkeys_load() attaches saved key combinations to hotkeys by
-        // name; if a target's "obs-multi-rtmp.toggle.<id>" hotkey doesn't
-        // exist yet when this runs, its saved binding has nothing to
-        // attach to and is lost. Placing this call after the loop
-        // guarantees every per-target hotkey this config knows about
-        // exists first. (The two global Start All/Stop All hotkeys are
-        // registered once in obs_module_load, outside of LoadConfig --
-        // see the second RestoreHotkeyBindings() call there for why they
-        // need their own follow-up restore on the very first load.)
-        RestoreHotkeyBindings();
     }
 
 private:
@@ -464,7 +418,12 @@ private:
 
         // Per-target start/stop toggle hotkey, keyed by a name derived from
         // the stable target id (not its display name), so a previously
-        // bound key keeps working across renames and reorders.
+        // bound key keeps working across renames and reorders. Binding
+        // persistence is handled entirely by OBS's built-in frontend-hotkey
+        // storage (no plugin-side blob) -- this depends on the per-target
+        // hotkey name being stable across restarts, i.e. on the target id
+        // itself being stable, which is true since ids are never
+        // regenerated for an existing target. To be verified live in OBS.
         auto targetConfig = FindById(GlobalMultiOutputConfig().targets, targetId);
         std::string targetName = targetConfig ? targetConfig->name : targetId;
         std::string hkName = "obs-multi-rtmp.toggle." + targetId;
@@ -503,7 +462,10 @@ bool obs_module_load()
     blog(LOG_INFO, TAG "version: %s by SoraYuki https://github.com/sorayuki/obs-multi-rtmp/", PLUGIN_VERSION);
 
     // Global "Start All" / "Stop All" hotkeys, routed to every push widget
-    // currently on the dock.
+    // currently on the dock. Key-binding persistence for these is handled
+    // entirely by OBS's built-in frontend-hotkey storage (no plugin-side
+    // blob) -- these names are fixed string literals, so their bindings
+    // are stable across restarts. To be verified live in OBS.
     obs_hotkey_register_frontend("obs-multi-rtmp.start-all", obs_module_text("Btn.StartAll"),
         [](void* d, obs_hotkey_id, obs_hotkey_t*, bool pressed) {
             if (!pressed) return;
@@ -514,17 +476,6 @@ bool obs_module_load()
             if (!pressed) return;
             for (auto x : static_cast<MultiOutputWidget*>(d)->GetAllPushWidgets()) x->StopStreaming();
         }, dock);
-
-    // CRITICAL ORDERING (part 2): the dock's constructor (run by `new
-    // MultiOutputWidget()` above) already called LoadConfig(), which
-    // restores per-target hotkey bindings via RestoreHotkeyBindings() --
-    // but that happened before the two global hotkeys just above existed,
-    // so any saved binding for "obs-multi-rtmp.start-all"/"...stop-all"
-    // couldn't attach yet. Re-run the restore now that every hotkey this
-    // plugin registers (global + per-target) exists, so global bindings
-    // get picked up too. This is a cheap no-op if there's nothing new for
-    // it to bind.
-    dock->RestoreHotkeyBindings();
 
     obs_frontend_add_event_callback(
         [](enum obs_frontend_event event, void *private_data) {

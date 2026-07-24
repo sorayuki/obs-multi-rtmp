@@ -98,8 +98,6 @@ static std::string SaveMultiOutputConfigImpl(MultiOutputConfig& config) {
     json["targets"] = targets;
     json["video_configs"] = video_configs;
     json["audio_configs"] = audio_configs;
-    if (config.hotkeysBlob.has_value())
-        json["hotkeys"] = *config.hotkeysBlob;
 
     return json.dump();
 }
@@ -215,11 +213,6 @@ static MultiOutputConfig LoadMultiOutputConfigImpl(const std::string& content) {
             }
         }
     }
-
-    // Additive field: legacy configs saved before this field existed simply
-    // have no "hotkeys" key, so this stays nullopt and the caller (OBS-side
-    // LoadConfig) skips the obs_hotkeys_load restore step entirely.
-    config.hotkeysBlob = GetJsonField<std::string>(json, "hotkeys");
 
     return config;
 }

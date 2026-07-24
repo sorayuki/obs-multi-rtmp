@@ -59,17 +59,6 @@ public:
     std::list<OutputTargetConfigPtr> targets;
     std::list<VideoEncoderConfigPtr> videoConfig;
     std::list<AudioEncoderConfigPtr> audioConfig;
-
-    // Raw JSON (as returned by obs_hotkeys_save()) snapshotting every
-    // registered hotkey's key bindings at last save time. Persisted
-    // per-profile alongside targets/videoConfig/audioConfig above so that
-    // this plugin's dynamically-registered per-target hotkeys (which OBS's
-    // own hotkey persistence can't see, since they come from this plugin's
-    // own config file rather than the scene collection) can be restored
-    // once they're re-registered on load. Opaque to this codebase -- only
-    // obs_hotkeys_save/obs_hotkeys_load (called from obs-multi-rtmp.cpp)
-    // interpret its contents.
-    std::optional<std::string> hotkeysBlob;
 };
 
 template<class T, class S>
