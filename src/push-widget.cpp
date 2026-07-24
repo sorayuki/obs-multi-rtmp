@@ -8,6 +8,7 @@
 #include "protocols.h"
 #include "stream-format.h"
 #include "stream-health.h"
+#include "notifier.h"
 
 #include "obs.hpp"
 
@@ -678,6 +679,7 @@ public:
         total_bytes_ = 0;
         last_info_time_ = clock::now();
         msg_->setText("");
+        msg_->setStyleSheet("");
         health_->setStyleSheet("color:#888888;");
         health_->setText("");
     }
@@ -820,6 +822,13 @@ public:
                 default:
                     SetMsg(obs_module_text("Error.Unknown"));
                     break;
+            }
+
+            if (code != 0) {
+                msg_->setStyleSheet("color:#e74c3c;");
+                blog(LOG_WARNING, TAG "Target \"%s\" stopped with error (code %d): %s",
+                    config_->name.c_str(), code, msg_->text().toUtf8().constData());
+                Notifier::Instance().NotifyFailure(QString::fromUtf8(config_->name), msg_->text());
             }
 
             ReleaseOutputEncoder();
