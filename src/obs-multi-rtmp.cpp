@@ -388,16 +388,10 @@ private:
         outputsContainer_->setItemWidget(listItem, pushWidget);
 
         QObject::connect(pushWidget->GetDeleteButton(), &QPushButton::clicked, [this, targetId]() {
-            auto msgbox = new QMessageBox(
-                QMessageBox::Icon::Question,
-                obs_module_text("Question.Title"),
-                obs_module_text("Question.Delete"),
-                QMessageBox::Yes | QMessageBox::No,
-                this
-            );
-            if (msgbox->exec() != QMessageBox::Yes) {
-                return;
-            }
+            QMessageBox box(QMessageBox::Icon::Question,
+                obs_module_text("Question.Title"), obs_module_text("Question.Delete"),
+                QMessageBox::Yes | QMessageBox::No, this);
+            if (box.exec() != QMessageBox::Yes) return;
             DeletePushWidget(targetId);
             SaveConfig();
         });

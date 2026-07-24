@@ -444,7 +444,6 @@ protected:
     void updateServiceTab()
     {
         auto protocol_info = GetProtocolInfos()->GetInfo(config_->protocol.c_str());
-        assert(protocol_info);
         if (!protocol_info) {
         	blog(LOG_ERROR, TAG "Invalid protocol \"%s\", maybe broken config file.", config_->protocol.c_str());
             protocol_info = GetProtocolInfos()->GetList();
@@ -460,7 +459,6 @@ protected:
     void updateOutputTab()
     {
         auto protocol_info = GetProtocolInfos()->GetInfo(config_->protocol.c_str());
-        assert(protocol_info);
         if (!protocol_info) {
         	blog(LOG_ERROR, TAG "Invalid protocol \"%s\", maybe broken config file.", config_->protocol.c_str());
             protocol_info = GetProtocolInfos()->GetList();
