@@ -95,6 +95,22 @@ TEST_CASE("RemapImportedIds also separates duplicate ids within the imported set
     CHECK(first->id != second->id);
 }
 
+TEST_CASE("hotkeysBlob round-trips through save/load") {
+    MultiOutputConfig cfg;
+    cfg.hotkeysBlob = R"({"obs-multi-rtmp.start-all":[{"key":"OBS_KEY_F1"}]})";
+
+    auto json = ConfigToJsonString(cfg);
+    auto back = ConfigFromJsonString(json);
+    REQUIRE(back.hotkeysBlob.has_value());
+    CHECK(*back.hotkeysBlob == *cfg.hotkeysBlob);
+}
+
+TEST_CASE("legacy config without a hotkeys key leaves hotkeysBlob unset") {
+    std::string legacy = R"({"targets":[]})";
+    auto cfg = ConfigFromJsonString(legacy);
+    CHECK_FALSE(cfg.hotkeysBlob.has_value());
+}
+
 TEST_CASE("ConfigFromJsonString reports parse errors via errorOut") {
     std::string err;
     auto cfg = ConfigFromJsonString("not valid json", &err);

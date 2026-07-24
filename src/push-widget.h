@@ -6,6 +6,7 @@ public:
     virtual bool ShowEditDlg() = 0;
     virtual void StartStreaming() = 0;
     virtual void StopStreaming() = 0;
+    virtual void StartStop() = 0;
     virtual void OnOBSEvent(obs_frontend_event ev) = 0;
     virtual QPushButton* GetDeleteButton() = 0;
 };

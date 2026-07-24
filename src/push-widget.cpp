@@ -689,7 +689,7 @@ public:
         return output_ != nullptr && obs_output_active(output_); 
     }
 
-    void StartStop()
+    void StartStop() override
     {
         if (IsRunning())
         {
