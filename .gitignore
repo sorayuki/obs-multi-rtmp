@@ -6,7 +6,9 @@
 !/build-aux
 !/cmake
 !/data
+!/dep
 !/src
+!/test
 !.clang-format
 !.gersemirc
 !.gitignore

@@ -1,0 +1,21 @@
+cmake_minimum_required(VERSION 3.20)
+project(obs-multi-rtmp-tests CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+enable_testing()
+
+add_executable(obs-multi-rtmp-tests
+  main.cpp
+  sanity_test.cpp
+  # pure-logic sources and their tests are appended here in later tasks
+)
+
+target_include_directories(obs-multi-rtmp-tests PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/../dep/doctest
+  ${CMAKE_CURRENT_SOURCE_DIR}/../dep/nlohmann-json
+  ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+add_test(NAME unit COMMAND obs-multi-rtmp-tests)

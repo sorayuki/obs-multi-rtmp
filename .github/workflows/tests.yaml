@@ -1,0 +1,16 @@
+name: Unit Tests
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S test -B build-test
+      - name: Build
+        run: cmake --build build-test
+      - name: Test
+        run: ctest --test-dir build-test --output-on-failure
