@@ -12,6 +12,8 @@ add_executable(obs-multi-rtmp-tests
   # pure-logic sources and their tests are appended here in later tasks
   ../src/stream-format.cpp
   stream_format_test.cpp
+  ../src/target-order.cpp
+  target_order_test.cpp
 )
 
 target_include_directories(obs-multi-rtmp-tests PRIVATE

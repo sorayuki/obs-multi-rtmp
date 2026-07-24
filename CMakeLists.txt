@@ -57,6 +57,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
   ./src/helpers.cpp
   ./src/stream-format.h
   ./src/stream-format.cpp
+  ./src/target-order.h
+  ./src/target-order.cpp
 )
 
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE

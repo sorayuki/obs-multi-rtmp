@@ -9,6 +9,7 @@
 #include "plugin-support.h"
 
 #include "output-config.h"
+#include "target-order.h"
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -313,49 +314,14 @@ public:
             return;
         }
 
-        auto &targets = GlobalMultiOutputConfig().targets;
-        std::unordered_map<std::string, OutputTargetConfigPtr> targetById;
-        targetById.reserve(targets.size());
-        for (auto &target : targets) {
-            if (target) {
-                targetById.emplace(target->id, target);
-            }
-        }
-
-        std::remove_reference_t<decltype(targets)> reordered;
-        for (int i = 0; i < count; ++i) {
+        std::vector<std::string> idOrder;
+        for (int i = 0; i < outputsContainer_->count(); ++i) {
             auto item = outputsContainer_->item(i);
-            if (!item) {
-                continue;
-            }
-
-            auto id = item->data(Qt::UserRole).toString().toStdString();
-            auto it = targetById.find(id);
-            if (it == targetById.end()) {
-                continue;
-            }
-
-            reordered.emplace_back(it->second);
-            targetById.erase(it);
+            if (item)
+                idOrder.push_back(item->data(Qt::UserRole).toString().toStdString());
         }
-
-        // Keep unmatched items in their previous order to avoid accidental loss.
-        if (!targetById.empty()) {
-            for (auto &target : targets) {
-                if (!target) {
-                    continue;
-                }
-                auto it = targetById.find(target->id);
-                if (it == targetById.end()) {
-                    continue;
-                }
-                reordered.emplace_back(it->second);
-                targetById.erase(it);
-            }
-        }
-
-        targets.swap(reordered);
-
+        auto& targets = GlobalMultiOutputConfig().targets;
+        targets = ReorderTargets(idOrder, targets);
         SaveConfig();
         outputsContainer_->clearSelection();
     }
