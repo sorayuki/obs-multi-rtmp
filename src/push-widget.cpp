@@ -347,7 +347,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         }
     }
 
-    bool PrepareOutputEncoders()
+    bool PrepareOutputEncoders(bool silent = false)
     {
         if (!output_) {
             blog(LOG_ERROR, TAG "Prepare output encoder before output object is created.");
@@ -391,8 +391,16 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
             // needs to be started by the user (i.e. start streaming or start recording)
             ReleaseOutputEncoder();
 
-            auto msgbox = new QMessageBox(QMessageBox::Icon::Critical, 
-                obs_module_text("Notice.Title"), 
+            if (silent) {
+                // Auto-start path: the shared streaming/recording encoder isn't up yet at
+                // OBS launch. Degrade gracefully instead of popping a blocking modal.
+                blog(LOG_INFO, TAG "Skipping auto-start for \"%s\": shared encoder is not available yet (start the main stream/recording first).", config_->name.c_str());
+                SetMsg(obs_module_text("Notice.GetEncoder"));
+                return false;
+            }
+
+            auto msgbox = new QMessageBox(QMessageBox::Icon::Critical,
+                obs_module_text("Notice.Title"),
                 obs_module_text("Notice.GetEncoder"),
                 QMessageBox::StandardButton::Ok,
                 this
@@ -567,7 +575,7 @@ public:
     }
 
 
-    void StartStreaming() override {
+    void StartStreaming(bool silent = false) override {
         if (IsRunning())
             return;
 
@@ -618,7 +626,7 @@ public:
             return;
         }
 
-        if (!PrepareOutputEncoders())
+        if (!PrepareOutputEncoders(silent))
         {
             SetMsg(obs_module_text("Error.CreateEncoder"));
             return;
@@ -662,7 +670,7 @@ public:
 
     void StartIfAutoStart() override {
         if (config_ && config_->autoStart && !IsRunning())
-            StartStreaming();
+            StartStreaming(/*silent=*/true);
     }
 
     void OnOBSEvent(obs_frontend_event ev) override

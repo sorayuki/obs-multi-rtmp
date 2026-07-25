@@ -4,7 +4,7 @@ class PushWidget : virtual public QWidget {
 public:
     virtual ~PushWidget() {}
     virtual bool ShowEditDlg() = 0;
-    virtual void StartStreaming() = 0;
+    virtual void StartStreaming(bool silent = false) = 0;
     virtual void StopStreaming() = 0;
     virtual void StartStop() = 0;
     virtual void StartIfAutoStart() = 0;

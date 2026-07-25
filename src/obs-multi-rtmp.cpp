@@ -1,7 +1,6 @@
 ﻿#include "pch.h"
 
 #include <list>
-#include <regex>
 #include <filesystem>
 #include <unordered_map>
 
@@ -189,7 +188,7 @@ public:
             auto bytes = f.readAll();
             f.close();
             std::string err;
-            auto imported = ConfigFromJsonString(bytes.constData(), &err);
+            auto imported = ConfigFromJsonString(std::string(bytes.constData(), bytes.size()), &err);
             if (!err.empty()) {
                 QMessageBox::warning(this, obs_module_text("Btn.Import"), QString::fromStdString(err));
                 return;
