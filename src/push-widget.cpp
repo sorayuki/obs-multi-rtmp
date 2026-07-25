@@ -870,7 +870,7 @@ public:
                 auto action = WatchdogDecide(watchdog_, code, manualStop_, config_->maxRestarts);
                 if (action.restart) {
                     QTimer::singleShot((int)action.delay.count(), this, [this]() {
-                        if (!IsRunning() && !manualStop_) StartStreaming();
+                        if (!IsRunning() && !manualStop_) StartStreaming(/*silent=*/true);
                     });
                     SetMsg(obs_module_text("Status.AutoRestarting"));
                 }
