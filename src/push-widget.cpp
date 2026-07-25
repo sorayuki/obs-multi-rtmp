@@ -651,7 +651,12 @@ public:
         else
             obs_output_force_stop(output_);
     }
-   
+
+    void StartIfAutoStart() override {
+        if (config_ && config_->autoStart && !IsRunning())
+            StartStreaming();
+    }
+
     void OnOBSEvent(obs_frontend_event ev) override
     {
         if (ev == obs_frontend_event::OBS_FRONTEND_EVENT_EXIT

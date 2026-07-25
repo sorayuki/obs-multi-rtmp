@@ -569,6 +569,11 @@ bool obs_module_load()
             {
                 dock->LoadConfig();
             }
+            else if (event == obs_frontend_event::OBS_FRONTEND_EVENT_FINISHED_LOADING)
+            {
+                for (auto* w : dock->GetAllPushWidgets())
+                    w->StartIfAutoStart();
+            }
         }, dock
     );
 
