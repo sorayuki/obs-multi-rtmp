@@ -247,6 +247,7 @@ class EditOutputWidgetImpl: public EditOutputWidget
     QCheckBox* syncStart_ = 0;
     QCheckBox *syncStop_ = 0;
     QCheckBox* autoStart_ = 0;
+    QCheckBox* autoRestart_ = 0;
 
     std::vector<std::string> EnumEncodersByCodec(const char* codec)
     {
@@ -653,6 +654,7 @@ public:
                     otherLayout->addWidget(syncStart_ = new QCheckBox(obs_module_text("SyncStart"), gp), 0, 0);
                     otherLayout->addWidget(syncStop_ = new QCheckBox(obs_module_text("SyncStop"), gp), 1, 0);
                     otherLayout->addWidget(autoStart_ = new QCheckBox(obs_module_text("AutoStart"), gp), 2, 0);
+                    otherLayout->addWidget(autoRestart_ = new QCheckBox(obs_module_text("AutoRestart"), gp), 3, 0);
                     gp->setLayout(otherLayout);
                 }
             }
@@ -992,6 +994,7 @@ public:
         config_->syncStart = syncStart_->isChecked();
         config_->syncStop = syncStop_->isChecked();
         config_->autoStart = autoStart_->isChecked();
+        config_->autoRestart = autoRestart_->isChecked();
         config_->outputParam = outputSettings_->Save();
         config_->serviceParam = serviceSettings_->Save();
 
@@ -1034,6 +1037,7 @@ public:
         syncStart_->setChecked(target.syncStart);
         syncStop_->setChecked(target.syncStop);
         autoStart_->setChecked(target.autoStart);
+        autoRestart_->setChecked(target.autoRestart);
     }
 
     using IdOrVideoConfig = std::variant<std::string_view, VideoEncoderConfig*>;

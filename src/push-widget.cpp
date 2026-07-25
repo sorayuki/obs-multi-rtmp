@@ -9,6 +9,7 @@
 #include "stream-format.h"
 #include "stream-health.h"
 #include "notifier.h"
+#include "watchdog.h"
 
 #include "obs.hpp"
 
@@ -122,6 +123,9 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     bool using_main_audio_encoder_ = false;
     obs_view_t* scene_view_ = 0;
     bool isUseDelay_ = false;
+
+    WatchdogState watchdog_;
+    bool manualStop_ = false;
 
     QPushButton* GetDeleteButton() {
         return remove_btn_;
@@ -567,6 +571,8 @@ public:
         if (IsRunning())
             return;
 
+        manualStop_ = false;
+
         // recreate output
         ReleaseOutput();
 
@@ -631,9 +637,11 @@ public:
     }
 
     void StopStreaming() override {
+        manualStop_ = true;
+
         if (!IsRunning())
             return;
-        
+
         bool useForce = false;
         if (isUseDelay_) {
             auto res = QMessageBox(QMessageBox::Icon::Information,
@@ -714,6 +722,8 @@ public:
 
     void Stop()
     {
+        manualStop_ = true;
+
         if (IsRunning())
         {
             obs_output_force_stop(output_);
@@ -756,6 +766,8 @@ public:
     void OnStarted() override
     {
         GetGlobalService().RunInUIThread([this]() {
+            watchdog_.retries = 0;
+
             remove_btn_->setEnabled(false);
             btn_->setText(obs_module_text("Status.Stop"));
             btn_->setEnabled(true);
@@ -845,6 +857,16 @@ public:
 
             ReleaseOutputEncoder();
             ReleaseOutputSceneView();
+
+            if (config_ && config_->autoRestart) {
+                auto action = WatchdogDecide(watchdog_, code, manualStop_, config_->maxRestarts);
+                if (action.restart) {
+                    QTimer::singleShot((int)action.delay.count(), this, [this]() {
+                        if (!IsRunning()) StartStreaming();
+                    });
+                    SetMsg(obs_module_text("Status.AutoRestarting"));
+                }
+            }
         });
     }
 };

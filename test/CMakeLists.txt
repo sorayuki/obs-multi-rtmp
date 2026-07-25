@@ -20,6 +20,8 @@ add_executable(obs-multi-rtmp-tests
   stream_health_test.cpp
   ../src/platform-presets.cpp
   platform_presets_test.cpp
+  ../src/watchdog.cpp
+  watchdog_test.cpp
 )
 
 target_include_directories(obs-multi-rtmp-tests PRIVATE

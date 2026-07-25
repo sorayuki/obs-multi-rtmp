@@ -67,6 +67,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
   ./src/notifier.cpp
   ./src/platform-presets.h
   ./src/platform-presets.cpp
+  ./src/watchdog.h
+  ./src/watchdog.cpp
 )
 
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
