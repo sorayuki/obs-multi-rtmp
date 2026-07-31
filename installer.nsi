@@ -1,5 +1,9 @@
 ﻿OutFile "obs-multi-rtmp-setup.exe"
 
+!ifndef PLUGIN_SOURCE_DIR
+    !define PLUGIN_SOURCE_DIR "release\Release\obs-multi-rtmp"
+!endif
+
 Unicode true
 RequestExecutionLevel user
 
@@ -41,6 +45,6 @@ Page instfiles
 
 Section
 SetOutPath "$INSTDIR"
-File /r "release\Release\obs-multi-rtmp"
+File /r "${PLUGIN_SOURCE_DIR}"
 SectionEnd
 

@@ -96,11 +96,17 @@ function Package {
     Log-Group
 
     $NsiFile = "${ProjectRoot}/installer.nsi"
+    $InstallerSource = "${ProjectRoot}/release/${Configuration}/${ProductName}"
+
+    if ( ! ( Test-Path -LiteralPath $InstallerSource -PathType Container ) ) {
+        throw "Installer source directory does not exist: ${InstallerSource}"
+    }
+
     Log-Information 'Creating NSIS installer...'
 
     Push-Location -Stack BuildTemp
     Ensure-Location -Path "${ProjectRoot}/release"
-    Invoke-External "makensis.exe" ${NsiFile}
+    Invoke-External "makensis.exe" "/DPLUGIN_SOURCE_DIR=${InstallerSource}" ${NsiFile}
     Copy-Item -Path "${ProjectRoot}/obs-multi-rtmp-setup.exe" -Destination "${OutputName}-Installer.exe"
     Pop-Location -Stack BuildTemp
 
