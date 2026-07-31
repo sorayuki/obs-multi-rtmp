@@ -6,6 +6,7 @@
 !/build-aux
 !/cmake
 !/data
+!/flatpak
 !/src
 !.clang-format
 !.gersemirc
@@ -15,6 +16,7 @@
 !CMakePresets.json
 !LICENSE
 !README.md
+!FLATPAK.md
 
 # Exclude lock files
 *.lock.json

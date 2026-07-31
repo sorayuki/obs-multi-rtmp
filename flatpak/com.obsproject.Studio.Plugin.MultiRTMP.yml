@@ -1,0 +1,38 @@
+id: com.obsproject.Studio.Plugin.MultiRTMP
+branch: stable
+runtime: com.obsproject.Studio
+runtime-version: stable
+sdk: org.freedesktop.Sdk//25.08
+build-extension: true
+separate-locales: false
+build-options:
+  prefix: /app/plugins/MultiRTMP
+modules:
+  - name: obs-multi-rtmp
+    buildsystem: cmake-ninja
+    builddir: true
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=RelWithDebInfo
+      - -DCMAKE_INSTALL_LIBDIR=lib
+      - -DENABLE_FRONTEND_API=ON
+      - -DENABLE_QT=ON
+    post-install:
+      - install -Dm644 ${FLATPAK_BUILDER_BUILDDIR}/${FLATPAK_ID}.metainfo.xml ${FLATPAK_DEST}/share/metainfo/${FLATPAK_ID}.metainfo.xml
+    sources:
+      - type: dir
+        path: ..
+        skip:
+          - .deps
+          - .flatpak-builder
+          - .flatpak-build
+          - .git
+          - .tmp-upgrade
+          - build_x64
+          - build_x86_64
+          - build_aarch64
+          - build_macos
+          - obj
+          - release
+          - obs-multi-rtmp-setup.exe
+      - type: file
+        path: com.obsproject.Studio.Plugin.MultiRTMP.metainfo.xml

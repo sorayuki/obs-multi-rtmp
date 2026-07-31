@@ -181,6 +181,43 @@ jobs:
           path: ${{ steps.setup.outputs.xcodeCasPath }}
           key: ${{ runner.os }}-xcode-${{ needs.check-event.outputs.config }}
 
+  flatpak-build:
+    name: Build Flatpak 📦
+    runs-on: ubuntu-24.04
+    needs: check-event
+    defaults:
+      run:
+        shell: bash
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+          set-safe-directory: true
+
+      - name: Set Up Environment 🔧
+        id: setup
+        run: |
+          : Set Up Environment 🔧
+          git config --global --add safe.directory "${GITHUB_WORKSPACE}"
+
+          echo "pluginName=$(jq -r .name buildspec.json)" >> $GITHUB_OUTPUT
+          echo "pluginVersion=$(jq -r .version buildspec.json)" >> $GITHUB_OUTPUT
+
+      - name: Build Flatpak Bundle 🧱
+        uses: flatpak/flatpak-github-actions/flatpak-builder@401fe28a8384095fc1531b9d320b292f0ee45adb # v6.7
+        with:
+          manifest-path: flatpak/com.obsproject.Studio.Plugin.MultiRTMP.yml
+          bundle: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-flatpak-x86_64.flatpak
+          artifact-name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-flatpak-x86_64-${{ needs.check-event.outputs.commitHash }}
+          branch: stable
+          build-bundle: true
+          cache: true
+          restore-cache: true
+
   ubuntu-build:
     name: Build for Ubuntu 🐧
     strategy:

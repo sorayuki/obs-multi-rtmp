@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="addon">
+  <id>com.obsproject.Studio.Plugin.MultiRTMP</id>
+  <extends>com.obsproject.Studio</extends>
+  <name>Multiple RTMP outputs</name>
+  <developer id="io.github.sorayuki">
+    <name>SoraYuki</name>
+  </developer>
+  <summary>Stream to multiple RTMP servers concurrently from OBS Studio</summary>
+  <description>
+    <p>
+      Multiple RTMP outputs adds independent streaming targets to OBS Studio so
+      one OBS session can publish to several RTMP services at the same time.
+    </p>
+  </description>
+  <url type="homepage">https://sorayuki.github.io/obs-multi-rtmp/</url>
+  <url type="vcs-browser">https://github.com/sorayuki/obs-multi-rtmp</url>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-2.0-or-later</project_license>
+  <releases>
+    <release version="0.7.4.0" date="2026-07-31"/>
+  </releases>
+</component>
