@@ -38,7 +38,7 @@ using AudioEncoderConfigPtr = std::shared_ptr<AudioEncoderConfig>;
 struct OutputTargetConfig {
     std::string id;
     std::string name;
-    std::string protocol;
+    std::string protocol = "RTMP";
     bool syncStart = false;
     bool syncStop = false;
 
