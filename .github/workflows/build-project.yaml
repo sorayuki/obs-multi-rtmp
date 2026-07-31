@@ -212,11 +212,17 @@ jobs:
         with:
           manifest-path: flatpak/com.obsproject.Studio.Plugin.MultiRTMP.yml
           bundle: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-flatpak-x86_64.flatpak
-          artifact-name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-flatpak-x86_64-${{ needs.check-event.outputs.commitHash }}
           branch: stable
           build-bundle: true
           cache: true
           restore-cache: true
+          upload-artifact: false
+
+      - name: Upload Flatpak Artifact 📡
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-flatpak-x86_64-${{ needs.check-event.outputs.commitHash }}
+          path: ${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-flatpak-x86_64.flatpak
 
   ubuntu-build:
     name: Build for Ubuntu 🐧
