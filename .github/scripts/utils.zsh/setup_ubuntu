@@ -35,14 +35,19 @@ if (( ! (${skips[(Ie)all]} + ${skips[(Ie)deps]}) )) {
     sudo apt-get install ${apt_args} gcc-${${target##*-}//_/-}-linux-gnu g++-${${target##*-}//_/-}-linux-gnu
   }
 
-  sudo add-apt-repository --yes ppa:obsproject/obs-studio
-  sudo apt update
+  local dist_version
+  read -r dist_version <<< "$(source /etc/os-release; print "${VERSION_ID}")"
 
-  sudo apt-get install ${apt_args} \
-    build-essential \
-    libgles2-mesa-dev \
-    libsimde-dev \
-    obs-studio
+  # Ubuntu 26.04 splits the OBS development files out of obs-studio.
+  local -a obs_packages=(build-essential libgles2-mesa-dev libsimde-dev obs-studio)
+  if is-at-least 26.04 ${dist_version}; then
+    obs_packages+=(libobs-dev)
+  else
+    sudo add-apt-repository --yes ppa:obsproject/obs-studio
+    sudo apt update
+  fi
+
+  sudo apt-get install ${apt_args} ${obs_packages}
 
   local -a _qt_packages=()
 

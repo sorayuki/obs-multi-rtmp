@@ -159,10 +159,13 @@ ${_usage_host:-}"
     log_group "Packaging ${product_name}..."
     pushd ${project_root}
     cmake --build build_${target##*-} --config ${config} -t package ${cmake_args}
+    bash build-aux/CI/linux/demote-deps.sh release/*.deb Recommends 'libobs'
     popd
   } else {
     log_group "Archiving ${product_name}..."
-    local output_name="${product_name}-${product_version}-${target##*-}-ubuntu-gnu"
+    local dist_version
+    read -r dist_version <<< "$(source /etc/os-release; print "${VERSION_ID}")"
+    local output_name="${product_name}-${product_version}-${target##*-}-ubuntu-${dist_version}-gnu"
     local _tarflags='cJf'
     if (( _loglevel > 1 || ${+CI} )) _tarflags="v${_tarflags}"
 

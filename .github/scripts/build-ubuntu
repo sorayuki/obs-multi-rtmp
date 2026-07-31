@@ -192,10 +192,14 @@ ${_usage_host:-}"
     local -r _preset="${target%%-*}${CI:+-ci}"
     case ${target} {
       ubuntu-*)
+        local dist_version
+        read -r dist_version <<< "$(source /etc/os-release; print "${VERSION_ID}")"
+
         cmake_args+=(
           --preset ${_preset}-${target##*-}
           -G "${generator}"
           -DQT_VERSION=${QT_VERSION:-6}
+          -DPLUGIN_LINUX_DISTRIBUTION_VERSION=${dist_version}
           -DCMAKE_BUILD_TYPE=${config}
           -DCMAKE_INSTALL_PREFIX=/usr
         )
