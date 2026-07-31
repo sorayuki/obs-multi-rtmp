@@ -91,7 +91,7 @@ jobs:
           if (( ${+RUNNER_DEBUG} )) setopt XTRACE
 
           print '::group::Enable Xcode 26.5'
-          sudo xcode-select --switch /Applications/Xcode_26.5.0.app/Contents/Developer
+          sudo xcode-select --switch /Applications/Xcode_26.5.app/Contents/Developer
           print '::endgroup::'
 
           print '::group::Clean Homebrew Environment'
@@ -112,13 +112,17 @@ jobs:
           print "pluginName=${product_name}" >> $GITHUB_OUTPUT
           print "pluginVersion=${product_version}" >> $GITHUB_OUTPUT
 
+          local xcode_cas_path="${HOME}/Library/Developer/Xcode/DerivedData/CompilationCache.noindex"
+          if [[ ! -d ${xcode_cas_path} ]] mkdir -p ${xcode_cas_path}
+          print "xcodeCasPath=${xcode_cas_path}" >> $GITHUB_OUTPUT
+
       - uses: actions/cache/restore@v4
-        id: ccache-cache
+        id: xcode-cache
         with:
-          path: ${{ github.workspace }}/.ccache
-          key: ${{ runner.os }}-ccache-${{ needs.check-event.outputs.config }}
+          path: ${{ steps.setup.outputs.xcodeCasPath }}
+          key: ${{ runner.os }}-xcode-${{ needs.check-event.outputs.config }}
           restore-keys: |
-            ${{ runner.os }}-ccache-
+            ${{ runner.os }}-xcode-
 
       - name: Set Up Codesigning 🔑
         uses: ./.github/actions/setup-macos-codesigning
@@ -136,6 +140,8 @@ jobs:
 
       - name: Build Plugin 🧱
         uses: ./.github/actions/build-plugin
+        env:
+          XCODE_CAS_PATH: ${{ steps.setup.outputs.xcodeCasPath }}
         with:
           target: macos-universal
           config: ${{ needs.check-event.outputs.config }}
@@ -170,10 +176,10 @@ jobs:
           path: ${{ github.workspace }}/release/${{ steps.setup.outputs.pluginName }}-${{ steps.setup.outputs.pluginVersion }}-macos-universal-dSYMs.*
 
       - uses: actions/cache/save@v4
-        if: github.event_name != 'pull_request' && steps.ccache-cache.outputs.cache-hit != 'true'
+        if: github.event_name != 'pull_request' && steps.xcode-cache.outputs.cache-hit != 'true'
         with:
-          path: ${{ github.workspace }}/.ccache
-          key: ${{ runner.os }}-ccache-${{ needs.check-event.outputs.config }}
+          path: ${{ steps.setup.outputs.xcodeCasPath }}
+          key: ${{ runner.os }}-xcode-${{ needs.check-event.outputs.config }}
 
   ubuntu-build:
     name: Build for Ubuntu 🐧

@@ -77,7 +77,7 @@ function Package {
         Log-Information "Adding directory: ${SourceDir} to ${DestDir}"
         $Entries = Get-ChildItem -Path $SourceDir -Recurse
         foreach( $Entry in $Entries ) {
-            $RelativePath = $Entry.FullName.Substring($SourceDir.Length).TrimStart('\')
+            $RelativePath = $Entry.FullName.Substring($SourceDir.Length).TrimStart('\') -replace '\\', '/'
             $ZipEntryPath = "$DestDir/${RelativePath}"
             if ( $Entry.PSIsContainer -eq $false ) {
                 Log-Information "Adding file entry: ${ZipEntryPath}"
@@ -96,11 +96,13 @@ function Package {
     Log-Group
 
     $NsiFile = "${ProjectRoot}/installer.nsi"
-    $InstallerSource = "${ProjectRoot}/release/${Configuration}/${ProductName}"
+    $InstallerSource = Join-Path -Path $ProjectRoot -ChildPath "release/${Configuration}/${ProductName}"
 
     if ( ! ( Test-Path -LiteralPath $InstallerSource -PathType Container ) ) {
         throw "Installer source directory does not exist: ${InstallerSource}"
     }
+
+    $InstallerSource = (Resolve-Path -LiteralPath $InstallerSource).ProviderPath
 
     Log-Information 'Creating NSIS installer...'
 

@@ -43,7 +43,7 @@ build() {
   local buildspec_file=${project_root}/buildspec.json
 
   fpath=("${SCRIPT_HOME}/utils.zsh" ${fpath})
-  autoload -Uz log_group log_info log_error log_output check_macos setup_ccache
+  autoload -Uz log_group log_info log_error log_output check_macos
   export SDKROOT="$(/usr/bin/xcrun --show-sdk-path --sdk macosx)"
   if [[ ! -r ${buildspec_file} ]] {
     log_error \

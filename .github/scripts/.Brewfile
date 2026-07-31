@@ -1,4 +1,3 @@
-brew "ccache"
 brew "coreutils"
 brew "cmake"
 brew "jq"
