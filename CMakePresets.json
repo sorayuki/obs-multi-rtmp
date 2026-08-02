@@ -59,12 +59,13 @@
         "lhs": "${hostSystemName}",
         "rhs": "Windows"
       },
-      "generator": "Visual Studio 17 2022",
+      "generator": "Visual Studio 18 2026",
+      "toolset": "v145",
       "architecture": "x64",
       "warnings": {"dev": true, "deprecated": true},
       "cacheVariables": {
         "QT_VERSION": "6",
-        "CMAKE_SYSTEM_VERSION": "10.0.18363.657",
+        "CMAKE_SYSTEM_VERSION": "10.0.26100.0",
         "CMAKE_INSTALL_PREFIX": "C:/ProgramData/obs-studio/plugins",
         "CMAKE_COMPILE_WARNING_AS_ERROR": false
       }
