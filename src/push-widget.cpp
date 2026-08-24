@@ -293,11 +293,11 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
                     enc = obs_video_encoder_create(videoConfig->encoderId.c_str(), VideoEncoderName().c_str(), settings, nullptr);
                     if (enc) {
                         // obs_video_encoder_create() returns the encoder with no
-                        // active reference. Add one here so the AutoRelease below
-                        // does not destroy it (OBS frees a created encoder on its
-                        // first release) before the caller attaches it to the
-                        // output in PrepareOutputEncoders.
-                        obs_encoder_addref(enc);
+                        // active reference. obs_encoder_get_ref() takes one here
+                        // so the AutoRelease below does not destroy it (OBS frees
+                        // a created encoder on its first release) before the
+                        // caller attaches it to the output.
+                        obs_encoder_get_ref(enc);
                         auto wh = ParseResolution(videoConfig->resolution);
                         if (wh.has_value()) {
                             obs_encoder_set_gpu_scale_type(enc, obs_scale_type::OBS_SCALE_BICUBIC);
@@ -348,9 +348,10 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
                     enc = obs_audio_encoder_create(audioConfig->encoderId.c_str(), AudioEncoderName(trackIdx).c_str(), settings, defaultMixerId, nullptr);
                     if (enc) {
                         // Same lifetime note as GetVideoEncoder: a created
-                        // encoder carries no active reference, so addref keeps
-                        // it alive past the AutoRelease below.
-                        obs_encoder_addref(enc);
+                        // encoder carries no active reference, so take one with
+                        // obs_encoder_get_ref() to keep it alive past the
+                        // AutoRelease below.
+                        obs_encoder_get_ref(enc);
                     }
                 } else {
                     blog(LOG_ERROR, TAG "Load audio encoder config failed for %s. Sharing with main output.", config_->name.c_str());
@@ -773,78 +774,87 @@ public:
     // obs logical
     void OnStarting() override
     {
-        QPointer<PushWidgetImpl> guard(this);
-        GetGlobalService().RunInUIThread([guard]() {
+        // PushWidgetImpl reaches QWidget through a virtual base, so
+        // QPointer<PushWidgetImpl> is ill-formed. Guard a QObject* instead and
+        // check it before touching the raw self pointer (the widget is only
+        // destroyed on the UI thread, same thread that runs this callback).
+        QPointer<QObject> guard(this);
+        auto self = this;
+        GetGlobalService().RunInUIThread([guard, self]() {
             if (!guard)
                 return;
-            guard->begin_time_ = clock::now();
-            guard->remove_btn_->setEnabled(false);
-            guard->btn_->setText(obs_module_text("Status.Stop"));
-            guard->btn_->setEnabled(true);
-            guard->SetMsg(obs_module_text("Status.Connecting"));
-            guard->remove_btn_->setEnabled(false);
+            self->begin_time_ = clock::now();
+            self->remove_btn_->setEnabled(false);
+            self->btn_->setText(obs_module_text("Status.Stop"));
+            self->btn_->setEnabled(true);
+            self->SetMsg(obs_module_text("Status.Connecting"));
+            self->remove_btn_->setEnabled(false);
         });
     }
 
     void OnStarted() override
     {
-        QPointer<PushWidgetImpl> guard(this);
-        GetGlobalService().RunInUIThread([guard]() {
+        QPointer<QObject> guard(this);
+        auto self = this;
+        GetGlobalService().RunInUIThread([guard, self]() {
             if (!guard)
                 return;
-            guard->remove_btn_->setEnabled(false);
-            guard->btn_->setText(obs_module_text("Status.Stop"));
-            guard->btn_->setEnabled(true);
-            guard->SetMsg(obs_module_text("Status.Streaming"));
+            self->remove_btn_->setEnabled(false);
+            self->btn_->setText(obs_module_text("Status.Stop"));
+            self->btn_->setEnabled(true);
+            self->SetMsg(obs_module_text("Status.Streaming"));
 
-            guard->ResetInfo();
-            guard->timer_->start();
+            self->ResetInfo();
+            self->timer_->start();
         });
     }
 
     void OnReconnect() override
     {
-        QPointer<PushWidgetImpl> guard(this);
-        GetGlobalService().RunInUIThread([guard]() {
+        QPointer<QObject> guard(this);
+        auto self = this;
+        GetGlobalService().RunInUIThread([guard, self]() {
             if (!guard)
                 return;
-            guard->timer_->stop();
+            self->timer_->stop();
 
-            guard->remove_btn_->setEnabled(false);
-            guard->btn_->setText(obs_module_text("Status.Stop"));
-            guard->btn_->setEnabled(true);
-            guard->SetMsg(obs_module_text("Status.Reconnecting"));
+            self->remove_btn_->setEnabled(false);
+            self->btn_->setText(obs_module_text("Status.Stop"));
+            self->btn_->setEnabled(true);
+            self->SetMsg(obs_module_text("Status.Reconnecting"));
         });
     }
 
     void OnReconnected() override
     {
-        QPointer<PushWidgetImpl> guard(this);
-        GetGlobalService().RunInUIThread([guard]() {
+        QPointer<QObject> guard(this);
+        auto self = this;
+        GetGlobalService().RunInUIThread([guard, self]() {
             if (!guard)
                 return;
-            guard->remove_btn_->setEnabled(false);
-            guard->btn_->setText(obs_module_text("Status.Stop"));
-            guard->btn_->setEnabled(true);
-            guard->SetMsg(obs_module_text("Status.Streaming"));
+            self->remove_btn_->setEnabled(false);
+            self->btn_->setText(obs_module_text("Status.Stop"));
+            self->btn_->setEnabled(true);
+            self->SetMsg(obs_module_text("Status.Streaming"));
 
-            guard->ResetInfo();
-            guard->timer_->start();
+            self->ResetInfo();
+            self->timer_->start();
         });
     }
 
     void OnStopping() override
     {
-        QPointer<PushWidgetImpl> guard(this);
-        GetGlobalService().RunInUIThread([guard]() {
+        QPointer<QObject> guard(this);
+        auto self = this;
+        GetGlobalService().RunInUIThread([guard, self]() {
             if (!guard)
                 return;
-            guard->timer_->stop();
+            self->timer_->stop();
 
-            guard->remove_btn_->setEnabled(false);
-            guard->btn_->setText(obs_module_text("Status.Stop"));
-            guard->btn_->setEnabled(true);
-            guard->SetMsg(obs_module_text("Status.Stopping"));
+            self->remove_btn_->setEnabled(false);
+            self->btn_->setText(obs_module_text("Status.Stop"));
+            self->btn_->setEnabled(true);
+            self->SetMsg(obs_module_text("Status.Stopping"));
         });
     }
 
@@ -855,48 +865,49 @@ public:
         // if the output was restarted before it ran, and only touch the widget
         // through the QPointer guard (the widget may already be destroyed).
         const auto generation = startGeneration_;
-        QPointer<PushWidgetImpl> guard(this);
-        GetGlobalService().RunInUIThread([guard, code, generation]() {
+        QPointer<QObject> guard(this);
+        auto self = this;
+        GetGlobalService().RunInUIThread([guard, self, code, generation]() {
             if (!guard)
                 return;
-            if (generation != guard->startGeneration_)
+            if (generation != self->startGeneration_)
                 return;
 
-            guard->ResetInfo();
-            guard->timer_->stop();
+            self->ResetInfo();
+            self->timer_->stop();
 
-            guard->remove_btn_->setEnabled(true);
-            guard->btn_->setText(obs_module_text("Btn.Start"));
-            guard->btn_->setEnabled(true);
-            guard->SetMsg(u8"");
+            self->remove_btn_->setEnabled(true);
+            self->btn_->setText(obs_module_text("Btn.Start"));
+            self->btn_->setEnabled(true);
+            self->SetMsg(u8"");
 
             switch(code)
             {
                 case 0:
-                    guard->SetMsg(u8"");
+                    self->SetMsg(u8"");
                     break;
                 case -1:
-                    guard->SetMsg(obs_module_text("Error.WrongRTMPUrl"));
+                    self->SetMsg(obs_module_text("Error.WrongRTMPUrl"));
                     break;
                 case -2:
-                    guard->SetMsg(obs_module_text("Error.ServerConnect"));
+                    self->SetMsg(obs_module_text("Error.ServerConnect"));
                     break;
                 case -3:
-                    guard->SetMsg(obs_module_text("Error.ServerHandshake"));
+                    self->SetMsg(obs_module_text("Error.ServerHandshake"));
                     break;
                 case -4:
-                    guard->SetMsg(obs_module_text("Error.ServerRefuse"));
+                    self->SetMsg(obs_module_text("Error.ServerRefuse"));
                     break;
                 default:
-                    guard->SetMsg(obs_module_text("Error.Unknown"));
+                    self->SetMsg(obs_module_text("Error.Unknown"));
                     break;
             }
 
             // Release encoders/scene view on the UI thread, which is the same
             // thread that runs StartStreaming()/StopStreaming(), so these never
             // race the output lifecycle.
-            guard->ReleaseOutputEncoder();
-            guard->ReleaseOutputSceneView();
+            self->ReleaseOutputEncoder();
+            self->ReleaseOutputSceneView();
         });
     }
 };
