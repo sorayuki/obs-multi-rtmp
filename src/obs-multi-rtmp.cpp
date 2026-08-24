@@ -20,8 +20,10 @@ static class GlobalServiceImpl : public GlobalService
 {
 public:
     bool RunInUIThread(std::function<void()> task) override {
-        if (uiThread_ == nullptr)
+        if (uiThread_ == nullptr) {
+            blog(LOG_WARNING, TAG "RunInUIThread: UI thread not captured yet, dropping task.");
             return false;
+        }
         QMetaObject::invokeMethod(uiThread_, [func = std::move(task)]() {
             func();
         });
@@ -249,6 +251,7 @@ public:
                 donateWnd->setLayout(layout);
                 donateWnd->setMinimumWidth(360);
                 donateWnd->exec();
+                delete donateWnd;
             });
 
             layout_->addWidget(cr);
@@ -362,6 +365,14 @@ public:
 
     void LoadConfig()
     {
+        // QListWidget::clear() only deletes the list items, not the item
+        // widgets. Stop and delete the old push widgets explicitly so active
+        // outputs do not keep streaming (and leaking) across a profile switch.
+        for (auto x : GetAllPushWidgets()) {
+            x->Stop();
+            x->deleteLater();
+        }
+
         outputsContainer_->clear();
 
         GlobalMultiOutputConfig() = {};
@@ -422,14 +433,14 @@ private:
         outputsContainer_->setItemWidget(listItem, pushWidget);
 
         QObject::connect(pushWidget->GetDeleteButton(), &QPushButton::clicked, [this, targetId]() {
-            auto msgbox = new QMessageBox(
+            QMessageBox msgbox(
                 QMessageBox::Icon::Question,
                 obs_module_text("Question.Title"),
                 obs_module_text("Question.Delete"),
                 QMessageBox::Yes | QMessageBox::No,
                 this
             );
-            if (msgbox->exec() != QMessageBox::Yes) {
+            if (msgbox.exec() != QMessageBox::Yes) {
                 return;
             }
             DeletePushWidget(targetId);

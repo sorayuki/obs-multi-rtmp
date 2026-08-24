@@ -25,6 +25,7 @@
 #include <QCheckBox>
 #include <QGroupBox>
 #include <QAction>
+#include <QPointer>
 
 #include "obs-multi-rtmp.h"
 #include "obs-module.h"

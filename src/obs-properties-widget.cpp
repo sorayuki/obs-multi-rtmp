@@ -151,10 +151,19 @@ namespace {
         }
 
         ~PropertyWidget() {
-            if (label)
-                delete label;
-            if (ctrl)
-                delete ctrl;
+            // UpdateUI() rebuilds the property tree from within widget event
+            // handlers (e.g. focusOutEvent). Deleting synchronously here would
+            // destroy the widget that is currently dispatching the event.
+            // Disconnect first so the self-nulling destroyed() handlers cannot
+            // run after this object is gone.
+            if (label) {
+                QObject::disconnect(label, nullptr, nullptr, nullptr);
+                label->deleteLater();
+            }
+            if (ctrl) {
+                QObject::disconnect(ctrl, nullptr, nullptr, nullptr);
+                ctrl->deleteLater();
+            }
         }
 
         void ReloadProperty(obs_property* p) {
@@ -177,6 +186,7 @@ namespace {
                                 data = LoadCString(obs_property_list_item_string(p, i));
                             cb->addItem(LoadCString(itemname), data);
                         }
+                        break;
                     }
                     default:
                         blog(LOG_WARNING, "ReloadProperty did not handle property of type %d", propType);
@@ -254,7 +264,7 @@ namespace {
             {
                 try {
                     auto val = tostdu8(static_cast<QLineEditWithEye*>(ctrl)->edit()->text());
-                    obs_data_set_int(data, name.c_str(), std::stod(val));
+                    obs_data_set_double(data, name.c_str(), std::stod(val));
                 } catch(...) {
                 }
                 break;

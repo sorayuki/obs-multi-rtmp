@@ -39,8 +39,13 @@ static nlohmann::json to_json(obs_data* data) {
 }
 
 static OBSData from_json(nlohmann::json j) {
-    if (j.type() == nlohmann::json::value_t::null)
-        return OBSDataAutoRelease(obs_data_create()).Get();
+    if (j.type() == nlohmann::json::value_t::null) {
+        // OBSData addrefs on assignment, so balance the create() reference to
+        // keep exactly one reference owned by the returned object.
+        OBSData empty = obs_data_create();
+        obs_data_release(empty);
+        return empty;
+    }
     
     auto jstr = j.dump();
     OBSData r = obs_data_create_from_json(jstr.c_str());
@@ -444,7 +449,6 @@ protected:
     void updateServiceTab()
     {
         auto protocol_info = GetProtocolInfos()->GetInfo(config_->protocol.c_str());
-        assert(protocol_info);
         if (!protocol_info) {
         	blog(LOG_ERROR, TAG "Invalid protocol \"%s\", maybe broken config file.", config_->protocol.c_str());
             protocol_info = GetProtocolInfos()->GetList();
@@ -460,7 +464,6 @@ protected:
     void updateOutputTab()
     {
         auto protocol_info = GetProtocolInfos()->GetInfo(config_->protocol.c_str());
-        assert(protocol_info);
         if (!protocol_info) {
         	blog(LOG_ERROR, TAG "Invalid protocol \"%s\", maybe broken config file.", config_->protocol.c_str());
             protocol_info = GetProtocolInfos()->GetList();
@@ -470,8 +473,10 @@ protected:
         outputSettings_->UpdateProperties(
             obs_output_properties(output),
             obs_output_get_settings(output));
-        supported_audio_encoders_ = obs_output_get_supported_audio_codecs(output);
-        supported_video_encoders_ = obs_output_get_supported_video_codecs(output);
+        if (auto codecs = obs_output_get_supported_audio_codecs(output))
+            supported_audio_encoders_ = codecs;
+        if (auto codecs = obs_output_get_supported_video_codecs(output))
+            supported_video_encoders_ = codecs;
         obs_output_release(output);
 
         if (aenc_ && venc_)
@@ -506,7 +511,11 @@ public:
 
         int currow = 0;
         {
-            auto sublayout = new QGridLayout(container_);
+            // Parentless: giving the layout container_ as parent would try to
+            // install it on container_, which already owns `layout`, and the
+            // layout would then be deleted twice (once by container_, once as a
+            // child item of `layout`).
+            auto sublayout = new QGridLayout();
             sublayout->setColumnStretch(0, 0);
             sublayout->setColumnStretch(1, 1);
             sublayout->addWidget(new QLabel(obs_module_text("StreamingName"), container_), 0, 0);
@@ -1027,7 +1036,6 @@ public:
             }
         }
 
-        assert(pconfig != nullptr);
         if (pconfig == nullptr)
             return;
 
@@ -1088,7 +1096,6 @@ public:
             }
         }
 
-        assert(pconfig != nullptr);
         if (pconfig == nullptr)
             return;
 
