@@ -610,6 +610,29 @@ bool obs_module_load()
     }
     s_dock = dock;
 
+    obs_hotkey_register_frontend(
+        "obs-multi-rtmp.start_all",
+        obs_module_text("Hotkey.StartAllTargets"),
+        [](void*, obs_hotkey_id, obs_hotkey_t*, bool pressed) {
+            if (!pressed || !s_dock)
+                return;
+            for (auto x : s_dock->GetAllPushWidgets())
+                x->StartStreaming();
+        },
+        nullptr
+    );
+    obs_hotkey_register_frontend(
+        "obs-multi-rtmp.stop_all",
+        obs_module_text("Hotkey.StopAllTargets"),
+        [](void*, obs_hotkey_id, obs_hotkey_t*, bool pressed) {
+            if (!pressed || !s_dock)
+                return;
+            for (auto x : s_dock->GetAllPushWidgets())
+                x->StopStreaming();
+        },
+        nullptr
+    );
+
     blog(LOG_INFO, TAG "version: %s by SoraYuki https://github.com/sorayuki/obs-multi-rtmp/", PLUGIN_VERSION);
 
     obs_frontend_add_event_callback(

@@ -58,3 +58,10 @@ Please refer to obs-plugintemplate to understand how it works.
 See [WEBSOCKET_API.md](./WEBSOCKET_API.md) for the obs-websocket vendor API
 that lets external scripts list/start/stop targets, read live status, and
 update a target's stream key/server without opening the dock.
+
+## Hotkeys
+
+Each target registers its own Start/Stop hotkeys (bindable in OBS's
+Settings > Hotkeys, under the target's name), plus global "Start all
+streaming targets" / "Stop all streaming targets" hotkeys - no bindings are
+set by default.
