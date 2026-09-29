@@ -28,6 +28,7 @@ No request fields.
       "name": "YouTube",
       "protocol": "RTMP",
       "state": "live",
+      "enabled": true,
       "sync_start": true,
       "sync_stop": true
     }
@@ -35,7 +36,9 @@ No request fields.
 }
 ```
 
-`state` is one of `"stopped"`, `"connecting"`, `"live"`, `"reconnecting"`.
+`state` is one of `"stopped"`, `"connecting"`, `"live"`, `"reconnecting"`. A
+target with `"enabled": false` is skipped by `start_target`/`start_all_targets`
+and by sync-start with the main OBS stream (see `set_target_enabled` below).
 
 ### `get_target_status`
 
@@ -98,6 +101,17 @@ Request:
 
 Response: `{ "success": true, "restarted": true }` or
 `{ "success": false, "error": "target_not_found" | "settings_must_be_an_object" }`.
+
+### `set_target_enabled`
+
+Request: `{ "id": "<target id>", "enabled": false }`
+
+Enables or disables a target without deleting it. A disabled target is
+skipped by `start_target`/`start_all_targets` and by sync-start; disabling
+a currently-live target stops it immediately (force-stop, no confirmation
+dialog). Mirrors the dock's own per-target checkbox.
+
+Response: `{ "success": true }` or `{ "success": false, "error": "target_not_found" }`.
 
 ## Events
 

@@ -27,6 +27,7 @@ static nlohmann::json SaveTarget(OutputTargetConfig& config) {
     json["output-param"] = config.outputParam;
     json["sync-start"] = config.syncStart;
     json["sync-stop"] = config.syncStop;
+    json["enabled"] = config.enabled;
     if (config.videoConfig.has_value())
         json["video-config"] = *config.videoConfig;
     if (config.audioConfig.has_value())
@@ -127,6 +128,7 @@ static OutputTargetConfigPtr LoadTargetConfig(nlohmann::json& json) {
     config->protocol = GetJsonField<std::string>(json, "protocol").value_or("RTMP"); // for compatibility
     config->syncStart = GetJsonField<bool>(json, "sync-start").value_or(false);
     config->syncStop = GetJsonField<bool>(json, "sync-stop").value_or(config->syncStart);
+    config->enabled = GetJsonField<bool>(json, "enabled").value_or(true);
     config->serviceParam = GetJsonField<nlohmann::json>(json, "service-param").value_or(nlohmann::json{});
     config->outputParam = GetJsonField<nlohmann::json>(json, "output-param").value_or(nlohmann::json{});
     config->videoConfig = GetJsonField<std::string>(json, "video-config");

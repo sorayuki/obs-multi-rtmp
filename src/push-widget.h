@@ -26,6 +26,11 @@ public:
     virtual std::string GetProtocol() = 0;
     virtual bool GetSyncStart() = 0;
     virtual bool GetSyncStop() = 0;
+    // When false, StartStreaming() refuses to start this target (see the
+    // "enabled" field on OutputTargetConfig for why). Setting this to false
+    // while the target is live also force-stops it.
+    virtual bool GetEnabled() = 0;
+    virtual void SetEnabled(bool enabled) = 0;
     virtual bool IsRunning() = 0;
     virtual bool IsConnecting() = 0;
     virtual bool IsReconnecting() = 0;

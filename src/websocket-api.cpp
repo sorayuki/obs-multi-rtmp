@@ -54,6 +54,7 @@ nlohmann::json TargetSummaryJson(PushWidget* target) {
     j["name"] = target->GetTargetName();
     j["protocol"] = target->GetProtocol();
     j["state"] = StateName(target);
+    j["enabled"] = target->GetEnabled();
     j["sync_start"] = target->GetSyncStart();
     j["sync_stop"] = target->GetSyncStop();
     return j;
@@ -185,6 +186,25 @@ void OnSetTargetServiceSettings(obs_data_t* request_data, obs_data_t* response_d
     });
 }
 
+void OnSetTargetEnabled(obs_data_t* request_data, obs_data_t* response_data, void*) {
+    auto req = RequestDataToJson(request_data);
+    auto id = req.value("id", std::string());
+    auto enabled = req.value("enabled", true);
+
+    GetGlobalService().RunInUIThreadBlocking([&]() {
+        nlohmann::json resp;
+        auto target = FindStreamTargetById(id);
+        if (!target) {
+            resp["success"] = false;
+            resp["error"] = "target_not_found";
+        } else {
+            target->SetEnabled(enabled);
+            resp["success"] = true;
+        }
+        SetResponseFromJson(response_data, resp);
+    });
+}
+
 struct VendorRequest {
     const char* name;
     obs_websocket_request_callback_function callback;
@@ -198,6 +218,7 @@ const VendorRequest kRequests[] = {
     { "start_all_targets", &OnStartAllTargets },
     { "stop_all_targets", &OnStopAllTargets },
     { "set_target_service_settings", &OnSetTargetServiceSettings },
+    { "set_target_enabled", &OnSetTargetEnabled },
 };
 
 } // namespace
