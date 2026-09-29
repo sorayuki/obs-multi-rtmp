@@ -6,6 +6,10 @@
 #include <unordered_map>
 #include <vector>
 
+#include <QFileDialog>
+#include <QFile>
+#include <QIODevice>
+
 #include "push-widget.h"
 #include "plugin-support.h"
 
@@ -170,7 +174,102 @@ public:
             for (auto x : GetAllPushWidgets())
                 x->StopStreaming();
         });
- 
+
+        // export / import config, so a target list (including stream keys)
+        // can be backed up or moved to another profile/PC instead of only
+        // ever living inside the current profile's obs-multi-rtmp.json
+        auto ioBtnContainer = new QWidget(this);
+        auto ioBtnLayout = new QHBoxLayout();
+        auto exportButton = new QPushButton(obs_module_text("Btn.ExportConfig"), ioBtnContainer);
+        ioBtnLayout->addWidget(exportButton);
+        auto importButton = new QPushButton(obs_module_text("Btn.ImportConfig"), ioBtnContainer);
+        ioBtnLayout->addWidget(importButton);
+        ioBtnContainer->setLayout(ioBtnLayout);
+        layout_->addWidget(ioBtnContainer);
+
+        QObject::connect(exportButton, &QPushButton::clicked, [this]() {
+            SaveConfig();
+
+            auto fileName = QFileDialog::getSaveFileName(
+                this,
+                obs_module_text("Btn.ExportConfig"),
+                "obs-multi-rtmp-config.json",
+                "JSON (*.json)"
+            );
+            if (fileName.isEmpty())
+                return;
+            if (!fileName.endsWith(".json", Qt::CaseInsensitive))
+                fileName += ".json";
+
+            auto content = SerializeMultiOutputConfig(GlobalMultiOutputConfig());
+
+            QFile file(fileName);
+            if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+                QMessageBox(
+                    QMessageBox::Icon::Critical,
+                    obs_module_text("Notice.Title"),
+                    obs_module_text("Error.ExportConfig"),
+                    QMessageBox::StandardButton::Ok,
+                    this
+                ).exec();
+                return;
+            }
+            file.write(content.c_str(), static_cast<qint64>(content.size()));
+        });
+
+        QObject::connect(importButton, &QPushButton::clicked, [this]() {
+            auto fileName = QFileDialog::getOpenFileName(
+                this,
+                obs_module_text("Btn.ImportConfig"),
+                QString(),
+                "JSON (*.json)"
+            );
+            if (fileName.isEmpty())
+                return;
+
+            QFile file(fileName);
+            if (!file.open(QIODevice::ReadOnly)) {
+                QMessageBox(
+                    QMessageBox::Icon::Critical,
+                    obs_module_text("Notice.Title"),
+                    obs_module_text("Error.ImportConfig"),
+                    QMessageBox::StandardButton::Ok,
+                    this
+                ).exec();
+                return;
+            }
+            auto bytes = file.readAll();
+
+            auto imported = DeserializeMultiOutputConfig(std::string(bytes.constData(), static_cast<size_t>(bytes.size())));
+            if (!imported.has_value()) {
+                QMessageBox(
+                    QMessageBox::Icon::Critical,
+                    obs_module_text("Notice.Title"),
+                    obs_module_text("Error.ImportConfig"),
+                    QMessageBox::StandardButton::Ok,
+                    this
+                ).exec();
+                return;
+            }
+
+            auto confirm = QMessageBox(
+                QMessageBox::Icon::Question,
+                obs_module_text("Question.Title"),
+                obs_module_text("Question.Import"),
+                QMessageBox::Yes | QMessageBox::No,
+                this
+            ).exec();
+            if (confirm != QMessageBox::Yes)
+                return;
+
+            for (auto x : GetAllPushWidgets())
+                x->ForceStopStreaming();
+
+            GlobalMultiOutputConfig() = *imported;
+            SaveConfig();
+            LoadConfig();
+        });
+
         // load and show outputs
         outputsContainer_ = new OutputsListWidget(container_);
         outputsContainer_->setDragDropMode(QAbstractItemView::InternalMove);

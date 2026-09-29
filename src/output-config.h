@@ -80,3 +80,14 @@ void SaveMultiOutputConfig();
 bool LoadMultiOutputConfig();
 
 std::string GenerateId(MultiOutputConfig& config);
+
+// Used by the dock's Export/Import Config buttons to back up or restore
+// all targets (including stream keys) outside of OBS's own profile
+// folder, since the plugin otherwise only ever saves into the current
+// profile's obs-multi-rtmp.json.
+std::string SerializeMultiOutputConfig(MultiOutputConfig& config);
+
+// Returns std::nullopt only if `content` isn't valid JSON; a validly
+// parsed but unexpectedly-shaped file yields an (possibly empty) config
+// instead of failing, same tolerance as the profile loader.
+std::optional<MultiOutputConfig> DeserializeMultiOutputConfig(const std::string& content);
