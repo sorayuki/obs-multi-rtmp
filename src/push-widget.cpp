@@ -7,6 +7,7 @@
 #include "edit-widget.h"
 #include "output-config.h"
 #include "protocols.h"
+#include "websocket-api.h"
 
 #include "obs.hpp"
 
@@ -118,6 +119,13 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     bool using_main_audio_encoder_ = false;
     obs_view_t* scene_view_ = 0;
     bool isUseDelay_ = false;
+
+    // Status tracked for the obs-websocket vendor API (see websocket-api.cpp).
+    bool isConnecting_ = false;
+    bool isReconnecting_ = false;
+    int lastErrorCode_ = 0;
+    double lastBitrateBps_ = 0;
+    double lastFps_ = 0;
 
     QPushButton* GetDeleteButton() {
         return remove_btn_;
@@ -513,9 +521,11 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
             snprintf(strDuration, sizeof(strDuration), "%02d:%02d:%02d", (int)hh.count(), (int)mm.count(), (int)ss.count());
 
             char strFps[32] = { 0 };
-            snprintf(strFps, sizeof(strFps), "%d FPS", static_cast<int>(std::round((new_frames - total_frames_) / interval)));
+            lastFps_ = (new_frames - total_frames_) / interval;
+            snprintf(strFps, sizeof(strFps), "%d FPS", static_cast<int>(std::round(lastFps_)));
 
             auto bps = (new_bytes - total_bytes_) * 8 / interval;
+            lastBitrateBps_ = static_cast<double>(bps);
             auto strBps = [&]()-> std::string {
                 if (bps > 0)
                 {
@@ -686,7 +696,14 @@ public:
         else
             obs_output_force_stop(output_);
     }
-   
+
+    void ForceStopStreaming() override
+    {
+        if (!IsRunning())
+            return;
+        obs_output_force_stop(output_);
+    }
+
     void OnOBSEvent(obs_frontend_event ev) override
     {
         if (ev == obs_frontend_event::OBS_FRONTEND_EVENT_EXIT
@@ -714,13 +731,62 @@ public:
     {
         total_frames_ = 0;
         total_bytes_ = 0;
+        lastBitrateBps_ = 0;
+        lastFps_ = 0;
         last_info_time_ = clock::now();
         msg_->setText("");
     }
 
-    bool IsRunning()
+    bool IsRunning() override
     {
-        return output_ != nullptr && obs_output_active(output_); 
+        return output_ != nullptr && obs_output_active(output_);
+    }
+
+    bool IsConnecting() override { return isConnecting_; }
+    bool IsReconnecting() override { return isReconnecting_; }
+    int GetLastErrorCode() override { return lastErrorCode_; }
+
+    std::string GetTargetId() override { return targetid_; }
+    std::string GetTargetName() override { return config_->name; }
+    std::string GetProtocol() override { return config_->protocol; }
+    bool GetSyncStart() override { return config_->syncStart; }
+    bool GetSyncStop() override { return config_->syncStop; }
+
+    uint64_t GetDurationMs() override
+    {
+        if (!IsRunning())
+            return 0;
+        return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(clock::now() - begin_time_).count());
+    }
+
+    uint64_t GetBitrateBps() override { return static_cast<uint64_t>(lastBitrateBps_); }
+    double GetFps() override { return lastFps_; }
+
+    bool SetServiceSettings(const nlohmann::json& patch, bool merge, bool restartIfActive) override
+    {
+        if (!patch.is_object())
+            return false;
+
+        if (merge) {
+            for (auto it = patch.begin(); it != patch.end(); ++it)
+                config_->serviceParam[it.key()] = it.value();
+        } else {
+            config_->serviceParam = patch;
+        }
+
+        bool wasRunning = IsRunning();
+        if (wasRunning)
+            obs_output_force_stop(output_);
+
+        SaveMultiOutputConfig();
+
+        // StartStreaming() tears down and recreates output_ from scratch,
+        // picking up the patched service settings (e.g. a rolled-over
+        // stream key) in the process.
+        if (wasRunning && restartIfActive)
+            StartStreaming();
+
+        return true;
     }
 
     void StartStop()
@@ -767,17 +833,23 @@ public:
     {
         GetGlobalService().RunInUIThread([this]() {
             begin_time_ = clock::now();
+            isConnecting_ = true;
+            isReconnecting_ = false;
+            lastErrorCode_ = 0;
             remove_btn_->setEnabled(false);
             btn_->setText(obs_module_text("Status.Stop"));
             btn_->setEnabled(true);
             SetMsg(obs_module_text("Status.Connecting"));
             remove_btn_->setEnabled(false);
+            NotifyTargetStateChanged(targetid_, config_->name, "connecting", lastErrorCode_);
         });
     }
 
     void OnStarted() override
     {
         GetGlobalService().RunInUIThread([this]() {
+            isConnecting_ = false;
+            isReconnecting_ = false;
             remove_btn_->setEnabled(false);
             btn_->setText(obs_module_text("Status.Stop"));
             btn_->setEnabled(true);
@@ -785,6 +857,7 @@ public:
 
             ResetInfo();
             timer_->start();
+            NotifyTargetStateChanged(targetid_, config_->name, "live", lastErrorCode_);
         });
     }
 
@@ -792,17 +865,20 @@ public:
     {
         GetGlobalService().RunInUIThread([this]() {
             timer_->stop();
+            isReconnecting_ = true;
 
             remove_btn_->setEnabled(false);
             btn_->setText(obs_module_text("Status.Stop"));
             btn_->setEnabled(true);
             SetMsg(obs_module_text("Status.Reconnecting"));
+            NotifyTargetStateChanged(targetid_, config_->name, "reconnecting", lastErrorCode_);
         });
     }
 
     void OnReconnected() override
     {
         GetGlobalService().RunInUIThread([this]() {
+            isReconnecting_ = false;
             remove_btn_->setEnabled(false);
             btn_->setText(obs_module_text("Status.Stop"));
             btn_->setEnabled(true);
@@ -810,6 +886,7 @@ public:
 
             ResetInfo();
             timer_->start();
+            NotifyTargetStateChanged(targetid_, config_->name, "live", lastErrorCode_);
         });
     }
 
@@ -830,6 +907,9 @@ public:
         GetGlobalService().RunInUIThread([this, code]() {
             ResetInfo();
             timer_->stop();
+            isConnecting_ = false;
+            isReconnecting_ = false;
+            lastErrorCode_ = code;
 
             remove_btn_->setEnabled(true);
             btn_->setText(obs_module_text("Btn.Start"));
@@ -857,6 +937,8 @@ public:
                     SetMsg(obs_module_text("Error.Unknown"));
                     break;
             }
+
+            NotifyTargetStateChanged(targetid_, config_->name, "stopped", lastErrorCode_);
         });
 
         ReleaseOutputEncoder();

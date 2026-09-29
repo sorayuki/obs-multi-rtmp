@@ -4,11 +4,14 @@
 #include <regex>
 #include <filesystem>
 #include <unordered_map>
+#include <vector>
 
 #include "push-widget.h"
 #include "plugin-support.h"
 
 #include "output-config.h"
+#include "dock-registry.h"
+#include "websocket-api.h"
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -25,6 +28,19 @@ public:
         QMetaObject::invokeMethod(uiThread_, [func = std::move(task)]() {
             func();
         });
+        return true;
+    }
+
+    bool RunInUIThreadBlocking(std::function<void()> task) override {
+        if (uiThread_ == nullptr)
+            return false;
+        if (QThread::currentThread() == uiThread_) {
+            task();
+            return true;
+        }
+        QMetaObject::invokeMethod(uiThread_, [func = std::move(task)]() {
+            func();
+        }, Qt::BlockingQueuedConnection);
         return true;
     }
 
@@ -451,6 +467,28 @@ private:
     }
 };
 
+// Set once in obs_module_load() and left alive for the plugin's lifetime,
+// same as the dock itself. Backs GetAllStreamTargets()/FindStreamTargetById()
+// for the obs-websocket vendor API (see websocket-api.cpp / dock-registry.h).
+static MultiOutputWidget* s_dock = nullptr;
+
+std::vector<PushWidget*> GetAllStreamTargets() {
+    std::vector<PushWidget*> result;
+    if (!s_dock)
+        return result;
+    for (auto x : s_dock->GetAllPushWidgets())
+        result.push_back(x);
+    return result;
+}
+
+PushWidget* FindStreamTargetById(const std::string& id) {
+    for (auto x : GetAllStreamTargets()) {
+        if (x->GetTargetId() == id)
+            return x;
+    }
+    return nullptr;
+}
+
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE("obs-multi-rtmp", "en-US")
 OBS_MODULE_AUTHOR("雷鳴 (@sorayukinoyume)")
@@ -471,6 +509,7 @@ bool obs_module_load()
         delete dock;
         return false;
     }
+    s_dock = dock;
 
     blog(LOG_INFO, TAG "version: %s by SoraYuki https://github.com/sorayuki/obs-multi-rtmp/", PLUGIN_VERSION);
 
@@ -493,6 +532,14 @@ bool obs_module_load()
     );
 
     return true;
+}
+
+void obs_module_post_load(void)
+{
+    // obs-websocket-api.h requires vendor registration to happen only after
+    // all plugins have finished loading, so it's deferred to this
+    // post-load hook rather than done inline in obs_module_load().
+    RegisterWebsocketVendor();
 }
 
 const char *obs_module_description(void)

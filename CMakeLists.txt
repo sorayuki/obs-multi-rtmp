@@ -55,6 +55,10 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
   ./src/protocols.cpp
   ./src/helpers.h
   ./src/helpers.cpp
+  ./src/dock-registry.h
+  ./src/obs-websocket-api.h
+  ./src/websocket-api.h
+  ./src/websocket-api.cpp
 )
 
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
