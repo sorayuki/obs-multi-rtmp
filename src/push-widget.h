@@ -46,6 +46,13 @@ public:
     // take effect right away (e.g. swapping in a rolled-over YouTube stream
     // key without needing to reopen the edit dialog).
     virtual bool SetServiceSettings(const nlohmann::json& patch, bool merge, bool restartIfActive) = 0;
+
+    // Full config read-back for the obs-websocket vendor API's
+    // get_target_config request. GetServiceSettings() includes raw secrets
+    // (e.g. the RTMP stream key) verbatim - the vendor API redacts them by
+    // default before handing them to a caller.
+    virtual nlohmann::json GetServiceSettings() = 0;
+    virtual nlohmann::json GetOutputSettings() = 0;
 };
 
 PushWidget* createPushWidget(const std::string& targetId, QWidget* parent = 0);

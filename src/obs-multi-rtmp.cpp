@@ -421,6 +421,30 @@ public:
         SaveMultiOutputConfig();
     }
 
+    // Used by the obs-websocket vendor API's create_target request (see
+    // websocket-api.cpp / dock-registry.h). Skips ShowEditDlg() - there's
+    // no one to click through a modal dialog for a headless caller.
+    PushWidget* CreateTargetHeadless(OutputTargetConfigPtr target)
+    {
+        GlobalMultiOutputConfig().targets.emplace_back(target);
+        auto pushWidget = AddPushWidget(target->id);
+        SaveConfig();
+        return pushWidget;
+    }
+
+    // Used by the vendor API's delete_target request. The "are you sure" /
+    // "not while live" gating happens in websocket-api.cpp before this is
+    // called - this just performs the removal, same as DeletePushWidget()
+    // but without the confirmation dialog the dock's own Delete button shows.
+    bool DeleteTargetHeadless(const std::string& targetId)
+    {
+        if (!FindById(GlobalMultiOutputConfig().targets, targetId))
+            return false;
+        DeletePushWidget(targetId);
+        SaveConfig();
+        return true;
+    }
+
     void OnOutputMoved(
         const QModelIndex &parent,
         int start,
@@ -586,6 +610,18 @@ PushWidget* FindStreamTargetById(const std::string& id) {
             return x;
     }
     return nullptr;
+}
+
+PushWidget* CreateStreamTarget(OutputTargetConfigPtr target) {
+    if (!s_dock)
+        return nullptr;
+    return s_dock->CreateTargetHeadless(std::move(target));
+}
+
+bool DeleteStreamTarget(const std::string& id) {
+    if (!s_dock)
+        return false;
+    return s_dock->DeleteTargetHeadless(id);
 }
 
 OBS_DECLARE_MODULE()
