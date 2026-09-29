@@ -240,6 +240,20 @@ static MultiOutputConfig LoadMultiOutputConfig(const std::string& content) {
     }
 }
 
+std::string SerializeMultiOutputConfig(MultiOutputConfig& config) {
+    return SaveMultiOutputConfig(config);
+}
+
+std::optional<MultiOutputConfig> DeserializeMultiOutputConfig(const std::string& content) {
+    try {
+        auto parsed = nlohmann::json::parse(content);
+        (void)parsed;
+    } catch (const std::exception&) {
+        return std::nullopt;
+    }
+    return LoadMultiOutputConfig(content);
+}
+
 void SaveMultiOutputConfig() {
     auto profiledir = obs_frontend_get_current_profile_path();
     if (profiledir) {
