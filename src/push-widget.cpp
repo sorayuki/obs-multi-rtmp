@@ -122,6 +122,18 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     obs_view_t* scene_view_ = 0;
     bool isUseDelay_ = false;
 
+    // Guards StartStreaming() against being re-entered while a previous
+    // call's connection attempt is still in flight. IsRunning() alone isn't
+    // enough: obs_output_active() only flips true once the connection
+    // actually succeeds, so a second StartStreaming() call made while still
+    // "connecting" would sail past that check, tear down the in-flight
+    // output via ReleaseOutput() (which stops/releases it), and race the
+    // still-running rtmp connect_thread - crashing inside obs-outputs.dll.
+    // Set as soon as a start attempt begins and cleared once it resolves
+    // (either OnStopped(), or a synchronous failure before obs_output_start
+    // is even reached).
+    bool isStarting_ = false;
+
     // Status tracked for the obs-websocket vendor API (see websocket-api.cpp).
     bool isConnecting_ = false;
     bool isReconnecting_ = false;
@@ -670,13 +682,15 @@ public:
 
 
     void StartStreaming() override {
-        if (IsRunning())
+        if (IsRunning() || isStarting_)
             return;
 
         if (!config_->enabled) {
             SetMsg(obs_module_text("Status.Disabled"));
             return;
         }
+
+        isStarting_ = true;
 
         // recreate output
         ReleaseOutput();
@@ -720,24 +734,28 @@ public:
         if (!PrepareOutputService())
         {
             SetMsg(obs_module_text("Error.CreateRtmpService"));
+            isStarting_ = false;
             return;
         }
 
         if (!PrepareOutputEncoders())
         {
             SetMsg(obs_module_text("Error.CreateEncoder"));
+            isStarting_ = false;
             return;
         }
 
         if (!PrepareEncoderSource())
         {
             SetMsg(obs_module_text("Error.SceneNotExist"));
+            isStarting_ = false;
             return;
         }
 
         if (!obs_output_start(output_))
         {
             SetMsg(obs_module_text("Error.StartOutput"));
+            isStarting_ = false;
         }
     }
 
@@ -933,6 +951,7 @@ public:
     void OnStarted() override
     {
         GetGlobalService().RunInUIThread([this]() {
+            isStarting_ = false;
             isConnecting_ = false;
             isReconnecting_ = false;
             remove_btn_->setEnabled(false);
@@ -995,6 +1014,7 @@ public:
         GetGlobalService().RunInUIThread([this, code]() {
             ResetInfo();
             timer_->stop();
+            isStarting_ = false;
             isConnecting_ = false;
             isReconnecting_ = false;
             lastErrorCode_ = code;
