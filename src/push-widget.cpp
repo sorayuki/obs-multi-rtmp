@@ -118,6 +118,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     bool using_main_audio_encoder_ = false;
     obs_view_t* scene_view_ = 0;
     bool isUseDelay_ = false;
+    bool is_editing_ = false;
 
     QPushButton* GetDeleteButton() {
         return remove_btn_;
@@ -544,7 +545,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
 
 public:
     PushWidgetImpl(const std::string& targetid, QWidget* parent = 0)
-        : QWidget(parent)
+        : PushWidget(parent)
         , targetid_(targetid)
     {
         QObject::setObjectName("push-widget");
@@ -718,9 +719,33 @@ public:
         msg_->setText("");
     }
 
-    bool IsRunning()
-    {
-        return output_ != nullptr && obs_output_active(output_); 
+    // Websocket access methods
+    OutputTargetConfigPtr GetConfig() const override {
+        return config_;
+    }
+
+    bool IsEditing() const override {
+        return is_editing_;
+    }
+
+    QString GetTargetId() const override {
+        return QString::fromStdString(config_->id);
+    }
+
+    QString GetTargetName() const override {
+        return QString::fromStdString(config_->name);
+    }
+
+    QString GetStatusText() const override {
+        return msg_ ? msg_->text() : QString();
+    }
+
+    bool IsRunning() const override {
+        return output_ != nullptr && obs_output_active(output_);
+    }
+
+    void UpdateUI() override {
+        LoadConfig();
     }
 
     void StartStop()
@@ -744,9 +769,13 @@ public:
 
     bool ShowEditDlg() override
     {
+        is_editing_ = true;
         std::unique_ptr<EditOutputWidget> dlg{ createEditOutputWidget(targetid_, (QMainWindow*)obs_frontend_get_main_window()) };
 
-        if (dlg->exec() == QDialog::DialogCode::Accepted)
+        int result = dlg->exec();
+        is_editing_ = false;
+
+        if (result == QDialog::DialogCode::Accepted)
         {
             SaveMultiOutputConfig();
             LoadConfig();
