@@ -65,6 +65,7 @@ protected:
         case QEvent::PolishRequest:
         case QEvent::Show:
         case QEvent::StyleChange:
+            RefreshItemSizeHints();
             updateGeometry();
             break;
         default:
@@ -75,6 +76,16 @@ protected:
     }
 
 private:
+    void RefreshItemSizeHints()
+    {
+        for (int i = 0; i < count(); ++i) {
+            auto item = this->item(i);
+            auto widget = itemWidget(item);
+            if (item && widget)
+                item->setSizeHint(widget->sizeHint());
+        }
+    }
+
     int ContentHeight() const
     {
         auto *widget = const_cast<OutputsListWidget *>(this);

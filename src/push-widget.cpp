@@ -574,6 +574,16 @@ public:
 
         layout->addWidget(remove_btn_ = new QPushButton(obs_module_text("Btn.Delete"), this), 1, 2);
 
+        // Keep action buttons usable in narrow docks across OBS themes.
+        for (auto button : { btn_, edit_btn_, remove_btn_ }) {
+            button->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+            button->setMinimumWidth(0);
+            button->setMinimumHeight(button->fontMetrics().height() + 8);
+        }
+        layout->setColumnStretch(0, 1);
+        layout->setColumnStretch(1, 1);
+        layout->setColumnStretch(2, 1);
+
         layout->addWidget(msg_ = new QLabel(u8"", this), 2, 0, 1, 3);
         msg_->setWordWrap(true);
         layout->addItem(new QSpacerItem(0, 10), 3, 0);
