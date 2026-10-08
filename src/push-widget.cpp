@@ -118,6 +118,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     bool using_main_audio_encoder_ = false;
     obs_view_t* scene_view_ = 0;
     bool isUseDelay_ = false;
+    bool isStarting_ = false;
 
     QPushButton* GetDeleteButton() {
         return remove_btn_;
@@ -599,8 +600,10 @@ public:
 
 
     void StartStreaming() override {
-        if (IsRunning())
+        if (IsRunning() || isStarting_)
             return;
+
+        isStarting_ = true;
 
         // recreate output
         ReleaseOutput();
@@ -644,24 +647,28 @@ public:
         if (!PrepareOutputService())
         {
             SetMsg(obs_module_text("Error.CreateRtmpService"));
+            isStarting_ = false;
             return;
         }
 
         if (!PrepareOutputEncoders())
         {
             SetMsg(obs_module_text("Error.CreateEncoder"));
+            isStarting_ = false;
             return;
         }
 
         if (!PrepareEncoderSource())
         {
             SetMsg(obs_module_text("Error.SceneNotExist"));
+            isStarting_ = false;
             return;
         }
 
         if (!obs_output_start(output_))
         {
             SetMsg(obs_module_text("Error.StartOutput"));
+            isStarting_ = false;
         }
     }
 
@@ -778,6 +785,7 @@ public:
     void OnStarted() override
     {
         GetGlobalService().RunInUIThread([this]() {
+            isStarting_ = false;
             remove_btn_->setEnabled(false);
             btn_->setText(obs_module_text("Status.Stop"));
             btn_->setEnabled(true);
@@ -828,6 +836,7 @@ public:
     void OnStopped(int code) override
     {
         GetGlobalService().RunInUIThread([this, code]() {
+            isStarting_ = false;
             ResetInfo();
             timer_->stop();
 
