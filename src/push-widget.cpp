@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "helpers.h"
 #include <regex>
+#include <atomic>
 #include <optional>
 #include <tuple>
 #include "push-widget.h"
@@ -118,7 +119,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     bool using_main_audio_encoder_ = false;
     obs_view_t* scene_view_ = 0;
     bool isUseDelay_ = false;
-    bool isStarting_ = false;
+    std::atomic_bool isStarting_ = false;
 
     QPushButton* GetDeleteButton() {
         return remove_btn_;
@@ -600,10 +601,11 @@ public:
 
 
     void StartStreaming() override {
-        if (IsRunning() || isStarting_)
+        bool expected = false;
+        if (IsRunning() || !isStarting_.compare_exchange_strong(expected, true))
             return;
 
-        isStarting_ = true;
+        auto resetStarting = finally([this] { isStarting_ = false; });
 
         // recreate output
         ReleaseOutput();
@@ -647,29 +649,29 @@ public:
         if (!PrepareOutputService())
         {
             SetMsg(obs_module_text("Error.CreateRtmpService"));
-            isStarting_ = false;
             return;
         }
 
         if (!PrepareOutputEncoders())
         {
             SetMsg(obs_module_text("Error.CreateEncoder"));
-            isStarting_ = false;
             return;
         }
 
         if (!PrepareEncoderSource())
         {
             SetMsg(obs_module_text("Error.SceneNotExist"));
-            isStarting_ = false;
             return;
         }
 
         if (!obs_output_start(output_))
         {
             SetMsg(obs_module_text("Error.StartOutput"));
-            isStarting_ = false;
+            return;
         }
+
+        // Start is asynchronous: keep the flag set until OnStarted()/OnStopped() clears it.
+        resetStarting.Dismiss();
     }
 
     void StopStreaming() override {
