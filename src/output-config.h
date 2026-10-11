@@ -41,6 +41,11 @@ struct OutputTargetConfig {
     std::string protocol = "RTMP";
     bool syncStart = false;
     bool syncStop = false;
+    // When false, this target is skipped by "Start all" / sync-start and
+    // StartStreaming() refuses to start it, without losing its saved
+    // settings. Lets a target be temporarily excluded (e.g. a platform
+    // that's down) without deleting and re-creating it.
+    bool enabled = true;
 
     nlohmann::json serviceParam;
     nlohmann::json outputParam;

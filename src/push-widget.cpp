@@ -103,6 +103,8 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     QPushButton* btn_ = 0;
     QLabel* name_ = 0;
     QLabel* msg_ = 0;
+    QLabel* status_dot_ = 0;
+    QCheckBox* enabled_cb_ = 0;
 
     using clock = std::chrono::steady_clock;
     clock::time_point begin_time_;
@@ -120,6 +122,10 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     obs_view_t* scene_view_ = 0;
     bool isUseDelay_ = false;
     std::atomic_bool isStarting_ = false;
+
+    bool isConnecting_ = false;
+    bool isReconnecting_ = false;
+    int lastErrorCode_ = 0;
 
     QPushButton* GetDeleteButton() {
         return remove_btn_;
@@ -544,6 +550,21 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         last_info_time_ = now;
     }
 
+    void UpdateStatusDot() {
+        if (!status_dot_)
+            return;
+
+        const char* color = "#888888"; // stopped / idle
+        if (isReconnecting_ || isConnecting_)
+            color = "#e6b800"; // connecting / reconnecting
+        else if (IsRunning())
+            color = "#2ecc71"; // live
+        else if (lastErrorCode_ != 0)
+            color = "#e74c3c"; // last attempt failed
+
+        status_dot_->setStyleSheet(QString("color: %1;").arg(color));
+    }
+
 public:
     PushWidgetImpl(const std::string& targetid, QWidget* parent = 0)
         : QWidget(parent)
@@ -563,18 +584,26 @@ public:
         });
 
         auto layout = new QGridLayout(this);
-        layout->addWidget(name_ = new QLabel(obs_module_text("NewStreaming"), this), 0, 0, 1, 3);
-        layout->addWidget(btn_ = new QPushButton(obs_module_text("Btn.Start"), this), 1, 0);
+        layout->addWidget(status_dot_ = new QLabel(u8"●", this), 0, 0);
+        layout->addWidget(name_ = new QLabel(obs_module_text("NewStreaming"), this), 0, 1, 1, 3);
+
+        layout->addWidget(enabled_cb_ = new QCheckBox(this), 1, 0);
+        enabled_cb_->setToolTip(obs_module_text("Target.Enabled"));
+        QObject::connect(enabled_cb_, &QCheckBox::clicked, [this](bool checked) {
+            SetEnabled(checked);
+        });
+
+        layout->addWidget(btn_ = new QPushButton(obs_module_text("Btn.Start"), this), 1, 1);
         QObject::connect(btn_, &QPushButton::clicked, [this]() {
             StartStop();
         });
 
-        layout->addWidget(edit_btn_ = new QPushButton(obs_module_text("Btn.Edit"), this), 1, 1);
+        layout->addWidget(edit_btn_ = new QPushButton(obs_module_text("Btn.Edit"), this), 1, 2);
         QObject::connect(edit_btn_, &QPushButton::clicked, [this]() {
             ShowEditDlg();
         });
 
-        layout->addWidget(remove_btn_ = new QPushButton(obs_module_text("Btn.Delete"), this), 1, 2);
+        layout->addWidget(remove_btn_ = new QPushButton(obs_module_text("Btn.Delete"), this), 1, 3);
 
         // Keep action buttons usable in narrow docks across OBS themes.
         for (auto button : { btn_, edit_btn_, remove_btn_ }) {
@@ -582,16 +611,17 @@ public:
             button->setMinimumWidth(0);
             button->setMinimumHeight(button->fontMetrics().height() + 8);
         }
-        layout->setColumnStretch(0, 1);
         layout->setColumnStretch(1, 1);
         layout->setColumnStretch(2, 1);
+        layout->setColumnStretch(3, 1);
 
-        layout->addWidget(msg_ = new QLabel(u8"", this), 2, 0, 1, 3);
+        layout->addWidget(msg_ = new QLabel(u8"", this), 2, 0, 1, 4);
         msg_->setWordWrap(true);
         layout->addItem(new QSpacerItem(0, 10), 3, 0);
         setLayout(layout);
 
         LoadConfig();
+        UpdateStatusDot();
     }
     
     ~PushWidgetImpl()
@@ -606,6 +636,11 @@ public:
             return;
 
         auto resetStarting = finally([this] { isStarting_ = false; });
+
+        if (!config_->enabled) {
+            SetMsg(obs_module_text("Status.Disabled"));
+            return;
+        }
 
         // recreate output
         ReleaseOutput();
@@ -717,6 +752,8 @@ public:
     void LoadConfig()
     {
         name_->setText(QString::fromUtf8(config_->name));
+        if (enabled_cb_)
+            enabled_cb_->setChecked(config_->enabled);
     }
 
     void ResetInfo()
@@ -729,7 +766,20 @@ public:
 
     bool IsRunning()
     {
-        return output_ != nullptr && obs_output_active(output_); 
+        return output_ != nullptr && obs_output_active(output_);
+    }
+
+    bool GetEnabled() override { return config_->enabled; }
+
+    void SetEnabled(bool enabled) override
+    {
+        config_->enabled = enabled;
+        if (enabled_cb_ && enabled_cb_->isChecked() != enabled)
+            enabled_cb_->setChecked(enabled);
+        if (!enabled && IsRunning())
+            obs_output_force_stop(output_);
+        SaveMultiOutputConfig();
+        UpdateStatusDot();
     }
 
     void StartStop()
@@ -776,11 +826,15 @@ public:
     {
         GetGlobalService().RunInUIThread([this]() {
             begin_time_ = clock::now();
+            isConnecting_ = true;
+            isReconnecting_ = false;
+            lastErrorCode_ = 0;
             remove_btn_->setEnabled(false);
             btn_->setText(obs_module_text("Status.Stop"));
             btn_->setEnabled(true);
             SetMsg(obs_module_text("Status.Connecting"));
             remove_btn_->setEnabled(false);
+            UpdateStatusDot();
         });
     }
 
@@ -788,6 +842,8 @@ public:
     {
         GetGlobalService().RunInUIThread([this]() {
             isStarting_ = false;
+            isConnecting_ = false;
+            isReconnecting_ = false;
             remove_btn_->setEnabled(false);
             btn_->setText(obs_module_text("Status.Stop"));
             btn_->setEnabled(true);
@@ -795,6 +851,7 @@ public:
 
             ResetInfo();
             timer_->start();
+            UpdateStatusDot();
         });
     }
 
@@ -802,17 +859,20 @@ public:
     {
         GetGlobalService().RunInUIThread([this]() {
             timer_->stop();
+            isReconnecting_ = true;
 
             remove_btn_->setEnabled(false);
             btn_->setText(obs_module_text("Status.Stop"));
             btn_->setEnabled(true);
             SetMsg(obs_module_text("Status.Reconnecting"));
+            UpdateStatusDot();
         });
     }
 
     void OnReconnected() override
     {
         GetGlobalService().RunInUIThread([this]() {
+            isReconnecting_ = false;
             remove_btn_->setEnabled(false);
             btn_->setText(obs_module_text("Status.Stop"));
             btn_->setEnabled(true);
@@ -820,6 +880,7 @@ public:
 
             ResetInfo();
             timer_->start();
+            UpdateStatusDot();
         });
     }
 
@@ -839,6 +900,9 @@ public:
     {
         GetGlobalService().RunInUIThread([this, code]() {
             isStarting_ = false;
+            isConnecting_ = false;
+            isReconnecting_ = false;
+            lastErrorCode_ = code;
             ResetInfo();
             timer_->stop();
 
@@ -868,6 +932,8 @@ public:
                     SetMsg(obs_module_text("Error.Unknown"));
                     break;
             }
+
+            UpdateStatusDot();
         });
 
         ReleaseOutputEncoder();
