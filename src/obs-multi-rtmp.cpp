@@ -159,21 +159,6 @@ public:
                 x->StopStreaming();
         });
 
-        // export / import config, so a target list (including stream keys)
-        // can be backed up or moved to another profile/PC instead of only
-        // ever living inside the current profile's obs-multi-rtmp.json
-        auto ioBtnContainer = new QWidget(this);
-        auto ioBtnLayout = new QHBoxLayout();
-        auto exportButton = new QPushButton(obs_module_text("Btn.ExportConfig"), ioBtnContainer);
-        ioBtnLayout->addWidget(exportButton);
-        auto importButton = new QPushButton(obs_module_text("Btn.ImportConfig"), ioBtnContainer);
-        ioBtnLayout->addWidget(importButton);
-        ioBtnContainer->setLayout(ioBtnLayout);
-        layout_->addWidget(ioBtnContainer);
-
-        QObject::connect(exportButton, &QPushButton::clicked, this, &MultiOutputWidget::ExportConfig);
-        QObject::connect(importButton, &QPushButton::clicked, this, &MultiOutputWidget::ImportConfig);
-
         // load and show outputs
         outputsContainer_ = new OutputsListWidget(container_);
         outputsContainer_->setDragDropMode(QAbstractItemView::InternalMove);
@@ -208,6 +193,21 @@ public:
             &MultiOutputWidget::OnOutputMoved
         );
         layout_->addWidget(outputsContainer_);
+
+        // export / import config, so a target list (including stream keys)
+        // can be backed up or moved to another profile/PC instead of only
+        // ever living inside the current profile's obs-multi-rtmp.json
+        auto ioBtnContainer = new QWidget(this);
+        auto ioBtnLayout = new QHBoxLayout();
+        auto exportButton = new QPushButton(obs_module_text("Btn.ExportConfig"), ioBtnContainer);
+        ioBtnLayout->addWidget(exportButton);
+        auto importButton = new QPushButton(obs_module_text("Btn.ImportConfig"), ioBtnContainer);
+        ioBtnLayout->addWidget(importButton);
+        ioBtnContainer->setLayout(ioBtnLayout);
+        layout_->addWidget(ioBtnContainer);
+
+        QObject::connect(exportButton, &QPushButton::clicked, this, &MultiOutputWidget::ExportConfig);
+        QObject::connect(importButton, &QPushButton::clicked, this, &MultiOutputWidget::ImportConfig);
 
         // donate
         if (std::string("\xe5\xa4\x9a\xe8\xb7\xaf\xe6\x8e\xa8\xe6\xb5\x81") == obs_module_text("Title"))
