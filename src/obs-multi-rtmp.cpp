@@ -589,24 +589,26 @@ bool obs_module_load()
     obs_hotkey_register_frontend(
         "obs-multi-rtmp.start_all",
         obs_module_text("Hotkey.StartAllTargets"),
-        [](void*, obs_hotkey_id, obs_hotkey_t*, bool pressed) {
-            if (!pressed || !s_dock)
+        [](void* private_data, obs_hotkey_id, obs_hotkey_t*, bool pressed) {
+            auto dock = static_cast<MultiOutputWidget*>(private_data);
+            if (!pressed || !dock)
                 return;
-            for (auto x : s_dock->GetAllPushWidgets())
+            for (auto x : dock->GetAllPushWidgets())
                 x->StartStreaming();
         },
-        nullptr
+        dock
     );
     obs_hotkey_register_frontend(
         "obs-multi-rtmp.stop_all",
         obs_module_text("Hotkey.StopAllTargets"),
-        [](void*, obs_hotkey_id, obs_hotkey_t*, bool pressed) {
-            if (!pressed || !s_dock)
+        [](void* private_data, obs_hotkey_id, obs_hotkey_t*, bool pressed) {
+            auto dock = static_cast<MultiOutputWidget*>(private_data);
+            if (!pressed || !dock)
                 return;
-            for (auto x : s_dock->GetAllPushWidgets())
+            for (auto x : dock->GetAllPushWidgets())
                 x->StopStreaming();
         },
-        nullptr
+        dock
     );
 
     blog(LOG_INFO, TAG "version: %s by SoraYuki https://github.com/sorayuki/obs-multi-rtmp/", PLUGIN_VERSION);

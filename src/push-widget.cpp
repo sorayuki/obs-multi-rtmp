@@ -799,7 +799,7 @@ public:
         msg_->setText("");
     }
 
-    bool IsRunning()
+    bool IsRunning() override
     {
         return output_ != nullptr && obs_output_active(output_);
     }
