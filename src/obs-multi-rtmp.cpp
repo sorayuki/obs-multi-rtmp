@@ -171,88 +171,8 @@ public:
         ioBtnContainer->setLayout(ioBtnLayout);
         layout_->addWidget(ioBtnContainer);
 
-        QObject::connect(exportButton, &QPushButton::clicked, [this]() {
-            SaveConfig();
-
-            auto fileName = QFileDialog::getSaveFileName(
-                this,
-                obs_module_text("Btn.ExportConfig"),
-                "obs-multi-rtmp-config.json",
-                "JSON (*.json)"
-            );
-            if (fileName.isEmpty())
-                return;
-            if (!fileName.endsWith(".json", Qt::CaseInsensitive))
-                fileName += ".json";
-
-            auto content = SerializeMultiOutputConfig(GlobalMultiOutputConfig());
-
-            QFile file(fileName);
-            if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-                QMessageBox(
-                    QMessageBox::Icon::Critical,
-                    obs_module_text("Notice.Title"),
-                    obs_module_text("Error.ExportConfig"),
-                    QMessageBox::StandardButton::Ok,
-                    this
-                ).exec();
-                return;
-            }
-            file.write(content.c_str(), static_cast<qint64>(content.size()));
-        });
-
-        QObject::connect(importButton, &QPushButton::clicked, [this]() {
-            auto fileName = QFileDialog::getOpenFileName(
-                this,
-                obs_module_text("Btn.ImportConfig"),
-                QString(),
-                "JSON (*.json)"
-            );
-            if (fileName.isEmpty())
-                return;
-
-            QFile file(fileName);
-            if (!file.open(QIODevice::ReadOnly)) {
-                QMessageBox(
-                    QMessageBox::Icon::Critical,
-                    obs_module_text("Notice.Title"),
-                    obs_module_text("Error.ImportConfig"),
-                    QMessageBox::StandardButton::Ok,
-                    this
-                ).exec();
-                return;
-            }
-            auto bytes = file.readAll();
-
-            auto imported = DeserializeMultiOutputConfig(std::string(bytes.constData(), static_cast<size_t>(bytes.size())));
-            if (!imported.has_value()) {
-                QMessageBox(
-                    QMessageBox::Icon::Critical,
-                    obs_module_text("Notice.Title"),
-                    obs_module_text("Error.ImportConfig"),
-                    QMessageBox::StandardButton::Ok,
-                    this
-                ).exec();
-                return;
-            }
-
-            auto confirm = QMessageBox(
-                QMessageBox::Icon::Question,
-                obs_module_text("Question.Title"),
-                obs_module_text("Question.Import"),
-                QMessageBox::Yes | QMessageBox::No,
-                this
-            ).exec();
-            if (confirm != QMessageBox::Yes)
-                return;
-
-            for (auto x : GetAllPushWidgets())
-                x->ForceStopStreaming();
-
-            GlobalMultiOutputConfig() = *imported;
-            SaveConfig();
-            LoadConfig();
-        });
+        QObject::connect(exportButton, &QPushButton::clicked, this, &MultiOutputWidget::ExportConfig);
+        QObject::connect(importButton, &QPushButton::clicked, this, &MultiOutputWidget::ImportConfig);
 
         // load and show outputs
         outputsContainer_ = new OutputsListWidget(container_);
@@ -403,6 +323,101 @@ public:
     void SaveConfig()
     {
         SaveMultiOutputConfig();
+    }
+
+    void ExportConfig()
+    {
+        SaveConfig();
+
+        auto fileName = QFileDialog::getSaveFileName(
+            this,
+            obs_module_text("Btn.ExportConfig"),
+            "obs-multi-rtmp-config.json",
+            "JSON (*.json)"
+        );
+        if (fileName.isEmpty())
+            return;
+        if (!fileName.endsWith(".json", Qt::CaseInsensitive))
+            fileName += ".json";
+
+        auto content = SerializeMultiOutputConfig(GlobalMultiOutputConfig());
+
+        QFile file(fileName);
+        if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            QMessageBox(
+                QMessageBox::Icon::Critical,
+                obs_module_text("Notice.Title"),
+                obs_module_text("Error.ExportConfig"),
+                QMessageBox::StandardButton::Ok,
+                this
+            ).exec();
+            return;
+        }
+        file.write(content.c_str(), static_cast<qint64>(content.size()));
+    }
+
+    void ImportConfig()
+    {
+        auto fileName = QFileDialog::getOpenFileName(
+            this,
+            obs_module_text("Btn.ImportConfig"),
+            QString(),
+            "JSON (*.json)"
+        );
+        if (fileName.isEmpty())
+            return;
+
+        QFile file(fileName);
+        if (!file.open(QIODevice::ReadOnly)) {
+            QMessageBox(
+                QMessageBox::Icon::Critical,
+                obs_module_text("Notice.Title"),
+                obs_module_text("Error.ImportConfig"),
+                QMessageBox::StandardButton::Ok,
+                this
+            ).exec();
+            return;
+        }
+        auto bytes = file.readAll();
+
+        auto imported = DeserializeMultiOutputConfig(std::string(bytes.constData(), static_cast<size_t>(bytes.size())));
+        if (!imported.has_value()) {
+            QMessageBox(
+                QMessageBox::Icon::Critical,
+                obs_module_text("Notice.Title"),
+                obs_module_text("Error.ImportConfig"),
+                QMessageBox::StandardButton::Ok,
+                this
+            ).exec();
+            return;
+        }
+
+        for (auto x : GetAllPushWidgets()) {
+            if (x->IsRunning()) {
+                QMessageBox(
+                    QMessageBox::Icon::Warning,
+                    obs_module_text("Notice.Title"),
+                    obs_module_text("Error.ImportActive"),
+                    QMessageBox::StandardButton::Ok,
+                    this
+                ).exec();
+                return;
+            }
+        }
+
+        auto confirm = QMessageBox(
+            QMessageBox::Icon::Question,
+            obs_module_text("Question.Title"),
+            obs_module_text("Question.Import"),
+            QMessageBox::Yes | QMessageBox::No,
+            this
+        ).exec();
+        if (confirm != QMessageBox::Yes)
+            return;
+
+        GlobalMultiOutputConfig() = *imported;
+        SaveConfig();
+        LoadConfig();
     }
 
     void OnOutputMoved(
