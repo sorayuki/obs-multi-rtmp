@@ -127,6 +127,12 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     bool isReconnecting_ = false;
     int lastErrorCode_ = 0;
 
+    // Registered under the stable target id (not the display name) so key
+    // bindings survive renames. Their description label is set once at
+    // registration time and won't update if the target is renamed later.
+    obs_hotkey_id startHotkeyId_ = OBS_INVALID_HOTKEY_ID;
+    obs_hotkey_id stopHotkeyId_ = OBS_INVALID_HOTKEY_ID;
+
     QPushButton* GetDeleteButton() {
         return remove_btn_;
     }
@@ -622,10 +628,39 @@ public:
 
         LoadConfig();
         UpdateStatusDot();
+
+        auto startDesc = std::string(obs_module_text("Hotkey.StartTarget")) + " - " + config_->name;
+        startHotkeyId_ = obs_hotkey_register_frontend(
+            ("obs-multi-rtmp.start." + targetid_).c_str(),
+            startDesc.c_str(),
+            [](void* data, obs_hotkey_id, obs_hotkey_t*, bool pressed) {
+                if (!pressed)
+                    return;
+                static_cast<PushWidgetImpl*>(data)->StartStreaming();
+            },
+            this
+        );
+
+        auto stopDesc = std::string(obs_module_text("Hotkey.StopTarget")) + " - " + config_->name;
+        stopHotkeyId_ = obs_hotkey_register_frontend(
+            ("obs-multi-rtmp.stop." + targetid_).c_str(),
+            stopDesc.c_str(),
+            [](void* data, obs_hotkey_id, obs_hotkey_t*, bool pressed) {
+                if (!pressed)
+                    return;
+                static_cast<PushWidgetImpl*>(data)->StopStreaming();
+            },
+            this
+        );
     }
-    
+
     ~PushWidgetImpl()
     {
+        if (startHotkeyId_ != OBS_INVALID_HOTKEY_ID)
+            obs_hotkey_unregister(startHotkeyId_);
+        if (stopHotkeyId_ != OBS_INVALID_HOTKEY_ID)
+            obs_hotkey_unregister(stopHotkeyId_);
+
         ReleaseOutput();
     }
 
@@ -764,7 +799,7 @@ public:
         msg_->setText("");
     }
 
-    bool IsRunning()
+    bool IsRunning() override
     {
         return output_ != nullptr && obs_output_active(output_);
     }
