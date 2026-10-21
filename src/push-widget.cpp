@@ -122,6 +122,8 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     obs_view_t* scene_view_ = 0;
     bool isUseDelay_ = false;
     std::atomic_bool isStarting_ = false;
+    bool editing_ = false;
+    bool stopPending_ = false;
 
     bool isConnecting_ = false;
     bool isReconnecting_ = false;
@@ -671,6 +673,7 @@ public:
             return;
 
         auto resetStarting = finally([this] { isStarting_ = false; });
+        stopPending_ = false;
 
         if (!config_->enabled) {
             SetMsg(obs_module_text("Status.Disabled"));
@@ -745,11 +748,15 @@ public:
     }
 
     void StopStreaming() override {
+        StopStreaming(true);
+    }
+
+    void StopStreaming(bool askDropDelay) {
         if (!IsRunning())
             return;
         
         bool useForce = false;
-        if (isUseDelay_) {
+        if (isUseDelay_ && askDropDelay) {
             auto res = QMessageBox(QMessageBox::Icon::Information,
                 "?",
                 obs_module_text("Ques.DropDelay"),
@@ -775,11 +782,15 @@ public:
             Stop();
         } else if (ev == obs_frontend_event::OBS_FRONTEND_EVENT_STREAMING_STARTING) {
             if (!IsRunning() && config_->syncStart) {
+                stopPending_ = false;
                 StartStop();
             }
         } else if (ev == obs_frontend_event::OBS_FRONTEND_EVENT_STREAMING_STOPPING) {
-            if (IsRunning() && config_->syncStop) {
-                StartStop();
+            if (config_->syncStop) {
+                if (IsRunning())
+                    StopStreaming(false);
+                else if (isStarting_)
+                    stopPending_ = true;
             }
         }
     }
@@ -802,6 +813,21 @@ public:
     bool IsRunning() override
     {
         return output_ != nullptr && obs_output_active(output_);
+    }
+
+    bool IsBusy() override
+    {
+        return isStarting_ || IsRunning();
+    }
+
+    bool IsEditing() override
+    {
+        return editing_;
+    }
+
+    void RefreshConfig() override
+    {
+        LoadConfig();
     }
 
     bool GetEnabled() override { return config_->enabled; }
@@ -840,6 +866,8 @@ public:
     {
         std::unique_ptr<EditOutputWidget> dlg{ createEditOutputWidget(targetid_, (QMainWindow*)obs_frontend_get_main_window()) };
 
+        editing_ = true;
+        auto resetEditing = finally([this] { editing_ = false; });
         if (dlg->exec() == QDialog::DialogCode::Accepted)
         {
             SaveMultiOutputConfig();
@@ -879,6 +907,11 @@ public:
             isStarting_ = false;
             isConnecting_ = false;
             isReconnecting_ = false;
+            if (stopPending_) {
+                stopPending_ = false;
+                StopStreaming(false);
+                return;
+            }
             remove_btn_->setEnabled(false);
             btn_->setText(obs_module_text("Status.Stop"));
             btn_->setEnabled(true);
@@ -935,6 +968,7 @@ public:
     {
         GetGlobalService().RunInUIThread([this, code]() {
             isStarting_ = false;
+            stopPending_ = false;
             isConnecting_ = false;
             isReconnecting_ = false;
             lastErrorCode_ = code;

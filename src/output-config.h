@@ -75,7 +75,7 @@ inline T FindById(std::list<T>& list, const S& id) {
 
 MultiOutputConfig& GlobalMultiOutputConfig();
 
-void SaveMultiOutputConfig();
+bool SaveMultiOutputConfig();
 
 bool LoadMultiOutputConfig();
 

@@ -17,6 +17,7 @@
 !LICENSE
 !README.md
 !FLATPAK.md
+!VENDOR-API.md
 
 # Exclude lock files
 *.lock.json

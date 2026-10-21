@@ -254,16 +254,23 @@ std::optional<MultiOutputConfig> DeserializeMultiOutputConfig(const std::string&
     return LoadMultiOutputConfig(content);
 }
 
-void SaveMultiOutputConfig() {
+bool SaveMultiOutputConfig() {
     auto profiledir = obs_frontend_get_current_profile_path();
+    bool saved = false;
     if (profiledir) {
         std::string filename = profiledir;
         filename += "/obs-multi-rtmp.json";
         auto content = SaveMultiOutputConfig(GlobalMultiOutputConfig());
-        os_quick_write_utf8_file_safe(filename.c_str(), content.c_str(), content.size(), true, "tmp", "bak");
-        blog(LOG_INFO, TAG "Save config into %s", filename.c_str());
+        saved = os_quick_write_utf8_file_safe(filename.c_str(), content.c_str(), content.size(), true, "tmp", "bak");
+        if (saved)
+            blog(LOG_INFO, TAG "Save config into %s", filename.c_str());
+        else
+            blog(LOG_ERROR, TAG "Save config into %s failed", filename.c_str());
+    } else {
+        blog(LOG_ERROR, TAG "Save config skipped: no profile path");
     }
     bfree(profiledir);
+    return saved;
 }
 
 

@@ -14,6 +14,9 @@ public:
     // while the target is live also force-stops it.
     virtual bool GetEnabled() = 0;
     virtual void SetEnabled(bool enabled) = 0;
+    virtual bool IsBusy() = 0;
+    virtual bool IsEditing() = 0;
+    virtual void RefreshConfig() = 0;
 };
 
 PushWidget* createPushWidget(const std::string& targetId, QWidget* parent = 0);
