@@ -1,0 +1,12 @@
+# Vendor API
+
+The plugin registers the obs-websocket vendor `obs-multi-rtmp` (API header `src/obs-websocket-api.h`, API version 3), so a websocket client can read the targets and create or update one in place without touching the config file. Every request goes through `CallVendorRequest` with `vendorName: "obs-multi-rtmp"`.
+
+## Requests
+
+- `get_targets`, no fields, answers `{success: true, targets: [TargetView]}`.
+- `set_target` with `id`, `name`, `server`, `key`, `sync_start`, `sync_stop` (all required; `id`, `server` and `key` must be non-empty, so a target without a stream key is not created through this request) creates the target or updates the one with that id in place, with protocol RTMP and no authentication. A created target uses "Reuse the streaming encoder as OBS" for video and audio; an update leaves the encoders, the output scene and the RTMP output settings chosen in the dock as they are. The request answers `{success: true, created, target}` after the config file was written, `{success: false, error: "config not saved", applied: true, target}` when the change is in the dock but could not be written, `{success: false, error: "target running"}` while that target streams or is still connecting (its output was built from the old server and key), `{success: false, error: "target editing"}` while that target's edit dialog or the dock's Edit Targets dialog is open (the accepted dialog would write its own older copy over the change), `{success: false, error: "missing field: <name>"}`, `"not a string: <name>"` or `"not a boolean: <name>"` for a bad request (`sync_start` and `sync_stop` are booleans, the other four strings), `{success: false, error: "shutting down"}` while OBS exits and `{success: false, error: "ui timeout"}` when the OBS UI thread did not answer within 5 seconds; after a timeout the queued change may still be applied later, so a client reads `get_targets` again before deciding.
+
+## TargetView
+
+`{id, name, protocol, server, key_sha256, sync_start, sync_stop, running, video_encoder, audio_encoder, output_scene}`: the key never leaves OBS in clear (`key_sha256` is its hex SHA-256, empty without a key); `running` is true while the output is active or starting; `video_encoder` and `audio_encoder` are `stream`, `recording` or `custom`; `output_scene` is the scene of a custom video config, else empty. Other targets are never rebuilt or stopped by these requests. An unknown vendor or request is answered by obs-websocket itself with ResourceNotFound (600).

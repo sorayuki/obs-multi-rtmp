@@ -4,12 +4,23 @@
 #include <regex>
 #include <filesystem>
 #include <unordered_map>
+#include <atomic>
+#include <vector>
+#include <cassert>
+#include <cstring>
+#include <chrono>
+#include <condition_variable>
+#include <mutex>
+
+#include <QCryptographicHash>
 
 #include "push-widget.h"
 #include "edit-targets-dialog.h"
 #include "plugin-support.h"
+#include "helpers.h"
 
 #include "output-config.h"
+#include "obs-websocket-api.h"
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -138,6 +149,8 @@ public:
 
             auto& global = GlobalMultiOutputConfig();
 
+            editingTargets_ = true;
+            auto resetEditing = finally([this] { editingTargets_ = false; });
             auto result = showEditTargetsDialog(SerializeMultiOutputConfig(global), this);
             if (!result.has_value())
                 return;
@@ -317,9 +330,96 @@ public:
         return result;
     }
 
-    void SaveConfig()
+    bool SaveConfig()
     {
-        SaveMultiOutputConfig();
+        return SaveMultiOutputConfig();
+    }
+
+    bool editingTargets_ = false;
+
+    PushWidget* FindPushWidget(const std::string& targetId)
+    {
+        const QString id = QString::fromStdString(targetId);
+        for (int row = 0; row < outputsContainer_->count(); ++row) {
+            auto item = outputsContainer_->item(row);
+            if (!item || item->data(Qt::UserRole).toString() != id)
+                continue;
+            return dynamic_cast<PushWidget*>(outputsContainer_->itemWidget(item));
+        }
+        return nullptr;
+    }
+
+    bool IsTargetRunning(const std::string& targetId)
+    {
+        auto widget = FindPushWidget(targetId);
+        return widget != nullptr && widget->IsBusy();
+    }
+
+    struct TargetState {
+        OutputTargetConfigPtr config;
+        bool running;
+    };
+
+    std::vector<TargetState> ViewTargets()
+    {
+        std::vector<TargetState> result;
+        for (auto& target : GlobalMultiOutputConfig().targets) {
+            if (target)
+                result.push_back({ target, IsTargetRunning(target->id) });
+        }
+        return result;
+    }
+
+    struct UpsertResult {
+        bool applied = false;
+        bool created = false;
+        bool saved = false;
+        std::string error;
+        OutputTargetConfigPtr target;
+    };
+
+    UpsertResult UpsertTarget(const OutputTargetConfig& wanted)
+    {
+        UpsertResult result;
+        auto& global = GlobalMultiOutputConfig();
+        auto existing = FindById(global.targets, wanted.id);
+        if (existing && IsTargetRunning(wanted.id)) {
+            result.error = "target running";
+            return result;
+        }
+        if (editingTargets_) {
+            result.error = "target editing";
+            return result;
+        }
+        if (auto widget = FindPushWidget(wanted.id); existing && widget != nullptr && widget->IsEditing()) {
+            result.error = "target editing";
+            return result;
+        }
+        if (!existing) {
+            existing = std::make_shared<OutputTargetConfig>();
+            existing->id = wanted.id;
+            global.targets.emplace_back(existing);
+            result.created = true;
+        }
+        if (result.created || existing->protocol != wanted.protocol)
+            existing->outputParam = wanted.outputParam;
+        existing->name = wanted.name;
+        existing->protocol = wanted.protocol;
+        existing->serviceParam = wanted.serviceParam;
+        existing->syncStart = wanted.syncStart;
+        existing->syncStop = wanted.syncStop;
+        if (result.created) {
+            existing->videoConfig = std::nullopt;
+            existing->audioConfig = std::nullopt;
+        }
+        result.applied = true;
+        result.target = existing;
+        if (result.created)
+            AddPushWidget(existing->id);
+        else if (auto widget = FindPushWidget(existing->id))
+            widget->RefreshConfig();
+        result.saved = SaveConfig();
+        return result;
     }
 
     void OnOutputMoved(
@@ -467,6 +567,224 @@ private:
     }
 };
 
+static MultiOutputWidget* s_dock = nullptr;
+static QObject* s_dispatcher = nullptr;
+static std::atomic<bool> s_shuttingDown{ false };
+static obs_websocket_vendor s_vendor = nullptr;
+
+static void Refuse(obs_data_t* response, const std::string& error)
+{
+    obs_data_set_bool(response, "success", false);
+    obs_data_set_string(response, "error", error.c_str());
+}
+
+static std::string EncoderKind(const std::optional<std::string>& configId)
+{
+    if (!configId.has_value() || configId->empty() || *configId == OBS_STREAMING_ENC_PLACEHOLDER)
+        return "stream";
+    if (*configId == OBS_RECORDING_ENC_PLACEHOLDER)
+        return "recording";
+    return "custom";
+}
+
+static std::string JsonString(const nlohmann::json& object, const char* key)
+{
+    if (!object.is_object())
+        return "";
+    auto it = object.find(key);
+    if (it == object.end() || !it->is_string())
+        return "";
+    return it->get<std::string>();
+}
+
+static obs_data_t* TargetToData(const OutputTargetConfig& config, bool running)
+{
+    auto data = obs_data_create();
+    obs_data_set_string(data, "id", config.id.c_str());
+    obs_data_set_string(data, "name", config.name.c_str());
+    obs_data_set_string(data, "protocol", config.protocol.c_str());
+    obs_data_set_string(data, "server", JsonString(config.serviceParam, "server").c_str());
+    auto key = JsonString(config.serviceParam, "key");
+    std::string keyHash;
+    if (!key.empty())
+        keyHash = QCryptographicHash::hash(QByteArray::fromStdString(key), QCryptographicHash::Sha256).toHex().toStdString();
+    obs_data_set_string(data, "key_sha256", keyHash.c_str());
+    obs_data_set_bool(data, "sync_start", config.syncStart);
+    obs_data_set_bool(data, "sync_stop", config.syncStop);
+    obs_data_set_bool(data, "running", running);
+    auto videoKind = EncoderKind(config.videoConfig);
+    obs_data_set_string(data, "video_encoder", videoKind.c_str());
+    obs_data_set_string(data, "audio_encoder", EncoderKind(config.audioConfig).c_str());
+    std::string scene;
+    if (videoKind == "custom") {
+        auto videoConfig = FindById(GlobalMultiOutputConfig().videoConfig, *config.videoConfig);
+        if (videoConfig && videoConfig->outputScene.has_value())
+            scene = *videoConfig->outputScene;
+    }
+    obs_data_set_string(data, "output_scene", scene.c_str());
+    return data;
+}
+
+struct UiCall {
+    std::mutex mutex;
+    std::condition_variable done;
+    bool finished = false;
+    obs_data_t* out = obs_data_create();
+    ~UiCall() { obs_data_release(out); }
+};
+
+static const int UI_CALL_TIMEOUT_MS = 5000;
+
+enum class UiRun { Ran, ShuttingDown, Timeout };
+
+static UiRun RunOnUiThread(std::function<void(obs_data_t*)> task, obs_data_t* response)
+{
+    if (s_shuttingDown || s_dispatcher == nullptr)
+        return UiRun::ShuttingDown;
+    if (QThread::currentThread() == s_dispatcher->thread()) {
+        task(response);
+        return UiRun::Ran;
+    }
+    auto call = std::make_shared<UiCall>();
+    QMetaObject::invokeMethod(s_dispatcher, [call, task = std::move(task)]() {
+        task(call->out);
+        std::lock_guard<std::mutex> lock(call->mutex);
+        call->finished = true;
+        call->done.notify_all();
+    }, Qt::QueuedConnection);
+    std::unique_lock<std::mutex> lock(call->mutex);
+    bool answered = call->done.wait_for(lock, std::chrono::milliseconds(UI_CALL_TIMEOUT_MS), [&call] { return call->finished; });
+    if (!answered)
+        return UiRun::Timeout;
+    obs_data_apply(response, call->out);
+    return UiRun::Ran;
+}
+
+static void RefuseNotRun(obs_data_t* response, UiRun ran)
+{
+    Refuse(response, ran == UiRun::Timeout ? "ui timeout" : "shutting down");
+}
+
+static void OnGetTargets(obs_data_t*, obs_data_t* response, void*)
+{
+    auto ran = RunOnUiThread([](obs_data_t* response) {
+        if (s_shuttingDown || s_dock == nullptr) {
+            Refuse(response, "shutting down");
+            return;
+        }
+        auto targets = obs_data_array_create();
+        for (auto& state : s_dock->ViewTargets()) {
+            auto item = TargetToData(*state.config, state.running);
+            obs_data_array_push_back(targets, item);
+            obs_data_release(item);
+        }
+        obs_data_set_bool(response, "success", true);
+        obs_data_set_array(response, "targets", targets);
+        obs_data_array_release(targets);
+    }, response);
+    if (ran != UiRun::Ran)
+        RefuseNotRun(response, ran);
+}
+
+static bool RequireField(obs_data_t* request, obs_data_t* response, const char* field, bool nonEmptyString)
+{
+    bool present = obs_data_has_user_value(request, field);
+    if (present && nonEmptyString) {
+        const char* value = obs_data_get_string(request, field);
+        present = value != nullptr && *value != 0;
+    }
+    if (!present)
+        Refuse(response, std::string("missing field: ") + field);
+    return present;
+}
+
+static bool RequireType(obs_data_t* request, obs_data_t* response, const char* field, obs_data_type type, const char* error)
+{
+    auto item = obs_data_item_byname(request, field);
+    bool matches = item != nullptr && obs_data_item_gettype(item) == type;
+    obs_data_item_release(&item);
+    if (!matches)
+        Refuse(response, std::string(error) + field);
+    return matches;
+}
+
+static void OnSetTarget(obs_data_t* request, obs_data_t* response, void*)
+{
+    for (auto field : { "id", "server", "key" }) {
+        if (!RequireField(request, response, field, true))
+            return;
+    }
+    for (auto field : { "name", "sync_start", "sync_stop" }) {
+        if (!RequireField(request, response, field, false))
+            return;
+    }
+    for (auto field : { "id", "name", "server", "key" }) {
+        if (!RequireType(request, response, field, OBS_DATA_STRING, "not a string: "))
+            return;
+    }
+    for (auto field : { "sync_start", "sync_stop" }) {
+        if (!RequireType(request, response, field, OBS_DATA_BOOLEAN, "not a boolean: "))
+            return;
+    }
+    OutputTargetConfig wanted;
+    wanted.id = obs_data_get_string(request, "id");
+    wanted.name = obs_data_get_string(request, "name");
+    wanted.protocol = "RTMP";
+    wanted.serviceParam = nlohmann::json{
+        { "server", obs_data_get_string(request, "server") },
+        { "key", obs_data_get_string(request, "key") },
+        { "use_auth", false },
+    };
+    wanted.outputParam = nlohmann::json::object();
+    wanted.syncStart = obs_data_get_bool(request, "sync_start");
+    wanted.syncStop = obs_data_get_bool(request, "sync_stop");
+
+    auto ran = RunOnUiThread([wanted](obs_data_t* response) {
+        if (s_shuttingDown || s_dock == nullptr) {
+            Refuse(response, "shutting down");
+            return;
+        }
+        auto result = s_dock->UpsertTarget(wanted);
+        if (!result.applied) {
+            Refuse(response, result.error);
+            return;
+        }
+        auto target = TargetToData(*result.target, s_dock->IsTargetRunning(result.target->id));
+        obs_data_set_obj(response, "target", target);
+        obs_data_release(target);
+        obs_data_set_bool(response, "created", result.created);
+        if (result.saved) {
+            obs_data_set_bool(response, "success", true);
+        } else {
+            Refuse(response, "config not saved");
+            obs_data_set_bool(response, "applied", true);
+        }
+    }, response);
+    if (ran != UiRun::Ran)
+        RefuseNotRun(response, ran);
+}
+
+static void RegisterVendorApi()
+{
+    s_vendor = obs_websocket_register_vendor("obs-multi-rtmp");
+    if (s_vendor == nullptr) {
+        blog(LOG_INFO, TAG "obs-websocket not available: vendor API not registered");
+        return;
+    }
+    obs_websocket_vendor_register_request(s_vendor, "get_targets", OnGetTargets, nullptr);
+    obs_websocket_vendor_register_request(s_vendor, "set_target", OnSetTarget, nullptr);
+    blog(LOG_INFO, TAG "vendor API registered: get_targets, set_target");
+}
+
+static void UnregisterVendorApi()
+{
+    if (s_vendor == nullptr)
+        return;
+    obs_websocket_vendor_unregister_request(s_vendor, "get_targets");
+    obs_websocket_vendor_unregister_request(s_vendor, "set_target");
+    s_vendor = nullptr;
+}
+
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE("obs-multi-rtmp", "en-US")
 OBS_MODULE_AUTHOR("雷鳴 (@sorayukinoyume)")
@@ -487,6 +805,8 @@ bool obs_module_load()
         delete dock;
         return false;
     }
+    s_dock = dock;
+    s_dispatcher = new QObject();
 
     obs_hotkey_register_frontend(
         "obs-multi-rtmp.start_all",
@@ -523,7 +843,9 @@ bool obs_module_load()
                 x->OnOBSEvent(event);
 
             if (event == obs_frontend_event::OBS_FRONTEND_EVENT_EXIT)
-            {   
+            {
+                s_shuttingDown = true;
+                UnregisterVendorApi();
                 dock->SaveConfig();
             }
             else if (event == obs_frontend_event::OBS_FRONTEND_EVENT_PROFILE_CHANGED)
@@ -534,6 +856,17 @@ bool obs_module_load()
     );
 
     return true;
+}
+
+void obs_module_post_load()
+{
+    RegisterVendorApi();
+}
+
+void obs_module_unload()
+{
+    s_shuttingDown = true;
+    s_dock = nullptr;
 }
 
 const char *obs_module_description(void)
