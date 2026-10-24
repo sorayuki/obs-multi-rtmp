@@ -520,14 +520,14 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         last_info_time_ = now;
     }
 
-    void UpdateStatusDot() {
+    void UpdateStatusDot(bool stopped = false) {
         if (!status_dot_)
             return;
 
         const char* color = "#888888"; // stopped / idle
         if (isReconnecting_ || isConnecting_)
             color = "#e6b800"; // connecting / reconnecting
-        else if (IsRunning())
+        else if (!stopped && IsRunning())
             color = "#2ecc71"; // live
         else if (lastErrorCode_ != 0)
             color = "#e74c3c"; // last attempt failed
@@ -932,7 +932,7 @@ public:
                     break;
             }
 
-            UpdateStatusDot();
+            UpdateStatusDot(true);
         });
 
         ReleaseOutputSceneView();
