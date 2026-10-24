@@ -117,6 +117,8 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     QPushButton* remove_btn_ = 0;
 
     obs_output_t* output_ = 0;
+    // Owned reference to the service handed to output_ (the output itself only keeps a weak back-pointer).
+    obs_service_t* service_ = 0;
     bool using_main_video_encoder_ = false;
     bool using_main_audio_encoder_ = false;
     obs_view_t* scene_view_ = 0;
@@ -143,10 +145,19 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
             blog(LOG_ERROR, TAG "Prepare output service before output object is created.");
             return false;
         }
-        
-        ReleaseOutputService();
-        
-        auto conf = obs_data_create_from_json(config_->serviceParam.dump().c_str());
+
+        // The output is rebuilt per start, so no service should be left over.
+        // Freeing one here would be unsafe: libobs ignores
+        // obs_output_set_service(output, nullptr), so the output would keep a
+        // dangling pointer into the freed service.
+        if (service_) {
+            blog(LOG_ERROR, TAG "Stale service object before creating a new one.");
+            return false;
+        }
+
+        // Auto-release: obs_service_create keeps its own reference and every
+        // early return below would otherwise leak this one.
+        OBSDataAutoRelease conf = obs_data_create_from_json(config_->serviceParam.dump().c_str());
 
         auto protocolInfo = GetProtocolInfos()->GetInfo(config_->protocol.c_str());
         assert(protocolInfo);
@@ -159,31 +170,27 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         if (!conf)
             return false;
         
-        auto service = obs_service_create(service_id, "multi-output-service", conf, nullptr);
-        obs_data_release(conf);
+        // We own this reference. The output only keeps a weak back-pointer,
+        // which obs_output_destroy() clears again.
+        obs_service_t* service = obs_service_create(service_id, "multi-output-service", conf, nullptr);
         if (!service)
             return false;
         obs_output_set_service(output_, service);
+        service_ = service;
 
         return true;
     }
 
 
+    // Only valid once output_ is gone: destroying the output is what clears the
+    // service's back-pointer, so freeing it earlier leaves a dangling pointer.
     bool ReleaseOutputService()
     {
-        if (!output_)
+        if (!service_)
             return true;
 
-        if (obs_output_active(output_)) {
-            return false;
-        }
-        
-        auto service = obs_output_get_service(output_);
-        if (service)
-        {
-            obs_output_set_service(output_, nullptr);
-            obs_service_release(service);
-        }
+        obs_service_release(service_);
+        service_ = nullptr;
         return true;
     }
 
@@ -374,8 +381,6 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
             blog(LOG_ERROR, TAG "Prepare output encoder before output object is created.");
             return false;
         }
-        
-        ReleaseOutputEncoder();
 
         auto& global = GlobalMultiOutputConfig();
 
@@ -408,10 +413,6 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         }
 
         if (!aenc || !venc) {
-            // If we don't have a valid encoder, we're likely using a special encoder type that
-            // needs to be started by the user (i.e. start streaming or start recording)
-            ReleaseOutputEncoder();
-
             auto msgbox = new QMessageBox(QMessageBox::Icon::Critical, 
                 obs_module_text("Notice.Title"), 
                 obs_module_text("Notice.GetEncoder"),
@@ -422,79 +423,42 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
             return false;
         }
 
-        obs_output_set_audio_encoder(output_, obs_encoder_get_ref(aenc), 0);
+        // set_*_encoder() addrefs internally
+        obs_output_set_audio_encoder(output_, aenc, 0);
         for (auto& track : additionalTracks) {
-            auto trackIdx = std::get<0>(track);
-            auto enc = std::get<1>(track);
-            obs_output_set_audio_encoder(output_, obs_encoder_get_ref(enc), trackIdx);
+            obs_output_set_audio_encoder(output_, std::get<1>(track), std::get<0>(track));
         }
-        obs_output_set_video_encoder(output_, obs_encoder_get_ref(venc));
+        obs_output_set_video_encoder(output_, venc);
 
         return true;
     }
 
 
-    bool ReleaseOutputEncoder()
-    {
-        if (!output_)
-            return true;
-        else if (obs_output_active(output_) == false)
-        {
-            auto venc = obs_output_get_video_encoder(output_);
-            if (venc)
-            {
-                obs_output_set_video_encoder(output_, nullptr);
-                obs_encoder_release(venc);
-            }
-            
-            auto aenc = obs_output_get_audio_encoder(output_, 0);
-            if (aenc)
-            {
-                obs_output_set_audio_encoder(output_, nullptr, 0);
-                obs_encoder_release(aenc);
-            }
-
-            return true;
-        }
-        else {
-            blog(LOG_ERROR, TAG "Release output while it is active.");
-            return false;
-        }
-    }
-
 
     bool ReleaseOutput()
     {
+        bool wasActive = false;
+
         if (output_) {
             DisconnectSignals(output_);
-        }
 
-        if (output_ && obs_output_active(output_)) {
-            obs_output_force_stop(output_);
-        }
+            wasActive = obs_output_active(output_);
+            if (wasActive)
+                obs_output_force_stop(output_);
 
-        if (output_ && obs_output_active(output_) == false)
-        {
-            bool ret = ReleaseOutputService();
-            ret = ReleaseOutputEncoder() && ret;
-
+            // obs_output_destroy() clears the service's back-pointer
             obs_output_release(output_);
             output_ = nullptr;
-
-            ret = ReleaseOutputSceneView() && ret;
-
-            return ret;
         }
-        else if (output_) {
-            obs_output_release(output_);
-            output_ = nullptr;
 
-            return true;
-        }
-        else if (output_ == nullptr)
-            return true;
-        else
-            return false;
+        // Safe here: the output that referenced the service is gone by now.
+        ReleaseOutputService();
+
+        // The scene view is still being read while the output winds down.
+        if (!wasActive)
+            ReleaseOutputSceneView();
+
+        return true;
     }
 
 
@@ -682,7 +646,7 @@ public:
 
         if (output_ == nullptr)
         {
-            obs_data* output_settings = obs_data_create_from_json(config_->outputParam.dump().c_str());
+            OBSDataAutoRelease output_settings = obs_data_create_from_json(config_->outputParam.dump().c_str());
 
             auto protocolInfo = GetProtocolInfos()->GetInfo(config_->protocol.c_str());
             assert(protocolInfo);
@@ -971,7 +935,6 @@ public:
             UpdateStatusDot();
         });
 
-        ReleaseOutputEncoder();
         ReleaseOutputSceneView();
     }
 };
