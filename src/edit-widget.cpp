@@ -6,6 +6,7 @@
 #include <QTabWidget>
 #include <qevent.h>
 #include <QComboBox>
+#include <QSignalBlocker>
 
 #include <regex>
 
@@ -476,8 +477,12 @@ protected:
         supported_video_encoders_ = obs_output_get_supported_video_codecs(output);
         obs_output_release(output);
 
-        if (aenc_ && venc_)
+        if (aenc_ && venc_) {
+            // LoadEncoders() no longer touches the config, sync UI explicitly.
             LoadEncoders();
+            LoadConfig();
+            UpdateUI();
+        }
     }
 
 public:
@@ -728,6 +733,9 @@ public:
         std::regex sp(";");
         {
             // Video encoders
+            // Rebuilding emits currentIndexChanged; the handler would then
+            // rewrite the config id and break encoder sharing.
+            QSignalBlocker blocker(venc_);
             auto old_venc = venc_->currentData();
             std::sregex_token_iterator it(supported_video_encoders_.begin(), supported_video_encoders_.end(), sp, -1), itend;
             venc_->clear();
@@ -747,6 +755,7 @@ public:
 
         {
             // Audio encoders
+            QSignalBlocker blocker(aenc_);
             auto old_aenc = aenc_->currentData();
             std::sregex_token_iterator it(supported_audio_encoders_.begin(), supported_audio_encoders_.end(), sp, -1), itend;
             aenc_->clear();
