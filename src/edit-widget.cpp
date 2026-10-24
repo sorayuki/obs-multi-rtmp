@@ -209,7 +209,9 @@ class EditOutputWidgetImpl: public EditOutputWidget
                 wid_ = nullptr;
             }
             if (placeholder_) {
-                delete placeholder_;
+                layout_->removeWidget(placeholder_);
+                placeholder_->hide();
+                placeholder_->deleteLater();
                 placeholder_ = nullptr;
             }
         }
