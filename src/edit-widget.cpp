@@ -616,6 +616,19 @@ public:
         UpdateEncoderEditability();
     }
 
+    ~EditTargetPanelImpl() override
+    {
+        // Members are destroyed before ~QWidget deletes the children, and
+        // child teardown can fire focus/layout callbacks that use them. Delete
+        // the children here, while every member is still alive.
+        onContentSizeChanged_ = nullptr;
+        for (auto combo : { venc_, aenc_, v_scene_, protocolSelector_ })
+            combo->blockSignals(true);
+
+        for (auto child : findChildren<QWidget*>(Qt::FindDirectChildrenOnly))
+            delete child;
+    }
+
     void ConnectWidgetSignals()
     {
         QObject::connect(venc_, (void (QComboBox::*)(int)) &QComboBox::currentIndexChanged, [this](){
