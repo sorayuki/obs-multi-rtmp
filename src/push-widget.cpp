@@ -2,14 +2,146 @@
 #include "helpers.h"
 #include <regex>
 #include <atomic>
+#include <memory>
+#include <mutex>
 #include <optional>
 #include <tuple>
+#include <unordered_map>
 #include "push-widget.h"
 #include "edit-widget.h"
 #include "output-config.h"
 #include "protocols.h"
 
 #include "obs.hpp"
+
+class SharedSceneView final
+{
+    OBSEncoder encoder_;
+    obs_view_t* view_ = nullptr;
+    video_t* video_ = nullptr;
+    std::mutex source_mutex_;
+
+public:
+    explicit SharedSceneView(obs_encoder_t* encoder)
+        : encoder_(encoder)
+    {
+    }
+
+    ~SharedSceneView()
+    {
+        if (!view_)
+            return;
+
+        obs_view_remove(view_);
+        OBSSourceAutoRelease source = obs_view_get_source(view_, 0);
+        if (source)
+            obs_source_dec_active(source);
+        obs_view_set_source(view_, 0, nullptr);
+        obs_view_destroy(view_);
+    }
+
+    bool Initialize(obs_source_t* source)
+    {
+        if (!source)
+            return false;
+
+        view_ = obs_view_create();
+        if (!view_)
+            return false;
+
+        obs_view_set_source(view_, 0, source);
+        obs_source_inc_active(source);
+        video_ = obs_view_add(view_);
+        return video_ != nullptr;
+    }
+
+    bool SetSource(obs_source_t* source)
+    {
+        if (!view_ || !source)
+            return false;
+
+        std::lock_guard<std::mutex> lock(source_mutex_);
+        OBSSourceAutoRelease current = obs_view_get_source(view_, 0);
+        if (current == source)
+            return true;
+
+        obs_view_set_source(view_, 0, source);
+        if (current)
+            obs_source_dec_active(current);
+        obs_source_inc_active(source);
+        return true;
+    }
+
+    video_t* Video() const
+    {
+        return video_;
+    }
+};
+
+class SharedSceneViewManager final
+{
+    std::mutex mutex_;
+    std::unordered_map<obs_encoder_t*, std::weak_ptr<SharedSceneView>> entries_;
+
+public:
+    std::shared_ptr<SharedSceneView> Acquire(obs_encoder_t* encoder, obs_source_t* source)
+    {
+        if (!encoder || !source)
+            return {};
+
+        std::unique_lock<std::mutex> lock(mutex_);
+        for (auto it = entries_.begin(); it != entries_.end();) {
+            if (it->second.expired())
+                it = entries_.erase(it);
+            else
+                ++it;
+        }
+
+        auto it = entries_.find(encoder);
+        if (it != entries_.end()) {
+            auto entry = it->second.lock();
+            if (entry) {
+                lock.unlock();
+                if (!entry->SetSource(source)) {
+                    blog(LOG_ERROR, TAG "Could not update the shared output scene.");
+                    return {};
+                }
+                return entry;
+            }
+            entries_.erase(it);
+        }
+
+        if (obs_encoder_active(encoder)) {
+            blog(LOG_ERROR, TAG "Shared video encoder is active without a registered scene view.");
+            return {};
+        }
+
+        auto entry = std::make_shared<SharedSceneView>(encoder);
+        if (!entry->Initialize(source)) {
+            lock.unlock();
+            entry.reset();
+            blog(LOG_ERROR, TAG "Could not create the shared output scene view.");
+            return {};
+        }
+
+        obs_encoder_set_video(encoder, entry->Video());
+        if (obs_encoder_parent_video(encoder) != entry->Video()) {
+            lock.unlock();
+            entry.reset();
+            blog(LOG_ERROR, TAG "Could not bind the shared scene view to the video encoder.");
+            return {};
+        }
+
+        entries_[encoder] = entry;
+        return entry;
+    }
+};
+
+static SharedSceneViewManager& GetSharedSceneViewManager()
+{
+    static SharedSceneViewManager manager;
+    return manager;
+}
 
 class IOBSOutputEventHanlder
 {
@@ -121,7 +253,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     obs_service_t* service_ = 0;
     bool using_main_video_encoder_ = false;
     bool using_main_audio_encoder_ = false;
-    obs_view_t* scene_view_ = 0;
+    std::shared_ptr<SharedSceneView> scene_view_;
     bool isUseDelay_ = false;
     std::atomic_bool isStarting_ = false;
 
@@ -218,13 +350,9 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
                     blog(LOG_ERROR, TAG "Output scene is not found.");
                     return false;
                 }
-                ReleaseOutputSceneView();
-
-                scene_view_ = obs_view_create();
-                obs_view_set_source(scene_view_, 0, scene);
-                obs_source_inc_active(scene);
-                auto scene_video = obs_view_add(scene_view_);
-                obs_encoder_set_video(venc, scene_video);
+                scene_view_ = GetSharedSceneViewManager().Acquire(venc, scene);
+                if (!scene_view_)
+                    return false;
             }
         }
 
@@ -253,18 +381,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
 
 
     bool ReleaseOutputSceneView() {
-        if (!scene_view_)
-            return true;
-
-        obs_view_remove(scene_view_);
-        OBSSourceAutoRelease source = obs_view_get_source(scene_view_, 0);
-        if (source) {
-            obs_source_dec_active(source);
-        }
-        obs_view_set_source(scene_view_, 0, nullptr);
-        obs_view_destroy(scene_view_);
-        scene_view_ = nullptr;
-
+        scene_view_.reset();
         return true;
     }
 
@@ -437,13 +554,11 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
 
     bool ReleaseOutput()
     {
-        bool wasActive = false;
-
         if (output_) {
             DisconnectSignals(output_);
 
-            wasActive = obs_output_active(output_);
-            if (wasActive)
+            // failback: check if the output is still active and force stop it if necessary
+            if (obs_output_active(output_))
                 obs_output_force_stop(output_);
 
             // obs_output_destroy() clears the service's back-pointer
@@ -454,9 +569,8 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         // Safe here: the output that referenced the service is gone by now.
         ReleaseOutputService();
 
-        // The scene view is still being read while the output winds down.
-        if (!wasActive)
-            ReleaseOutputSceneView();
+        // The output is gone; other targets may still hold the shared view.
+        ReleaseOutputSceneView();
 
         return true;
     }
@@ -718,6 +832,7 @@ public:
 
         if (!obs_output_start(output_))
         {
+            ReleaseOutput();
             SetMsg(obs_module_text("Error.StartOutput"));
             return;
         }
@@ -916,6 +1031,8 @@ public:
     void OnStopped(int code) override
     {
         RunInUIThread([this, code]() {
+            ReleaseOutputSceneView();
+
             isStarting_ = false;
             isConnecting_ = false;
             isReconnecting_ = false;
@@ -952,8 +1069,6 @@ public:
 
             UpdateStatusDot(true);
         });
-
-        ReleaseOutputSceneView();
     }
 };
 
