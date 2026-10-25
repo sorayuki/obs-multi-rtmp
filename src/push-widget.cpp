@@ -58,12 +58,14 @@ static void UpdateEncoderSettings(
     }
 
     OBSDataAutoRelease updatedSettings = obs_data_create_from_json(merged.dump().c_str());
-    if (!settings || !updatedSettings)
+    if (!updatedSettings)
         return;
 
-    obs_data_clear(settings);
-    obs_data_apply(settings, updatedSettings);
-    obs_encoder_update(encoder, settings);
+    // obs_encoder_update() applies on top of the live settings; the merged
+    // json already carries defaults for removed keys, so there is no need to
+    // clear the live object (an encoder thread could read it half-empty).
+    obs_encoder_update(encoder, updatedSettings);
+}
 
 class SharedSceneView final
 {
