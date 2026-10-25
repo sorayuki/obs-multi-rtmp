@@ -491,20 +491,14 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
             return;
 
         const auto& sceneName = *videoConfig->outputScene;
-        OBSSourceAutoRelease current = obs_view_get_source(scene_view_, 0);
-        if (current && sceneName == obs_source_get_name(current))
-            return;
-
         OBSSourceAutoRelease next = obs_get_source_by_name(sceneName.c_str());
         if (!next) {
             blog(LOG_WARNING, TAG "Output scene '%s' is not found; keeping the current scene", sceneName.c_str());
             return;
         }
 
-        obs_view_set_source(scene_view_, 0, next);
-        if (current)
-            obs_source_dec_active(current);
-        obs_source_inc_active(next);
+        if (!scene_view_->SetSource(next))
+            blog(LOG_WARNING, TAG "Could not update output scene '%s'", sceneName.c_str());
     }
 
     OBSEncoder GetVideoEncoder() {
@@ -1085,7 +1079,10 @@ public:
         config_ = std::move(newTarget);
         LoadConfig();
         UpdateStatusDot();
-        UpdateSceneView(newConfig);
+        // A running output keeps its old encoder when the config id changed;
+        // pointing its scene view at the new config's scene would mismatch.
+        if (!videoIdChanged)
+            UpdateSceneView(newConfig);
     }
 
     void ResetInfo()
