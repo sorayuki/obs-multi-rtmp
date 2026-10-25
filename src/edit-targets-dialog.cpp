@@ -465,6 +465,17 @@ public:
         setSizeGripEnabled(true);
     }
 
+    ~EditTargetsDialogImpl() override
+    {
+        // Destroy panels while config_ is still alive; child widgets are
+        // otherwise deleted later by QDialog's base destructor.
+        delete rightStack_;
+        rightStack_ = nullptr;
+        placeholder_ = nullptr;
+        pages_.clear();
+        panels_.clear();
+    }
+
     MultiOutputConfig& Config()
     {
         return config_;
