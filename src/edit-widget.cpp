@@ -229,6 +229,8 @@ class EditTargetPanelImpl: public EditTargetPanel
     const GlobalEditSnapshot* snapshot_ = nullptr;
     OutputTargetConfigPtr config_;
     std::function<void()> onContentSizeChanged_;
+    QGroupBox* videoGroup_ = nullptr;
+    QGroupBox* audioGroup_ = nullptr;
 
     QLineEdit* name_ = 0;
 
@@ -484,7 +486,7 @@ public:
             sub_grid->setColumnStretch(1, 0);
             {
                 {
-                    auto gp = new QGroupBox(obs_module_text("VideoSettings"), this);
+                    auto gp = videoGroup_ = new QGroupBox(obs_module_text("VideoSettings"), this);
                     sub_grid->addWidget(gp, 0, 0, 2, 1);
                     auto encLayout = new QGridLayout();
                     int currow = 0;
@@ -536,7 +538,7 @@ public:
                 }
 
                 {
-                    auto gp = new QGroupBox(obs_module_text("AudioSettings"), this);
+                    auto gp = audioGroup_ = new QGroupBox(obs_module_text("AudioSettings"), this);
                     sub_grid->addWidget(gp, 0, 1, 1, 1);
                     auto encLayout = new QGridLayout();
                     int currow = 0;
@@ -614,6 +616,7 @@ public:
         LoadConfig();
         ConnectWidgetSignals();
         UpdateUI();
+        UpdateEncoderEditability();
     }
 
     void ConnectWidgetSignals()
@@ -828,6 +831,27 @@ public:
                 flags |= Qt::ItemIsEnabled;
             item->setFlags(flags);
         }
+    }
+
+    void UpdateEncoderEditability()
+    {
+        const bool targetIsActive = snapshot_
+            && snapshot_->activeTargetIds.find(config_->id) != snapshot_->activeTargetIds.end();
+
+        bool videoConfigIsActive = false;
+        if (snapshot_ && config_->videoConfig) {
+            videoConfigIsActive = snapshot_->activeVideoConfigIds.find(*config_->videoConfig)
+                != snapshot_->activeVideoConfigIds.end();
+        }
+
+        bool audioConfigIsActive = false;
+        if (snapshot_ && config_->audioConfig) {
+            audioConfigIsActive = snapshot_->activeAudioConfigIds.find(*config_->audioConfig)
+                != snapshot_->activeAudioConfigIds.end();
+        }
+
+        videoGroup_->setEnabled(!targetIsActive && !videoConfigIsActive);
+        audioGroup_->setEnabled(!targetIsActive && !audioConfigIsActive);
     }
 
     std::vector<std::string> GetEncoderShareTargets(bool isAudio) {
