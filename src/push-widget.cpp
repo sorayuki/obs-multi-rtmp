@@ -1224,10 +1224,13 @@ public:
 
     void OnStopped(int code) override
     {
-        isBusy_ = false;
         RunInUIThread([this, code]() {
             ReleaseOutputSceneView();
 
+            // Cleared on the UI thread, together with the rest of the
+            // cleanup, so the widget isn't considered idle (and deleted)
+            // while this lambda is still queued.
+            isBusy_ = false;
             isStarting_ = false;
             isConnecting_ = false;
             isReconnecting_ = false;
