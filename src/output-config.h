@@ -75,6 +75,11 @@ struct GlobalEditSnapshot {
     std::unordered_set<std::string> activeAudioConfigIds;
 };
 
+struct GlobalConfigUpdateContext {
+    std::unordered_set<std::string> updatedVideoConfigIds;
+    std::unordered_set<std::string> updatedAudioEncoderNames;
+    std::vector<std::string> notices;
+};
 template<class T, class S>
 inline T FindById(std::list<T>& list, const S& id) {
     for(auto& x: list) {

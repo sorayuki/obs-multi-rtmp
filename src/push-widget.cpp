@@ -13,6 +13,58 @@
 
 #include "obs.hpp"
 
+static nlohmann::json OBSDataToJson(obs_data_t* data)
+{
+    if (!data)
+        return nlohmann::json::object();
+
+    auto serialized = obs_data_get_json(data);
+    if (!serialized)
+        return nlohmann::json::object();
+
+    try {
+        return nlohmann::json::parse(serialized);
+    } catch (...) {
+        return nlohmann::json::object();
+    }
+}
+
+static void UpdateEncoderSettings(
+    obs_encoder_t* encoder,
+    const nlohmann::json& oldParams,
+    const nlohmann::json& newParams,
+    const char* encoderType)
+{
+    if (!encoder)
+        return;
+
+    OBSDataAutoRelease settings = obs_encoder_get_settings(encoder);
+    OBSDataAutoRelease defaults = obs_encoder_get_defaults(encoder);
+    auto currentJson = OBSDataToJson(settings);
+    auto defaultsJson = OBSDataToJson(defaults);
+    auto merged = newParams.is_object() ? newParams : nlohmann::json::object();
+
+    if (oldParams.is_object()) {
+        for (const auto& [key, oldValue] : oldParams.items()) {
+            if (merged.contains(key))
+                continue;
+            if (defaultsJson.contains(key)) {
+                merged[key] = defaultsJson[key];
+            } else {
+                blog(LOG_WARNING, TAG "%s parameter '%s' has no default; keeping its current value", encoderType, key.c_str());
+                merged[key] = currentJson.value(key, oldValue);
+            }
+        }
+    }
+
+    OBSDataAutoRelease updatedSettings = obs_data_create_from_json(merged.dump().c_str());
+    if (!settings || !updatedSettings)
+        return;
+
+    obs_data_clear(settings);
+    obs_data_apply(settings, updatedSettings);
+    obs_encoder_update(encoder, settings);
+
 class SharedSceneView final
 {
     OBSEncoder encoder_;
@@ -400,6 +452,59 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         }
 
         return std::nullopt;
+    }
+
+    static bool VideoConfigEqual(const VideoEncoderConfig& left, const VideoEncoderConfig& right)
+    {
+        return left.encoderId == right.encoderId
+            && left.fpsDenumerator == right.fpsDenumerator
+            && left.encoderParams == right.encoderParams
+            && left.outputScene == right.outputScene
+            && left.resolution == right.resolution;
+    }
+
+    static bool AudioConfigEqual(const AudioEncoderConfig& left, const AudioEncoderConfig& right)
+    {
+        if (left.encoderId != right.encoderId
+            || left.encoderParams != right.encoderParams
+            || left.mixerId != right.mixerId
+            || left.audioTracks.size() != right.audioTracks.size())
+            return false;
+
+        auto leftTrack = left.audioTracks.begin();
+        auto rightTrack = right.audioTracks.begin();
+        for (; leftTrack != left.audioTracks.end(); ++leftTrack, ++rightTrack) {
+            if ((*leftTrack)->mixer_track != (*rightTrack)->mixer_track
+                || (*leftTrack)->output_track != (*rightTrack)->output_track)
+                return false;
+        }
+        return true;
+    }
+
+    void UpdateSceneView(const MultiOutputConfig& newConfig)
+    {
+        if (!scene_view_ || !config_->videoConfig)
+            return;
+
+        auto videoConfig = newConfig.FindVideoConfig(*config_->videoConfig);
+        if (!videoConfig || !videoConfig->outputScene)
+            return;
+
+        const auto& sceneName = *videoConfig->outputScene;
+        OBSSourceAutoRelease current = obs_view_get_source(scene_view_, 0);
+        if (current && sceneName == obs_source_get_name(current))
+            return;
+
+        OBSSourceAutoRelease next = obs_get_source_by_name(sceneName.c_str());
+        if (!next) {
+            blog(LOG_WARNING, TAG "Output scene '%s' is not found; keeping the current scene", sceneName.c_str());
+            return;
+        }
+
+        obs_view_set_source(scene_view_, 0, next);
+        if (current)
+            obs_source_dec_active(current);
+        obs_source_inc_active(next);
     }
 
     OBSEncoder GetVideoEncoder() {
@@ -908,6 +1013,80 @@ public:
         name_->setText(QString::fromUtf8(config_->name));
         if (enabled_cb_)
             enabled_cb_->setChecked(config_->enabled);
+    }
+
+    void UpdateConfig(const MultiOutputConfig& newConfig, GlobalConfigUpdateContext& context) override
+    {
+        auto newTarget = newConfig.FindTarget(targetid_);
+        if (!newTarget)
+            return;
+
+        auto oldTarget = config_;
+        auto& oldConfig = GlobalMultiOutputConfig();
+        const bool busy = IsBusy();
+        const auto targetName = QString::fromUtf8(newTarget->name.c_str());
+
+        if (oldTarget->protocol != newTarget->protocol || oldTarget->serviceParam != newTarget->serviceParam) {
+            context.notices.push_back(QString::fromUtf8(obs_module_text("Notice.ServiceChanged"))
+                .arg(targetName).toUtf8().toStdString());
+        }
+
+        const bool videoIdChanged = oldTarget->videoConfig != newTarget->videoConfig;
+        const bool audioIdChanged = oldTarget->audioConfig != newTarget->audioConfig;
+        if ((videoIdChanged || audioIdChanged) && busy) {
+            context.notices.push_back(QString::fromUtf8(obs_module_text("Notice.EncoderConfigChanged"))
+                .arg(targetName).toUtf8().toStdString());
+        }
+
+        if (!videoIdChanged && newTarget->videoConfig) {
+            const auto& configId = *newTarget->videoConfig;
+            auto oldVideo = oldConfig.FindVideoConfig(configId);
+            auto newVideo = newConfig.FindVideoConfig(configId);
+            if (oldVideo && newVideo && !VideoConfigEqual(*oldVideo, *newVideo)) {
+                OBSEncoderAutoRelease encoder = obs_get_encoder_by_name(("multi-rtmp-venc" + configId).c_str());
+                if (encoder) {
+                    if (context.updatedVideoConfigIds.insert(configId).second)
+                        UpdateEncoderSettings(encoder, oldVideo->encoderParams, newVideo->encoderParams, "video encoder");
+                    if (busy) {
+                        context.notices.push_back(QString::fromUtf8(obs_module_text("Notice.EncoderParamsChanged"))
+                            .arg(targetName).toUtf8().toStdString());
+                    }
+                }
+            }
+        }
+
+        if (!audioIdChanged && newTarget->audioConfig) {
+            const auto& configId = *newTarget->audioConfig;
+            auto oldAudio = oldConfig.FindAudioConfig(configId);
+            auto newAudio = newConfig.FindAudioConfig(configId);
+            if (oldAudio && newAudio && !AudioConfigEqual(*oldAudio, *newAudio)) {
+                std::unordered_set<int> trackIndices{ 0 };
+                for (const auto& track : oldAudio->audioTracks)
+                    trackIndices.insert(track->output_track);
+                for (const auto& track : newAudio->audioTracks)
+                    trackIndices.insert(track->output_track);
+
+                bool hasEncoder = false;
+                for (auto trackIndex : trackIndices) {
+                    auto encoderName = "multi-rtmp-aenc" + configId + "-track-idx-" + std::to_string(trackIndex);
+                    OBSEncoderAutoRelease encoder = obs_get_encoder_by_name(encoderName.c_str());
+                    if (!encoder)
+                        continue;
+                    hasEncoder = true;
+                    if (context.updatedAudioEncoderNames.insert(encoderName).second)
+                        UpdateEncoderSettings(encoder, oldAudio->encoderParams, newAudio->encoderParams, "audio encoder");
+                }
+                if (hasEncoder && busy) {
+                    context.notices.push_back(QString::fromUtf8(obs_module_text("Notice.EncoderParamsChanged"))
+                        .arg(targetName).toUtf8().toStdString());
+                }
+            }
+        }
+
+        config_ = std::move(newTarget);
+        LoadConfig();
+        UpdateStatusDot();
+        UpdateSceneView(newConfig);
     }
 
     void ResetInfo()
