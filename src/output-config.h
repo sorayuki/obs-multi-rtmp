@@ -62,6 +62,11 @@ public:
     std::list<OutputTargetConfigPtr> targets;
     std::list<VideoEncoderConfigPtr> videoConfig;
     std::list<AudioEncoderConfigPtr> audioConfig;
+
+    OutputTargetConfigPtr FindTarget(const std::string& id) const;
+    VideoEncoderConfigPtr FindVideoConfig(const std::string& id) const;
+    AudioEncoderConfigPtr FindAudioConfig(const std::string& id) const;
+    std::string GenerateId() const;
 };
 
 struct GlobalEditSnapshot {
@@ -85,8 +90,6 @@ MultiOutputConfig& GlobalMultiOutputConfig();
 void SaveMultiOutputConfig();
 
 bool LoadMultiOutputConfig();
-
-std::string GenerateId(MultiOutputConfig& config);
 
 // Used by the dock's Export/Import Config buttons to back up or restore
 // all targets (including stream keys) outside of OBS's own profile

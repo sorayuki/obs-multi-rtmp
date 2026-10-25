@@ -156,12 +156,12 @@ public:
 
                 auto targetId = item->data(Qt::UserRole).toString().toStdString();
                 snapshot.activeTargetIds.insert(targetId);
-                auto target = FindById(global.targets, targetId);
+                auto target = global.FindTarget(targetId);
                 if (!target)
                     continue;
-                if (target->videoConfig && FindById(global.videoConfig, *target->videoConfig))
+                if (target->videoConfig && global.FindVideoConfig(*target->videoConfig))
                     snapshot.activeVideoConfigIds.insert(*target->videoConfig);
-                if (target->audioConfig && FindById(global.audioConfig, *target->audioConfig))
+                if (target->audioConfig && global.FindAudioConfig(*target->audioConfig))
                     snapshot.activeAudioConfigIds.insert(*target->audioConfig);
             }
 

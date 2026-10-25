@@ -144,7 +144,7 @@ class EditTargetsDialogImpl: public QDialog
         CommitCurrent();
 
         auto target = std::make_shared<OutputTargetConfig>();
-        target->id = GenerateId(config_);
+        target->id = config_.GenerateId();
         config_.targets.push_back(target);
         targets_.push_back(target);
         pages_.push_back(nullptr);

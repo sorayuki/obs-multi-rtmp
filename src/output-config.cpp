@@ -297,16 +297,40 @@ static bool has_id(T& container, const std::string& id) {
     return false;
 }
 
-std::string GenerateId(MultiOutputConfig& config) {
+OutputTargetConfigPtr MultiOutputConfig::FindTarget(const std::string& id) const {
+    for (const auto& target : targets) {
+        if (target && target->id == id)
+            return target;
+    }
+    return nullptr;
+}
+
+VideoEncoderConfigPtr MultiOutputConfig::FindVideoConfig(const std::string& id) const {
+    for (const auto& config : videoConfig) {
+        if (config && config->id == id)
+            return config;
+    }
+    return nullptr;
+}
+
+AudioEncoderConfigPtr MultiOutputConfig::FindAudioConfig(const std::string& id) const {
+    for (const auto& config : audioConfig) {
+        if (config && config->id == id)
+            return config;
+    }
+    return nullptr;
+}
+
+std::string MultiOutputConfig::GenerateId() const {
     static std::random_device rndgen;
     for(;;) {
         auto rndnum = rndgen();
         auto newid = std::to_string(rndnum);
-        if (has_id(config.targets, newid))
+        if (has_id(targets, newid))
             continue;
-        if (has_id(config.audioConfig, newid))
+        if (has_id(audioConfig, newid))
             continue;
-        if (has_id(config.videoConfig, newid))
+        if (has_id(videoConfig, newid))
             continue;
         return newid;
     }

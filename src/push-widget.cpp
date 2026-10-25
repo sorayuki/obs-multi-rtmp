@@ -332,7 +332,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
                 blog(LOG_ERROR, TAG "Prepare output scene before encoder is created.");
                 return false;
             }
-            auto videoConfig = FindById(GlobalMultiOutputConfig().videoConfig, config_->videoConfig.value_or(""));
+            auto videoConfig = GlobalMultiOutputConfig().FindVideoConfig(config_->videoConfig.value_or(""));
 
             if (!videoConfig || !videoConfig->outputScene.has_value()) {
                 obs_encoder_set_video(venc, obs_get_video());
@@ -358,7 +358,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
             obs_encoder_set_audio(aenc, obs_get_audio());
 
             // Set other audio tracks
-            auto audioConfig = FindById(GlobalMultiOutputConfig().audioConfig, config_->audioConfig.value_or(""));
+            auto audioConfig = GlobalMultiOutputConfig().FindAudioConfig(config_->audioConfig.value_or(""));
             if (audioConfig) {
                 for (auto& track : audioConfig->audioTracks) {
                     auto enc = obs_output_get_audio_encoder(output_, track->output_track);
@@ -418,7 +418,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
             OBSEncoderAutoRelease enc = obs_get_encoder_by_name(VideoEncoderName().c_str());
             if (!enc) {
                 auto& global = GlobalMultiOutputConfig();
-                auto videoConfig = FindById(global.videoConfig, config_id);
+                auto videoConfig = global.FindVideoConfig(config_id);
                 if (videoConfig) {
                     OBSDataAutoRelease settings = obs_data_create_from_json(videoConfig->encoderParams.dump().c_str());
                     enc = obs_video_encoder_create(videoConfig->encoderId.c_str(), VideoEncoderName().c_str(), settings, nullptr);
@@ -461,7 +461,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
             if (!enc) {
                 auto& global = GlobalMultiOutputConfig();
                 auto audioConfigId = *config_->audioConfig;
-                auto audioConfig = FindById(global.audioConfig, audioConfigId);
+                auto audioConfig = global.FindAudioConfig(audioConfigId);
                 if (audioConfig) {
                     OBSDataAutoRelease settings = obs_data_create_from_json(audioConfig->encoderParams.dump().c_str());
 
@@ -506,7 +506,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
 
         std::vector<std::tuple<int, OBSEncoder>> additionalTracks;
         if (auto audioConfigId = config_->audioConfig) {
-            auto audioConfig = FindById(global.audioConfig, *audioConfigId);
+            auto audioConfig = global.FindAudioConfig(*audioConfigId);
 
             if (!audioConfig) {
                 blog(LOG_ERROR, TAG "Load audio encoder config failed for %s. Could not determine additional tracks.", config_->name.c_str());
@@ -667,7 +667,7 @@ public:
         QObject::setObjectName("push-widget");
 
         auto& global = GlobalMultiOutputConfig();
-        config_ = FindById(global.targets, targetid_);
+        config_ = global.FindTarget(targetid_);
         if (!config_)
             return;
 

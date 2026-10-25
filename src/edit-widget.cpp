@@ -283,7 +283,7 @@ class EditTargetPanelImpl: public EditTargetPanel
         if (!cfg) {
             return {};
         }
-        auto newid = GenerateId(global);
+        auto newid = global.GenerateId();
         auto newcfg = std::make_shared<typename T::element_type>(*cfg);
         newcfg->id = newid;
         list.push_back(newcfg);
@@ -869,7 +869,7 @@ public:
             return;
         
         auto& global = globalConfig_;
-        auto it = FindById(global.videoConfig, *config_->videoConfig);
+        auto it = global.FindVideoConfig(*config_->videoConfig);
         if (it == nullptr) {
             auto new_item = global.videoConfig.emplace_back(new VideoEncoderConfig{});
             it = new_item;
@@ -898,7 +898,7 @@ public:
             return;
         
         auto& global = globalConfig_;
-        auto it = FindById(global.audioConfig, *config_->audioConfig);
+        auto it = global.FindAudioConfig(*config_->audioConfig);
         if (it == nullptr) {
             auto new_item = global.audioConfig.emplace_back(new AudioEncoderConfig{});
             it = new_item;
@@ -936,7 +936,7 @@ public:
             if (IsSpecialEncoder(encoderId))
                 config_->videoConfig = encoderId;
 	        else if (!config_->videoConfig.has_value() || IsSpecialEncoder(*config_->videoConfig)) {
-                config_->videoConfig = GenerateId(global);
+                config_->videoConfig = global.GenerateId();
             }
 		    SaveVideoConfig();
         }
@@ -951,7 +951,7 @@ public:
             if (IsSpecialEncoder(encoderId))
                 config_->audioConfig = encoderId;
 	        else if (!config_->audioConfig.has_value() || IsSpecialEncoder(*config_->audioConfig)) {
-                config_->audioConfig = GenerateId(global);
+                config_->audioConfig = global.GenerateId();
             }
 		    SaveAudioConfig();
         }
@@ -1118,7 +1118,7 @@ public:
         if (IsSpecialEncoder(videoConfigId)) {
             LoadVideoConfig(videoConfigId);
         } else {
-            auto it = FindById(global.videoConfig, *config_->videoConfig);
+            auto it = global.FindVideoConfig(*config_->videoConfig);
             if (it != nullptr) {
                 LoadVideoConfig(&*it);
             }
@@ -1128,7 +1128,7 @@ public:
         if (IsSpecialEncoder(audioConfigId)) {
             LoadAudioConfig(audioConfigId);
         } else {
-            auto it = FindById(global.audioConfig, *config_->audioConfig);
+            auto it = global.FindAudioConfig(*config_->audioConfig);
             if (it != nullptr) {
                 LoadAudioConfig(&*it);
             }
@@ -1215,7 +1215,7 @@ public:
         , targetid_(targetid)
     {
         auto& global = GlobalMultiOutputConfig();
-        auto found = FindById(global.targets, targetid_);
+        auto found = global.FindTarget(targetid_);
         if (found == nullptr) {
             return;
         }
@@ -1243,7 +1243,7 @@ public:
             QObject::connect(okbtn, &QPushButton::clicked, [this]() {
                 panel_->SaveConfig();
                 auto& global = GlobalMultiOutputConfig();
-                auto it = FindById(global.targets, config_->id);
+                auto it = global.FindTarget(config_->id);
                 if (it != nullptr) {
                     *it = *config_;
                 }
