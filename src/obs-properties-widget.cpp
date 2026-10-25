@@ -288,15 +288,15 @@ namespace {
 
     class QPropertiesWidgetImpl: virtual public QWidget, public QPropertiesWidget, public UpdateHandler {
         std::unordered_map<std::string, std::shared_ptr<PropertyWidget>> propwids;
-        obs_properties* props;
+        OBSPropertiesPtr props;
         OBSData settings;
         OBSData orig_settings;
         std::function<void()> geometryChangeCallback_;
 
     public:
-        QPropertiesWidgetImpl(obs_properties* props, obs_data* p_settings, QWidget* parent)
+        QPropertiesWidgetImpl(OBSPropertiesPtr props, obs_data* p_settings, QWidget* parent)
             : QWidget(parent)
-            , props(props)
+            , props(std::move(props))
             , orig_settings(p_settings)
         {
             obs_data_release(p_settings);
@@ -311,16 +311,12 @@ namespace {
 
             obs_data_apply(settings, orig_settings);
 
-            obs_properties_apply_settings(props, settings);
+            obs_properties_apply_settings(props.get(), settings);
             
             UpdateUI();
         }
 
-        ~QPropertiesWidgetImpl()
-        {
-            if (props)
-                obs_properties_destroy(props);
-        }
+        ~QPropertiesWidgetImpl() {}
 
         void SetGeometryChangeCallback(std::function<void()> callback) override {
             geometryChangeCallback_ = std::move(callback);
@@ -345,7 +341,7 @@ namespace {
             layout->setColumnStretch(1, 1);
             layout->setContentsMargins(0, 0, 0, 0);
             layout->setSizeConstraint(QLayout::SetMinAndMaxSize);
-            auto x = obs_properties_first(props);
+            auto x = obs_properties_first(props.get());
             int currow = 0;
             do {
                 if (obs_property_visible(x) == false)
@@ -386,7 +382,7 @@ namespace {
                 x.second->SaveData(settings);
             }
 
-            obs_properties_apply_settings(props, settings);
+            obs_properties_apply_settings(props.get(), settings);
             LoadProperties();
 
             for(auto& x: propwids)
@@ -412,6 +408,6 @@ namespace {
 };
 
 
-QPropertiesWidget* createPropertyWidget(obs_properties* props, obs_data* settings, QWidget* parent) {
-    return new QPropertiesWidgetImpl(props, settings, parent);
+QPropertiesWidget* createPropertyWidget(OBSPropertiesPtr props, obs_data* settings, QWidget* parent) {
+    return new QPropertiesWidgetImpl(std::move(props), settings, parent);
 }

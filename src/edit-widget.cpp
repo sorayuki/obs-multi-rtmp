@@ -61,7 +61,6 @@ static obs_properties* AddBF(obs_properties* p) {
     return p;
 }
 
-
 class EditOutputWidgetImpl: public EditOutputWidget
 {
     class ContentSizeTabWidget: public QTabWidget {
@@ -174,9 +173,9 @@ class EditOutputWidgetImpl: public EditOutputWidget
         }
 
         // owner of props and settings is transfered to the created widget
-        void UpdateProperties(obs_properties* props, obs_data* settings) {
+        void UpdateProperties(OBSPropertiesPtr props, obs_data* settings) {
             ResetWid();
-            wid_ = createPropertyWidget(props, settings_ = settings, this);
+            wid_ = createPropertyWidget(std::move(props), settings_ = settings, this);
             layout_->addWidget(wid_, 0, 0, 1, 1, Qt::AlignTop);
             wid_->SetGeometryChangeCallback(onContentSizeChanged_);
             NotifyContentSizeChanged();
@@ -453,10 +452,14 @@ protected:
         }
 
         auto service = obs_service_create(protocol_info->serviceId, ("tmp_service_" + targetid_).c_str(), from_json(config_->serviceParam), nullptr);
+        OBSPropertiesPtr properties(obs_service_properties(service), [service](obs_properties_t* properties) {
+            if (properties)
+                obs_properties_destroy(properties);
+            obs_service_release(service);
+        });
         serviceSettings_->UpdateProperties(
-            obs_service_properties(service),
+            std::move(properties),
             obs_service_get_settings(service));
-        obs_service_release(service);
     }
 
     void updateOutputTab()
@@ -469,12 +472,16 @@ protected:
         }
 
         auto output = obs_output_create(protocol_info->outputId, ("tmp_output_" + targetid_).c_str(), from_json(config_->outputParam), nullptr);
+        OBSPropertiesPtr properties(obs_output_properties(output), [output](obs_properties_t* properties) {
+            if (properties)
+                obs_properties_destroy(properties);
+            obs_output_release(output);
+        });
         outputSettings_->UpdateProperties(
-            obs_output_properties(output),
+            std::move(properties),
             obs_output_get_settings(output));
         supported_audio_encoders_ = obs_output_get_supported_audio_codecs(output);
         supported_video_encoders_ = obs_output_get_supported_video_codecs(output);
-        obs_output_release(output);
 
         if (aenc_ && venc_) {
             // LoadEncoders() no longer touches the config, sync UI explicitly.
@@ -1064,11 +1071,15 @@ public:
 
         {
             auto encoder = obs_video_encoder_create(config.encoderId.c_str(), ("tmp_video_encoder_" + targetid_ + "_" + config.id).c_str(), from_json(config.encoderParams), nullptr);
+            OBSPropertiesPtr properties(AddBF(obs_encoder_properties(encoder)), [encoder](obs_properties_t* properties) {
+                if (properties)
+                    obs_properties_destroy(properties);
+                obs_encoder_release(encoder);
+            });
             videoEncoderSettings_->UpdateProperties(
-                AddBF(obs_encoder_properties(encoder)),
+                std::move(properties),
                 obs_encoder_get_settings(encoder)
             );
-            obs_encoder_release(encoder);
         }
     }
 
@@ -1127,11 +1138,15 @@ public:
 
         {
             auto encoder = obs_audio_encoder_create(config.encoderId.c_str(), ("tmp_audio_encoder_" + targetid_ + "_" + config.id).c_str(), from_json(config.encoderParams), 0, nullptr);
+            OBSPropertiesPtr properties(obs_encoder_properties(encoder), [encoder](obs_properties_t* properties) {
+                if (properties)
+                    obs_properties_destroy(properties);
+                obs_encoder_release(encoder);
+            });
             audioEncoderSettings_->UpdateProperties(
-                obs_encoder_properties(encoder),
+                std::move(properties),
                 obs_encoder_get_settings(encoder)
             );
-            obs_encoder_release(encoder);
         }
     }
 
