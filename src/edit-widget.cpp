@@ -6,6 +6,7 @@
 #include <QTabWidget>
 #include <qevent.h>
 #include <QComboBox>
+#include <QStandardItemModel>
 #include <QSignalBlocker>
 
 #include <regex>
@@ -225,6 +226,7 @@ class EditTargetPanelImpl: public EditTargetPanel
     };
 
     MultiOutputConfig& globalConfig_;
+    const GlobalEditSnapshot* snapshot_ = nullptr;
     OutputTargetConfigPtr config_;
     std::function<void()> onContentSizeChanged_;
 
@@ -445,9 +447,11 @@ public:
         MultiOutputConfig& globalConfig,
         OutputTargetConfigPtr config,
         std::function<void()> onContentSizeChanged,
+        const GlobalEditSnapshot* snapshot,
         QWidget* parent = 0)
         : QWidget(parent)
         , globalConfig_(globalConfig)
+        , snapshot_(snapshot)
         , config_(std::move(config))
         , onContentSizeChanged_(std::move(onContentSizeChanged))
     {
@@ -624,6 +628,9 @@ public:
             LoadConfig();
             UpdateUI();
         });
+        QObject::connect(v_scene_, (void (QComboBox::*)(int)) &QComboBox::currentIndexChanged, [this]() {
+            UpdateSceneModeLock();
+        });
 
         QObject::connect(protocolSelector_, (void (QComboBox::*)(int)) &QComboBox::currentIndexChanged, [this](){
             blog(LOG_DEBUG, "Changing protocol to %s", tostdu8(protocolSelector_->currentText()).c_str());
@@ -761,6 +768,7 @@ public:
             v_resolution_->setEnabled(true);
             v_fpsdenumerator_->setEnabled(true);
         }
+        UpdateSceneModeLock();
 
         auto makeShareNotify = [&](auto& targets) {
             std::string sharedTargets;
@@ -791,6 +799,35 @@ public:
 
         auto sharedAudioTargets = GetEncoderShareTargets(true);
         a_share_notify_->setText(QString::fromUtf8(obs_module_text("EncoderShare") + makeShareNotify(sharedAudioTargets)));
+    }
+
+    void UpdateSceneModeLock()
+    {
+        auto model = qobject_cast<QStandardItemModel*>(v_scene_->model());
+        if (!model)
+            return;
+
+        bool locked = false;
+        if (snapshot_) {
+            locked = snapshot_->activeTargetIds.find(config_->id) != snapshot_->activeTargetIds.end();
+            if (config_->videoConfig) {
+                locked = locked || snapshot_->activeVideoConfigIds.find(*config_->videoConfig)
+                    != snapshot_->activeVideoConfigIds.end();
+            }
+        }
+
+        const bool usesObsScene = v_scene_->currentIndex() == 0;
+        for (int row = 0; row < model->rowCount(); ++row) {
+            auto item = model->item(row);
+            if (!item)
+                continue;
+            auto flags = item->flags();
+            if (locked && ((row == 0) != usesObsScene))
+                flags &= ~Qt::ItemIsEnabled;
+            else
+                flags |= Qt::ItemIsEnabled;
+            item->setFlags(flags);
+        }
     }
 
     std::vector<std::string> GetEncoderShareTargets(bool isAudio) {
@@ -1235,9 +1272,10 @@ EditTargetPanel* createEditTargetPanel(
     MultiOutputConfig& config,
     OutputTargetConfigPtr target,
     std::function<void()> onContentSizeChanged,
-    QWidget* parent)
+    QWidget* parent,
+    const GlobalEditSnapshot* snapshot)
 {
-    return new EditTargetPanelImpl(config, std::move(target), std::move(onContentSizeChanged), parent);
+    return new EditTargetPanelImpl(config, std::move(target), std::move(onContentSizeChanged), snapshot, parent);
 }
 
 EditOutputWidget* createEditOutputWidget(const std::string& targetid, QWidget* parent) {

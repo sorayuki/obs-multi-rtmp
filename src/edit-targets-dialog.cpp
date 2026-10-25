@@ -22,6 +22,7 @@
 class EditTargetsDialogImpl: public QDialog
 {
     MultiOutputConfig config_;
+    GlobalEditSnapshot snapshot_;
     std::vector<OutputTargetConfigPtr> targets_;
 
     // Parallel to targets_. A page is created lazily on first selection so
@@ -35,11 +36,20 @@ class EditTargetsDialogImpl: public QDialog
     QWidget* right_ = nullptr;
     QStackedWidget* rightStack_ = nullptr;
     QLabel* placeholder_ = nullptr;
+    QPushButton* deleteButton_ = nullptr;
 
     // Set while the list is changed programmatically, so the selection
     // handler doesn't act on intermediate states.
     bool updating_ = false;
     int currentIndex_ = -1;
+
+    void UpdateDeleteButton()
+    {
+        const bool targetIsActive = currentIndex_ >= 0
+            && currentIndex_ < (int)targets_.size()
+            && snapshot_.activeTargetIds.find(targets_[currentIndex_]->id) != snapshot_.activeTargetIds.end();
+        deleteButton_->setEnabled(currentIndex_ >= 0 && !targetIsActive);
+    }
 
     static QString TargetName(const OutputTargetConfigPtr& target)
     {
@@ -95,7 +105,7 @@ class EditTargetsDialogImpl: public QDialog
         page->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
         page->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 
-        auto panel = createEditTargetPanel(config_, targets_[row], []() {}, page);
+        auto panel = createEditTargetPanel(config_, targets_[row], []() {}, page, &snapshot_);
         page->setWidget(panel);
 
         rightStack_->addWidget(page);
@@ -108,6 +118,7 @@ class EditTargetsDialogImpl: public QDialog
     {
         if (row < 0 || row >= (int)targets_.size()) {
             currentIndex_ = -1;
+            UpdateDeleteButton();
             rightStack_->setCurrentWidget(placeholder_);
             return;
         }
@@ -120,6 +131,7 @@ class EditTargetsDialogImpl: public QDialog
 
         CommitCurrent();
         currentIndex_ = row;
+        UpdateDeleteButton();
 
         auto page = EnsurePage(row);
         rightStack_->setCurrentWidget(page);
@@ -147,6 +159,8 @@ class EditTargetsDialogImpl: public QDialog
     {
         if (currentIndex_ < 0 || currentIndex_ >= (int)targets_.size())
             return;
+        if (snapshot_.activeTargetIds.find(targets_[currentIndex_]->id) != snapshot_.activeTargetIds.end())
+            return;
 
         updating_ = true;
 
@@ -165,6 +179,7 @@ class EditTargetsDialogImpl: public QDialog
         pages_.erase(pages_.begin() + row);
         panels_.erase(panels_.begin() + row);
         currentIndex_ = -1;
+        UpdateDeleteButton();
 
         if (targets_.empty()) {
             rightStack_->setCurrentWidget(placeholder_);
@@ -172,6 +187,7 @@ class EditTargetsDialogImpl: public QDialog
             const int newRow = (std::min)(row, (int)targets_.size() - 1);
             list_->setCurrentRow(newRow);
             currentIndex_ = newRow;
+            UpdateDeleteButton();
             auto page = EnsurePage(newRow);
             rightStack_->setCurrentWidget(page);
             page->verticalScrollBar()->setValue(0);
@@ -213,6 +229,7 @@ class EditTargetsDialogImpl: public QDialog
         list_->insertItem(newRow, item);
         currentIndex_ = newRow;
         list_->setCurrentRow(newRow);
+        UpdateDeleteButton();
 
         updating_ = false;
     }
@@ -241,6 +258,7 @@ class EditTargetsDialogImpl: public QDialog
         pages_.assign(targets_.size(), nullptr);
         panels_.assign(targets_.size(), nullptr);
         currentIndex_ = -1;
+        UpdateDeleteButton();
 
         list_->clear();
         for (auto& target : targets_)
@@ -251,6 +269,7 @@ class EditTargetsDialogImpl: public QDialog
         } else {
             currentIndex_ = 0;
             list_->setCurrentRow(0);
+            UpdateDeleteButton();
             auto page = EnsurePage(0);
             rightStack_->setCurrentWidget(page);
             page->verticalScrollBar()->setValue(0);
@@ -341,9 +360,10 @@ class EditTargetsDialogImpl: public QDialog
     }
 
 public:
-    EditTargetsDialogImpl(MultiOutputConfig config, QWidget* parent = 0)
+    EditTargetsDialogImpl(MultiOutputConfig config, GlobalEditSnapshot snapshot, QWidget* parent = 0)
         : QDialog(parent)
         , config_(std::move(config))
+        , snapshot_(std::move(snapshot))
     {
         setWindowTitle(obs_module_text("EditTargets.Title"));
 
@@ -355,19 +375,19 @@ public:
 
         auto buttonLayout = new QHBoxLayout();
         auto addButton = new QPushButton("+", left);
-        auto deleteButton = new QPushButton("-", left);
+        deleteButton_ = new QPushButton("-", left);
         auto upButton = new QPushButton(QString(QChar(0x2191)), left);
         auto downButton = new QPushButton(QString(QChar(0x2193)), left);
         addButton->setToolTip(obs_module_text("Btn.AddTarget"));
-        deleteButton->setToolTip(obs_module_text("Btn.RemoveTarget"));
+        deleteButton_->setToolTip(obs_module_text("Btn.RemoveTarget"));
         upButton->setToolTip(obs_module_text("Btn.MoveUp"));
         downButton->setToolTip(obs_module_text("Btn.MoveDown"));
         // Let the theme compute the real button size: OBS themes add
         // horizontal padding, so a fixed narrow width clips the label away.
-        for (auto button : { addButton, deleteButton, upButton, downButton })
+        for (auto button : { addButton, deleteButton_, upButton, downButton })
             button->setMinimumWidth(40);
         buttonLayout->addWidget(addButton);
-        buttonLayout->addWidget(deleteButton);
+        buttonLayout->addWidget(deleteButton_);
         buttonLayout->addStretch(1);
         buttonLayout->addWidget(upButton);
         buttonLayout->addWidget(downButton);
@@ -406,7 +426,7 @@ public:
         });
         QObject::connect(cancelButton, &QPushButton::clicked, this, &QDialog::reject);
         QObject::connect(addButton, &QPushButton::clicked, this, &EditTargetsDialogImpl::AddTarget);
-        QObject::connect(deleteButton, &QPushButton::clicked, this, &EditTargetsDialogImpl::DeleteTarget);
+        QObject::connect(deleteButton_, &QPushButton::clicked, this, &EditTargetsDialogImpl::DeleteTarget);
         QObject::connect(upButton, &QPushButton::clicked, [this]() { MoveTarget(-1); });
         QObject::connect(downButton, &QPushButton::clicked, [this]() { MoveTarget(1); });
         QObject::connect(exportButton, &QPushButton::clicked, this, &EditTargetsDialogImpl::ExportConfig);
@@ -452,13 +472,16 @@ public:
 };
 
 
-std::optional<std::string> showEditTargetsDialog(const std::string& configJson, QWidget* parent)
+std::optional<std::string> showEditTargetsDialog(
+    const std::string& configJson,
+    const GlobalEditSnapshot& snapshot,
+    QWidget* parent)
 {
     auto config = DeserializeMultiOutputConfig(configJson);
     if (!config.has_value())
         return std::nullopt;
 
-    EditTargetsDialogImpl dialog(std::move(*config), parent);
+    EditTargetsDialogImpl dialog(std::move(*config), snapshot, parent);
     if (dialog.exec() != QDialog::Accepted)
         return std::nullopt;
 

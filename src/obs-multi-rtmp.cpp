@@ -144,22 +144,28 @@ public:
         // init widget
         auto editTargetsButton = new QPushButton(obs_module_text("Btn.EditTargets"), container_);
         QObject::connect(editTargetsButton, &QPushButton::clicked, [this]() {
-            for (auto x : GetAllPushWidgets()) {
-                if (x->IsRunning()) {
-                    QMessageBox(
-                        QMessageBox::Icon::Warning,
-                        obs_module_text("Notice.Title"),
-                        obs_module_text("Error.EditActive"),
-                        QMessageBox::StandardButton::Ok,
-                        this
-                    ).exec();
-                    return;
-                }
+            auto& global = GlobalMultiOutputConfig();
+            GlobalEditSnapshot snapshot;
+            for (int row = 0; row < outputsContainer_->count(); ++row) {
+                auto item = outputsContainer_->item(row);
+                if (!item)
+                    continue;
+                auto widget = dynamic_cast<PushWidget*>(outputsContainer_->itemWidget(item));
+                if (!widget || !widget->IsBusy())
+                    continue;
+
+                auto targetId = item->data(Qt::UserRole).toString().toStdString();
+                snapshot.activeTargetIds.insert(targetId);
+                auto target = FindById(global.targets, targetId);
+                if (!target)
+                    continue;
+                if (target->videoConfig && FindById(global.videoConfig, *target->videoConfig))
+                    snapshot.activeVideoConfigIds.insert(*target->videoConfig);
+                if (target->audioConfig && FindById(global.audioConfig, *target->audioConfig))
+                    snapshot.activeAudioConfigIds.insert(*target->audioConfig);
             }
 
-            auto& global = GlobalMultiOutputConfig();
-
-            auto result = showEditTargetsDialog(SerializeMultiOutputConfig(global), this);
+            auto result = showEditTargetsDialog(SerializeMultiOutputConfig(global), snapshot, this);
             if (!result.has_value())
                 return;
 

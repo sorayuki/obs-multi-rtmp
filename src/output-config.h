@@ -4,6 +4,7 @@
 #include <optional>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 #include <memory>
 #include <list>
 
@@ -61,6 +62,12 @@ public:
     std::list<OutputTargetConfigPtr> targets;
     std::list<VideoEncoderConfigPtr> videoConfig;
     std::list<AudioEncoderConfigPtr> audioConfig;
+};
+
+struct GlobalEditSnapshot {
+    std::unordered_set<std::string> activeTargetIds;
+    std::unordered_set<std::string> activeVideoConfigIds;
+    std::unordered_set<std::string> activeAudioConfigIds;
 };
 
 template<class T, class S>

@@ -18,7 +18,8 @@ EditTargetPanel* createEditTargetPanel(
     MultiOutputConfig& config,
     OutputTargetConfigPtr target,
     std::function<void()> onContentSizeChanged,
-    QWidget* parent = 0);
+    QWidget* parent = 0,
+    const GlobalEditSnapshot* snapshot = nullptr);
 
 class EditOutputWidget : virtual public QDialog {
 public:
