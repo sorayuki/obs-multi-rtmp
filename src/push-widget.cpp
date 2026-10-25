@@ -649,6 +649,8 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         status_dot_->setStyleSheet(QString("color: %1;").arg(color));
     }
 
+    OBS_MULTI_RTMP_DEFINE_WEAK_THIS()
+
     template <typename Task>
     void RunInUIThread(Task&& task)
     {
@@ -664,8 +666,6 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
             blog(LOG_WARNING, TAG "Could not schedule push widget callback on the UI thread.");
         }
     }
-
-    OBS_MULTI_RTMP_DEFINE_WEAK_THIS()
 
 public:
     PushWidgetImpl(const std::string& targetid, QWidget* parent = 0)
