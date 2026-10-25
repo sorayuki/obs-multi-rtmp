@@ -61,16 +61,26 @@ class EditTargetsDialogImpl: public QDialog
 
     QSize InitialDialogSize(const QWidget* parent) const
     {
-        QSize desired(960, 720);
-        QScreen* currentScreen = parent && parent->screen() ? parent->screen() : QGuiApplication::primaryScreen();
-        if (currentScreen) {
-            auto available = currentScreen->availableGeometry().size();
-            desired.setWidth((std::min)(desired.width(), available.width() - 80));
-            desired.setHeight((std::min)(desired.height(), available.height() - 120));
+        QSize desired = sizeHint();
+        if (currentIndex_ >= 0 && currentIndex_ < (int)panels_.size() && panels_[currentIndex_]) {
+            auto panelSize = panels_[currentIndex_]->sizeHint();
+            if (pages_[currentIndex_])
+                panelSize += QSize(pages_[currentIndex_]->frameWidth() * 2, pages_[currentIndex_]->frameWidth() * 2);
+
+            auto leftSize = splitter_->widget(0)->minimumSizeHint();
+            auto footerSize = layout()->itemAt(1)->sizeHint();
+            auto margins = layout()->contentsMargins();
+            const int splitterWidth = leftSize.width() + panelSize.width() + splitter_->handleWidth();
+            const int splitterHeight = (std::max)(leftSize.height(), panelSize.height());
+
+            QSize contentSize(
+                (std::max)(splitterWidth, footerSize.width()) + margins.left() + margins.right(),
+                splitterHeight + footerSize.height() + layout()->spacing() + margins.top() + margins.bottom());
+            desired = desired.expandedTo(contentSize);
         }
-        desired.setWidth((std::max)(desired.width(), 560));
-        desired.setHeight((std::max)(desired.height(), 420));
-        return desired;
+
+        QScreen* currentScreen = parent && parent->screen() ? parent->screen() : QGuiApplication::primaryScreen();
+        return currentScreen ? desired.boundedTo(currentScreen->availableGeometry().size()) : desired;
     }
 
     void RefreshCurrentItem()
@@ -467,9 +477,11 @@ public:
         });
 
         list_->setCurrentRow(0);
-        splitter_->setSizes({ 220, 740 });
+        setMinimumSize(minimumSizeHint());
         resize(InitialDialogSize(parent));
-        setMinimumSize(560, 420);
+        layout()->activate();
+        const int leftWidth = splitter_->widget(0)->minimumSizeHint().width();
+        splitter_->setSizes({ leftWidth, splitter_->width() - leftWidth });
         setSizeGripEnabled(true);
     }
 
