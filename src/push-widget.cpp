@@ -1107,6 +1107,11 @@ public:
         return isBusy_;
     }
 
+    const std::string& GetTargetId() const override
+    {
+        return targetid_;
+    }
+
     bool GetEnabled() override { return config_->enabled; }
 
     void SetEnabled(bool enabled) override

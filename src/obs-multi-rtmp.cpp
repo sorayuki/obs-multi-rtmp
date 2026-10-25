@@ -127,6 +127,42 @@ private:
     }
 };
 
+class PushWidgetItemContainer : public QWidget
+{
+    PushWidget* pushWidget_ = nullptr;
+
+public:
+    explicit PushWidgetItemContainer(QWidget* parent = nullptr)
+        : QWidget(parent)
+    {
+        auto layout = new QVBoxLayout(this);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->setSpacing(0);
+    }
+
+    void SetPushWidget(PushWidget* pushWidget)
+    {
+        pushWidget_ = pushWidget;
+        pushWidget_->setParent(this);
+        layout()->addWidget(pushWidget_);
+    }
+
+    PushWidget* GetPushWidget() const
+    {
+        return pushWidget_;
+    }
+
+    QSize sizeHint() const override
+    {
+        return pushWidget_ ? pushWidget_->sizeHint() : QWidget::sizeHint();
+    }
+
+    QSize minimumSizeHint() const override
+    {
+        return pushWidget_ ? pushWidget_->minimumSizeHint() : QWidget::minimumSizeHint();
+    }
+};
+
 
 class MultiOutputWidget : public QWidget
 {
@@ -200,6 +236,8 @@ public:
 
         // load and show outputs
         outputsContainer_ = new OutputsListWidget(container_);
+        stagingContainer_ = new QWidget(this);
+        stagingContainer_->hide();
         outputsContainer_->setDragDropMode(QAbstractItemView::InternalMove);
         outputsContainer_->setSelectionMode(QAbstractItemView::SingleSelection);
         outputsContainer_->setDropIndicatorShown(true);
@@ -329,17 +367,22 @@ public:
     std::list<PushWidget*> GetAllPushWidgets()
     {
         std::list<PushWidget*> result;
+        std::unordered_set<PushWidget*> seen;
         for (int row = 0; row < outputsContainer_->count(); ++row) {
             auto item = outputsContainer_->item(row);
             if (!item) {
                 continue;
             }
 
-            auto widget = outputsContainer_->itemWidget(item);
-            auto pushWidget = dynamic_cast<PushWidget*>(widget);
-            if (pushWidget) {
+            auto itemContainer = dynamic_cast<PushWidgetItemContainer*>(outputsContainer_->itemWidget(item));
+            auto pushWidget = itemContainer ? itemContainer->GetPushWidget() : nullptr;
+            if (pushWidget && seen.insert(pushWidget).second) {
                 result.push_back(pushWidget);
             }
+        }
+        for (auto pushWidget : stagedWidgets_) {
+            if (pushWidget && seen.insert(pushWidget).second)
+                result.push_back(pushWidget);
         }
         return result;
     }
@@ -416,6 +459,11 @@ public:
 
     void LoadConfig()
     {
+        for (auto pushWidget : GetAllPushWidgets()) {
+            pushWidget->setParent(nullptr);
+            delete pushWidget;
+        }
+        stagedWidgets_.clear();
         outputsContainer_->clear();
 
         GlobalMultiOutputConfig() = {};
@@ -438,21 +486,45 @@ private:
     QScrollArea scroll_;
     // Widget, that contains output source widgets
     QListWidget* outputsContainer_ = 0;
+    QWidget* stagingContainer_ = nullptr;
+    std::list<PushWidget*> stagedWidgets_;
 
     // Targets are added/removed through the "Edit Targets" dialog, which
     // rebuilds the whole list via LoadConfig().
     PushWidget* AddPushWidget(const std::string& targetId)
     {
-        auto pushWidget = createPushWidget(targetId, outputsContainer_->viewport());
+        auto pushWidget = createPushWidget(targetId, stagingContainer_);
+        AttachPushWidget(pushWidget);
+        return pushWidget;
+    }
+
+    void DetachPushWidgets()
+    {
+        for (auto pushWidget : GetAllPushWidgets()) {
+            if (pushWidget->parentWidget() == stagingContainer_)
+                continue;
+            pushWidget->setParent(stagingContainer_);
+            stagedWidgets_.push_back(pushWidget);
+        }
+        outputsContainer_->clear();
+    }
+
+    void AttachPushWidget(PushWidget* pushWidget)
+    {
+        if (!pushWidget)
+            return;
+
+        stagedWidgets_.remove(pushWidget);
+        auto shell = new PushWidgetItemContainer(outputsContainer_->viewport());
+        shell->SetPushWidget(pushWidget);
 
         QListWidgetItem* listItem = new QListWidgetItem();
-        listItem->setData(Qt::UserRole, QString::fromStdString(targetId));
-        listItem->setSizeHint(pushWidget->sizeHint());
+        listItem->setData(Qt::UserRole, QString::fromStdString(pushWidget->GetTargetId()));
+        listItem->setSizeHint(shell->sizeHint());
         outputsContainer_->addItem(listItem);
-        outputsContainer_->setItemWidget(listItem, pushWidget);
+        outputsContainer_->setItemWidget(listItem, shell);
+        shell->installEventFilter(outputsContainer_);
         pushWidget->installEventFilter(outputsContainer_);
-
-        return pushWidget;
     }
 };
 
