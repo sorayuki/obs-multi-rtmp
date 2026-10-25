@@ -90,8 +90,7 @@ function Package {
             }
         }
     }
-    AddDirectory "obs-plugins/64bit" "${ProjectRoot}/release/${Configuration}/${ProductName}/bin/64bit"
-    AddDirectory "data/obs-plugins/${ProductName}" "${ProjectRoot}/release/${Configuration}/${ProductName}/data"
+    AddDirectory "${ProductName}" "${ProjectRoot}/release/${Configuration}/${ProductName}"
     $zipf.Dispose()
     Log-Group
 
