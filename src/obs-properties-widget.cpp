@@ -91,7 +91,7 @@ namespace {
             auto str = obs_property_description(p);
             if (!str)
                 str = obs_property_name(p);
-            label = new QLabel(QString::fromUtf8(str, strlen(str)));
+            label = new QLabel(QString::fromUtf8(str, strlen(str)), parent);
 
             switch(propType = obs_property_get_type(p)) {
                 case OBS_PROPERTY_BOOL: {
@@ -316,7 +316,13 @@ namespace {
             UpdateUI();
         }
 
-        ~QPropertiesWidgetImpl() {}
+        ~QPropertiesWidgetImpl()
+        {
+            // Deleting the child controls can trigger focus-out handlers that
+            // call back into UpdateUI(). Block those while we are tearing
+            // the widget down.
+            isUpdating = true;
+        }
 
         void SetGeometryChangeCallback(std::function<void()> callback) override {
             geometryChangeCallback_ = std::move(callback);

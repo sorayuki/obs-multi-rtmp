@@ -61,104 +61,98 @@ static obs_properties* AddBF(obs_properties* p) {
     return p;
 }
 
-class EditOutputWidgetImpl: public EditOutputWidget
-{
-    class ContentSizeTabWidget: public QTabWidget {
-    public:
-        using QTabWidget::QTabWidget;
+class ContentSizeTabWidget: public QTabWidget {
+public:
+    using QTabWidget::QTabWidget;
 
-        QSize sizeHint() const override {
-            return CalculateTabSize([](QWidget* widget) { return widget->sizeHint(); });
+    QSize sizeHint() const override {
+        return CalculateTabSize([](QWidget* widget) { return widget->sizeHint(); });
+    }
+
+    QSize minimumSizeHint() const override {
+        return CalculateTabSize([](QWidget* widget) { return widget->minimumSizeHint(); });
+    }
+
+private:
+    template<class T>
+    QSize CalculateTabSize(T getWidgetSize) const {
+        auto current = currentWidget();
+        auto bar = tabBar();
+        if (!current || !bar)
+            return QTabWidget::sizeHint();
+
+        auto pageSize = getWidgetSize(current);
+        if (!pageSize.isValid())
+            pageSize = current->sizeHint();
+
+        auto tabSize = bar->sizeHint();
+        auto result = pageSize;
+        switch (tabPosition()) {
+        case QTabWidget::West:
+        case QTabWidget::East:
+            result.rwidth() += tabSize.width();
+            result.setHeight((std::max)(result.height(), tabSize.height()));
+            break;
+        case QTabWidget::North:
+        case QTabWidget::South:
+        default:
+            result.setWidth((std::max)(result.width(), tabSize.width()));
+            result.rheight() += tabSize.height();
+            break;
         }
 
-        QSize minimumSizeHint() const override {
-            return CalculateTabSize([](QWidget* widget) { return widget->minimumSizeHint(); });
-        }
+        const int frame = style()->pixelMetric(QStyle::PM_DefaultFrameWidth, nullptr, this) * 2;
+        result.rwidth() += frame;
+        result.rheight() += frame;
+        return result;
+    }
+};
 
-    private:
-        template<class T>
-        QSize CalculateTabSize(T getWidgetSize) const {
-            auto current = currentWidget();
-            auto bar = tabBar();
-            if (!current || !bar)
-                return QTabWidget::sizeHint();
+class ContentSizeScrollArea: public QScrollArea {
+public:
+    using QScrollArea::QScrollArea;
 
-            auto pageSize = getWidgetSize(current);
-            if (!pageSize.isValid())
-                pageSize = current->sizeHint();
+    QSize sizeHint() const override {
+        auto hint = viewportSizeHint();
+        if (!hint.isValid())
+            return QScrollArea::sizeHint();
 
-            auto tabSize = bar->sizeHint();
-            auto result = pageSize;
-            switch (tabPosition()) {
-            case QTabWidget::West:
-            case QTabWidget::East:
-                result.rwidth() += tabSize.width();
-                result.setHeight((std::max)(result.height(), tabSize.height()));
-                break;
-            case QTabWidget::North:
-            case QTabWidget::South:
-            default:
-                result.setWidth((std::max)(result.width(), tabSize.width()));
-                result.rheight() += tabSize.height();
-                break;
-            }
+        const int frame = frameWidth() * 2;
+        hint.rwidth() += frame;
+        hint.rheight() += frame;
+        return hint;
+    }
 
-            const int frame = style()->pixelMetric(QStyle::PM_DefaultFrameWidth, nullptr, this) * 2;
-            result.rwidth() += frame;
-            result.rheight() += frame;
-            return result;
-        }
-    };
+    QSize minimumSizeHint() const override {
+        return QScrollArea::minimumSizeHint();
+    }
 
-    class ContentSizeScrollArea: public QScrollArea {
-    public:
-        using QScrollArea::QScrollArea;
+protected:
+    QSize viewportSizeHint() const override {
+        auto content = widget();
+        if (!content)
+            return QScrollArea::viewportSizeHint();
 
-        QSize sizeHint() const override {
-            auto hint = viewportSizeHint();
-            if (!hint.isValid())
-                return QScrollArea::sizeHint();
-
-            const int frame = frameWidth() * 2;
-            hint.rwidth() += frame;
-            hint.rheight() += frame;
-            return hint;
-        }
-
-        QSize minimumSizeHint() const override {
-            return QScrollArea::minimumSizeHint();
-        }
-
-    protected:
-        QSize viewportSizeHint() const override {
-            auto content = widget();
-            if (!content)
-                return QScrollArea::viewportSizeHint();
-
-            if (auto contentLayout = content->layout()) {
-                auto hint = contentLayout->sizeHint();
-                if (hint.isValid())
-                    return hint;
-            }
-
-            auto hint = content->sizeHint();
+        if (auto contentLayout = content->layout()) {
+            auto hint = contentLayout->sizeHint();
             if (hint.isValid())
                 return hint;
-
-            return QScrollArea::viewportSizeHint();
         }
-    };
 
-    QWidget* container_;
-    ContentSizeScrollArea* scroll_;
-    ContentSizeTabWidget* outputSettingsTabs_ = nullptr;
+        auto hint = content->sizeHint();
+        if (hint.isValid())
+            return hint;
 
-    std::string targetid_;
-    OutputTargetConfigPtr config_ = nullptr;
+        return QScrollArea::viewportSizeHint();
+    }
+};
 
-    QLineEdit* name_ = 0;
-    bool resizeToContentPending_ = false;
 
+// The reusable per-target editor. It owns every control of the "streaming
+// settings" page but neither the scroll area nor the OK button, so it can be
+// dropped into a plain dialog or into a master-detail dialog.
+class EditTargetPanelImpl: public EditTargetPanel
+{
     class PropertiesWidget: public QWidget {
     public:
         PropertiesWidget(std::function<void()> onContentSizeChanged, QWidget* parent)
@@ -204,7 +198,13 @@ class EditOutputWidgetImpl: public EditOutputWidget
 
         void ResetWid() {
             if (wid_) {
-                delete wid_;
+                // Destroy the old property widget outside of the current
+                // event handler. Tearing down OBS property widgets in the
+                // middle of a button/list signal can crash Qt while child
+                // widgets are being removed.
+                layout_->removeWidget(wid_);
+                wid_->hide();
+                wid_->deleteLater();
                 wid_ = nullptr;
             }
             if (placeholder_) {
@@ -224,13 +224,19 @@ class EditOutputWidgetImpl: public EditOutputWidget
         }
     };
 
-    PropertiesWidget* serviceSettings_;
-    PropertiesWidget* outputSettings_;
+    MultiOutputConfig& globalConfig_;
+    OutputTargetConfigPtr config_;
+    std::function<void()> onContentSizeChanged_;
+
+    QLineEdit* name_ = 0;
+
+    PropertiesWidget* serviceSettings_ = nullptr;
+    PropertiesWidget* outputSettings_ = nullptr;
     std::string supported_video_encoders_;
     std::string supported_audio_encoders_;
-    PropertiesWidget* videoEncoderSettings_;
-    PropertiesWidget* audioEncoderSettings_;
-   
+    PropertiesWidget* videoEncoderSettings_ = nullptr;
+    PropertiesWidget* audioEncoderSettings_ = nullptr;
+
     QComboBox* protocolSelector_ = 0;
     QComboBox* venc_ = 0;
     QComboBox* v_scene_ = 0;
@@ -244,7 +250,7 @@ class EditOutputWidgetImpl: public EditOutputWidget
     QLabel* a_share_notify_ = 0;
 
     QCheckBox* syncStart_ = 0;
-    QCheckBox *syncStop_ = 0;
+    QCheckBox* syncStop_ = 0;
 
     std::vector<std::string> EnumEncodersByCodec(const char* codec)
     {
@@ -270,12 +276,11 @@ class EditOutputWidgetImpl: public EditOutputWidget
 
 
     template<class T>
-    static std::optional<std::string> DuplicateConfig(std::list<T>& list, std::string oldid) {
+    static std::optional<std::string> DuplicateConfig(MultiOutputConfig& global, std::list<T>& list, std::string oldid) {
         auto cfg = FindById(list, oldid);
         if (!cfg) {
             return {};
         }
-        auto& global = GlobalMultiOutputConfig();
         auto newid = GenerateId(global);
         auto newcfg = std::make_shared<typename T::element_type>(*cfg);
         newcfg->id = newid;
@@ -286,16 +291,16 @@ class EditOutputWidgetImpl: public EditOutputWidget
 
     void PopupShareMenu(bool isAudio) {
         auto menu = new QMenu(this);
-        auto& global = GlobalMultiOutputConfig();
+        auto& global = globalConfig_;
 
         {
             auto action = menu->addAction(obs_module_text("NoShare"));
-            QObject::connect(action, &QAction::triggered, [=]() {
-                auto& global = GlobalMultiOutputConfig();
+            QObject::connect(action, &QAction::triggered, [this, isAudio]() {
+                auto& global = globalConfig_;
                 if (isAudio) {
                     if (!config_->audioConfig.has_value())
                         return;
-                    auto newid = DuplicateConfig(global.audioConfig, *config_->audioConfig);
+                    auto newid = DuplicateConfig(global, global.audioConfig, *config_->audioConfig);
                     if (!newid.has_value()) {
                         config_->audioConfig.reset();
                         return;
@@ -305,7 +310,7 @@ class EditOutputWidgetImpl: public EditOutputWidget
                 else {
                     if (!config_->videoConfig.has_value())
                         return;
-                    auto newid = DuplicateConfig(global.videoConfig, *config_->videoConfig);
+                    auto newid = DuplicateConfig(global, global.videoConfig, *config_->videoConfig);
                     if (!newid.has_value()) {
                         config_->videoConfig.reset();
                         return;
@@ -355,86 +360,30 @@ class EditOutputWidgetImpl: public EditOutputWidget
         menu->exec(QCursor::pos());
     }
 
-    void RefreshContentGeometry() {
-        layout()->activate();
-        if (outputSettingsTabs_) {
-            outputSettingsTabs_->adjustSize();
-            outputSettingsTabs_->updateGeometry();
-        }
-        container_->layout()->activate();
-        container_->adjustSize();
-        container_->updateGeometry();
-        scroll_->adjustSize();
-        scroll_->updateGeometry();
-    }
-
-    QSize CalculateMaximumDialogSize() const {
-        QSize maxSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
-        auto currentScreen = screen();
-        if (!currentScreen)
-            return maxSize;
-
-        auto available = currentScreen->availableGeometry().size();
-        auto frame = frameSize() - size();
-        return QSize(
-            (std::max)(0, available.width() - frame.width()),
-            (std::max)(0, available.height() - frame.height()));
-    }
-
-    void ApplyAutoDialogSize() {
-        auto targetSize = sizeHint();
-        if (!targetSize.isValid())
-            return;
-
-        auto maxSize = CalculateMaximumDialogSize();
-        setMaximumSize(maxSize);
-        resize(targetSize.boundedTo(maxSize).expandedTo(minimumSizeHint()));
-    }
-
-    void ScheduleResizeToContent() {
-        if (resizeToContentPending_)
-            return;
-
-        resizeToContentPending_ = true;
-        QTimer::singleShot(0, this, [this]() {
-            resizeToContentPending_ = false;
-            ResizeToContent();
-        });
-    }
-
-    void ResizeToContent() {
-        if (!layout() || !container_ || !container_->layout() || !scroll_)
-            return;
-
-        RefreshContentGeometry();
-        ApplyAutoDialogSize();
-    }
-
-protected:
-    void showEvent(QShowEvent* event) override {
-        QDialog::showEvent(event);
-        ScheduleResizeToContent();
+    void NotifyContentSizeChanged() {
+        if (onContentSizeChanged_)
+            onContentSizeChanged_();
     }
 
     QTabWidget* CreateOutputSettingsWidget(QWidget* parent) {
-        auto tab = outputSettingsTabs_ = new ContentSizeTabWidget(parent);
+        auto tab = new ContentSizeTabWidget(parent);
 
         // service
         {
-            serviceSettings_ = new PropertiesWidget([this]() { ScheduleResizeToContent(); }, tab);
+            serviceSettings_ = new PropertiesWidget([this]() { NotifyContentSizeChanged(); }, tab);
             updateServiceTab();
             tab->addTab(serviceSettings_, obs_module_text("Tab.Service"));
         }
 
         // output
         {
-            outputSettings_ = new PropertiesWidget([this]() { ScheduleResizeToContent(); }, tab);
+            outputSettings_ = new PropertiesWidget([this]() { NotifyContentSizeChanged(); }, tab);
             updateOutputTab();
             tab->addTab(outputSettings_, obs_module_text("Tab.Output"));
         }
 
         QObject::connect(tab, &QTabWidget::currentChanged, [this](int) {
-            ScheduleResizeToContent();
+            NotifyContentSizeChanged();
         });
 
         tab->setCurrentIndex(0);
@@ -451,7 +400,7 @@ protected:
             protocol_info = GetProtocolInfos()->GetList();
         }
 
-        auto service = obs_service_create(protocol_info->serviceId, ("tmp_service_" + targetid_).c_str(), from_json(config_->serviceParam), nullptr);
+        auto service = obs_service_create(protocol_info->serviceId, ("tmp_service_" + config_->id).c_str(), from_json(config_->serviceParam), nullptr);
         OBSPropertiesPtr properties(obs_service_properties(service), [service](obs_properties_t* properties) {
             if (properties)
                 obs_properties_destroy(properties);
@@ -471,7 +420,7 @@ protected:
             protocol_info = GetProtocolInfos()->GetList();
         }
 
-        auto output = obs_output_create(protocol_info->outputId, ("tmp_output_" + targetid_).c_str(), from_json(config_->outputParam), nullptr);
+        auto output = obs_output_create(protocol_info->outputId, ("tmp_output_" + config_->id).c_str(), from_json(config_->outputParam), nullptr);
         OBSPropertiesPtr properties(obs_output_properties(output), [output](obs_properties_t* properties) {
             if (properties)
                 obs_properties_destroy(properties);
@@ -492,46 +441,36 @@ protected:
     }
 
 public:
-    EditOutputWidgetImpl(const std::string& targetid, QWidget* parent = 0)
-        : QDialog(parent)
-        , targetid_(targetid)
+    EditTargetPanelImpl(
+        MultiOutputConfig& globalConfig,
+        OutputTargetConfigPtr config,
+        std::function<void()> onContentSizeChanged,
+        QWidget* parent = 0)
+        : QWidget(parent)
+        , globalConfig_(globalConfig)
+        , config_(std::move(config))
+        , onContentSizeChanged_(std::move(onContentSizeChanged))
     {
-        auto& global = GlobalMultiOutputConfig();
-        config_ = FindById(global.targets, targetid_);
-        if (config_ == nullptr) {
-            return;
-        }
-        config_ = std::make_shared<OutputTargetConfig>(*config_);
+        setSizePolicy(QSizePolicy::Policy::Preferred, QSizePolicy::Policy::Preferred);
 
-        setWindowTitle(obs_module_text("StreamingSettings"));
-
-        scroll_ = new ContentSizeScrollArea(this);
-        scroll_->setHorizontalScrollBarPolicy(Qt::ScrollBarPolicy::ScrollBarAsNeeded);
-        scroll_->setVerticalScrollBarPolicy(Qt::ScrollBarPolicy::ScrollBarAsNeeded);
-        scroll_->setSizePolicy(QSizePolicy::Policy::Preferred, QSizePolicy::Policy::Preferred);
-        scroll_->setSizeAdjustPolicy(QScrollArea::SizeAdjustPolicy::AdjustToContents);
-
-        container_ = new QWidget(scroll_);
-        container_->setSizePolicy(QSizePolicy::Policy::Preferred, QSizePolicy::Policy::Preferred);
-
-        auto layout = new QVBoxLayout(container_);
+        auto layout = new QVBoxLayout(this);
         layout->setAlignment(Qt::AlignTop);
 
         int currow = 0;
         {
-            auto sublayout = new QGridLayout(container_);
+            auto sublayout = new QGridLayout(this);
             sublayout->setColumnStretch(0, 0);
             sublayout->setColumnStretch(1, 1);
-            sublayout->addWidget(new QLabel(obs_module_text("StreamingName"), container_), 0, 0);
-            sublayout->addWidget(name_ = new QLineEdit("", container_), 0, 1);
-            sublayout->addWidget(new QLabel(obs_module_text("Protocol"), container_), 1, 0);
-            sublayout->addWidget(protocolSelector_ = new QComboBox(container_), 1, 1);
+            sublayout->addWidget(new QLabel(obs_module_text("StreamingName"), this), 0, 0);
+            sublayout->addWidget(name_ = new QLineEdit("", this), 0, 1);
+            sublayout->addWidget(new QLabel(obs_module_text("Protocol"), this), 1, 0);
+            sublayout->addWidget(protocolSelector_ = new QComboBox(this), 1, 1);
             layout->addLayout(sublayout);
         }
         ++currow;
 
         {
-            auto w = CreateOutputSettingsWidget(container_);
+            auto w = CreateOutputSettingsWidget(this);
             layout->addWidget(w);
         }
         ++currow;
@@ -541,7 +480,7 @@ public:
             sub_grid->setColumnStretch(1, 0);
             {
                 {
-                    auto gp = new QGroupBox(obs_module_text("VideoSettings"), container_);
+                    auto gp = new QGroupBox(obs_module_text("VideoSettings"), this);
                     sub_grid->addWidget(gp, 0, 0, 2, 1);
                     auto encLayout = new QGridLayout();
                     int currow = 0;
@@ -587,13 +526,13 @@ public:
                     }
                     ++currow;
                     {
-                        encLayout->addWidget(videoEncoderSettings_ = new PropertiesWidget([this]() { ScheduleResizeToContent(); }, gp), currow, 0, 1, 2);
+                        encLayout->addWidget(videoEncoderSettings_ = new PropertiesWidget([this]() { NotifyContentSizeChanged(); }, gp), currow, 0, 1, 2);
                     }
                     gp->setLayout(encLayout);
                 }
 
                 {
-                    auto gp = new QGroupBox(obs_module_text("AudioSettings"), container_);
+                    auto gp = new QGroupBox(obs_module_text("AudioSettings"), this);
                     sub_grid->addWidget(gp, 0, 1, 1, 1);
                     auto encLayout = new QGridLayout();
                     int currow = 0;
@@ -642,13 +581,13 @@ public:
                     }
                     ++currow;
                     {
-                        encLayout->addWidget(audioEncoderSettings_ = new PropertiesWidget([this]() { ScheduleResizeToContent(); }, gp), currow, 0, 1, 2);
+                        encLayout->addWidget(audioEncoderSettings_ = new PropertiesWidget([this]() { NotifyContentSizeChanged(); }, gp), currow, 0, 1, 2);
                     }
                     gp->setLayout(encLayout);
                 }
 
                 {
-                    auto gp = new QGroupBox(obs_module_text("OtherSettings"), container_);
+                    auto gp = new QGroupBox(obs_module_text("OtherSettings"), this);
                     sub_grid->addWidget(gp, 1, 1, 1, 1);
                     auto otherLayout = new QGridLayout();
                     otherLayout->addWidget(syncStart_ = new QCheckBox(obs_module_text("SyncStart"), gp), 0, 0);
@@ -659,32 +598,9 @@ public:
             layout->addLayout(sub_grid, 1);
         }
         ++currow;
-        {
-            auto okbtn = new QPushButton(obs_module_text("OK"), container_);
-            QObject::connect(okbtn, &QPushButton::clicked, [this]() {
-                SaveConfig();
-                auto& global = GlobalMultiOutputConfig();
-                auto it = FindById(global.targets, config_->id);
-                if (it != nullptr) {
-                    *it = *config_;
-                }
-                done(DialogCode::Accepted);
-            });
-            layout->addWidget(okbtn);
-        }
 
         layout->setSizeConstraint(QLayout::SetMinAndMaxSize);
-        container_->setLayout(layout);
-
-        scroll_->setWidget(container_);
-        scroll_->setWidgetResizable(false);
-
-        auto fullLayout = new QGridLayout(this);
-        fullLayout->setContentsMargins(0, 0, 0, 0);
-        fullLayout->addWidget(scroll_, 0, 0);
-        fullLayout->setRowStretch(0, 1);
-        fullLayout->setColumnStretch(0, 1);
-        setLayout(fullLayout);
+        setLayout(layout);
 
         LoadProtocols();
         LoadFPSDenumerator();
@@ -895,7 +811,7 @@ public:
 	    }
 
         std::vector<std::string> ret;
-        auto& global = GlobalMultiOutputConfig();
+        auto& global = globalConfig_;
         for(auto& x: global.targets) {
             if (isAudio) {
                 if (x->id != config_->id && x->audioConfig.has_value() && *x->audioConfig == configId)
@@ -915,7 +831,7 @@ public:
         if (!config_->videoConfig.has_value() || IsSpecialEncoder(*config_->videoConfig))
             return;
         
-        auto& global = GlobalMultiOutputConfig();
+        auto& global = globalConfig_;
         auto it = FindById(global.videoConfig, *config_->videoConfig);
         if (it == nullptr) {
             auto new_item = global.videoConfig.emplace_back(new VideoEncoderConfig{});
@@ -944,7 +860,7 @@ public:
         if (!config_->audioConfig.has_value() || IsSpecialEncoder(*config_->audioConfig))
             return;
         
-        auto& global = GlobalMultiOutputConfig();
+        auto& global = globalConfig_;
         auto it = FindById(global.audioConfig, *config_->audioConfig);
         if (it == nullptr) {
             auto new_item = global.audioConfig.emplace_back(new AudioEncoderConfig{});
@@ -967,9 +883,9 @@ public:
         }
     }
 
-    void SaveConfig()
+    void SaveConfig() override
     {
-        auto& global = GlobalMultiOutputConfig();
+        auto& global = globalConfig_;
 
         config_->name = tostdu8(name_->text());
         config_->protocol = tostdu8(protocolSelector_->itemData(protocolSelector_->currentIndex()).toString());
@@ -1070,7 +986,7 @@ public:
         }
 
         {
-            auto encoder = obs_video_encoder_create(config.encoderId.c_str(), ("tmp_video_encoder_" + targetid_ + "_" + config.id).c_str(), from_json(config.encoderParams), nullptr);
+            auto encoder = obs_video_encoder_create(config.encoderId.c_str(), ("tmp_video_encoder_" + config_->id + "_" + config.id).c_str(), from_json(config.encoderParams), nullptr);
             OBSPropertiesPtr properties(AddBF(obs_encoder_properties(encoder)), [encoder](obs_properties_t* properties) {
                 if (properties)
                     obs_properties_destroy(properties);
@@ -1137,7 +1053,7 @@ public:
         }
 
         {
-            auto encoder = obs_audio_encoder_create(config.encoderId.c_str(), ("tmp_audio_encoder_" + targetid_ + "_" + config.id).c_str(), from_json(config.encoderParams), 0, nullptr);
+            auto encoder = obs_audio_encoder_create(config.encoderId.c_str(), ("tmp_audio_encoder_" + config_->id + "_" + config.id).c_str(), from_json(config.encoderParams), 0, nullptr);
             OBSPropertiesPtr properties(obs_encoder_properties(encoder), [encoder](obs_properties_t* properties) {
                 if (properties)
                     obs_properties_destroy(properties);
@@ -1151,7 +1067,10 @@ public:
     }
 
     void LoadConfig() {
-        auto& global = GlobalMultiOutputConfig();
+        if (!config_)
+            return;
+
+        auto& global = globalConfig_;
 
         if (config_->name.empty())
             config_->name = obs_module_text("NewStreaming");
@@ -1182,6 +1101,144 @@ public:
     }
 };
 
+
+// The original single-target dialog: a scrollable EditTargetPanel plus an OK
+// button at the bottom of the scrollable content.
+class EditOutputWidgetImpl: public EditOutputWidget
+{
+    QWidget* container_;
+    ContentSizeScrollArea* scroll_;
+    EditTargetPanel* panel_ = nullptr;
+
+    std::string targetid_;
+    OutputTargetConfigPtr config_ = nullptr;
+
+    bool resizeToContentPending_ = false;
+
+    void RefreshContentGeometry() {
+        layout()->activate();
+        container_->layout()->activate();
+        container_->adjustSize();
+        container_->updateGeometry();
+        scroll_->adjustSize();
+        scroll_->updateGeometry();
+    }
+
+    QSize CalculateMaximumDialogSize() const {
+        QSize maxSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
+        auto currentScreen = screen();
+        if (!currentScreen)
+            return maxSize;
+
+        auto available = currentScreen->availableGeometry().size();
+        auto frame = frameSize() - size();
+        return QSize(
+            (std::max)(0, available.width() - frame.width()),
+            (std::max)(0, available.height() - frame.height()));
+    }
+
+    void ApplyAutoDialogSize() {
+        auto targetSize = sizeHint();
+        if (!targetSize.isValid())
+            return;
+
+        auto maxSize = CalculateMaximumDialogSize();
+        setMaximumSize(maxSize);
+        resize(targetSize.boundedTo(maxSize).expandedTo(minimumSizeHint()));
+    }
+
+    void ScheduleResizeToContent() {
+        if (resizeToContentPending_)
+            return;
+
+        resizeToContentPending_ = true;
+        QTimer::singleShot(0, this, [this]() {
+            resizeToContentPending_ = false;
+            ResizeToContent();
+        });
+    }
+
+    void ResizeToContent() {
+        if (!layout() || !container_ || !container_->layout() || !scroll_)
+            return;
+
+        RefreshContentGeometry();
+        ApplyAutoDialogSize();
+    }
+
+protected:
+    void showEvent(QShowEvent* event) override {
+        QDialog::showEvent(event);
+        ScheduleResizeToContent();
+    }
+
+public:
+    EditOutputWidgetImpl(const std::string& targetid, QWidget* parent = 0)
+        : QDialog(parent)
+        , targetid_(targetid)
+    {
+        auto& global = GlobalMultiOutputConfig();
+        auto found = FindById(global.targets, targetid_);
+        if (found == nullptr) {
+            return;
+        }
+        config_ = std::make_shared<OutputTargetConfig>(*found);
+
+        setWindowTitle(obs_module_text("StreamingSettings"));
+
+        scroll_ = new ContentSizeScrollArea(this);
+        scroll_->setHorizontalScrollBarPolicy(Qt::ScrollBarPolicy::ScrollBarAsNeeded);
+        scroll_->setVerticalScrollBarPolicy(Qt::ScrollBarPolicy::ScrollBarAsNeeded);
+        scroll_->setSizePolicy(QSizePolicy::Policy::Preferred, QSizePolicy::Policy::Preferred);
+        scroll_->setSizeAdjustPolicy(QScrollArea::SizeAdjustPolicy::AdjustToContents);
+
+        container_ = new QWidget(scroll_);
+        container_->setSizePolicy(QSizePolicy::Policy::Preferred, QSizePolicy::Policy::Preferred);
+
+        auto layout = new QVBoxLayout(container_);
+        layout->setAlignment(Qt::AlignTop);
+
+        panel_ = createEditTargetPanel(global, config_, [this]() { ScheduleResizeToContent(); }, container_);
+        layout->addWidget(panel_);
+
+        {
+            auto okbtn = new QPushButton(obs_module_text("OK"), container_);
+            QObject::connect(okbtn, &QPushButton::clicked, [this]() {
+                panel_->SaveConfig();
+                auto& global = GlobalMultiOutputConfig();
+                auto it = FindById(global.targets, config_->id);
+                if (it != nullptr) {
+                    *it = *config_;
+                }
+                done(DialogCode::Accepted);
+            });
+            layout->addWidget(okbtn);
+        }
+
+        layout->setSizeConstraint(QLayout::SetMinAndMaxSize);
+        container_->setLayout(layout);
+
+        scroll_->setWidget(container_);
+        scroll_->setWidgetResizable(false);
+
+        auto fullLayout = new QGridLayout(this);
+        fullLayout->setContentsMargins(0, 0, 0, 0);
+        fullLayout->addWidget(scroll_, 0, 0);
+        fullLayout->setRowStretch(0, 1);
+        fullLayout->setColumnStretch(0, 1);
+        setLayout(fullLayout);
+    }
+};
+
+
+EditTargetPanel* createEditTargetPanel(
+    MultiOutputConfig& config,
+    OutputTargetConfigPtr target,
+    std::function<void()> onContentSizeChanged,
+    QWidget* parent)
+{
+    return new EditTargetPanelImpl(config, std::move(target), std::move(onContentSizeChanged), parent);
+}
 
 EditOutputWidget* createEditOutputWidget(const std::string& targetid, QWidget* parent) {
     return new EditOutputWidgetImpl(targetid, parent);

@@ -44,6 +44,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
   ./src/obs-multi-rtmp.cpp 
   ./src/edit-widget.h
   ./src/edit-widget.cpp
+  ./src/edit-targets-dialog.h
+  ./src/edit-targets-dialog.cpp
   ./src/push-widget.h
   ./src/push-widget.cpp
   ./src/json-util.hpp
