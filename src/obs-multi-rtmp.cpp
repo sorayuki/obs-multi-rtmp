@@ -56,6 +56,17 @@ public:
     }
 
 protected:
+    bool eventFilter(QObject *obj, QEvent *event) override
+    {
+        // Item widgets resize themselves to the item rect, so their own size
+        // hint changes (e.g. a wrapped message) have to reach the item that
+        // hosts them, otherwise the row keeps a stale, taller height.
+        if (event->type() == QEvent::LayoutRequest && RefreshItemSizeHints())
+            updateGeometry();
+
+        return QListWidget::eventFilter(obj, event);
+    }
+
     bool event(QEvent *event) override
     {
         const bool handled = QListWidget::event(event);
@@ -66,8 +77,8 @@ protected:
         case QEvent::PolishRequest:
         case QEvent::Show:
         case QEvent::StyleChange:
-            RefreshItemSizeHints();
-            updateGeometry();
+            if (RefreshItemSizeHints())
+                updateGeometry();
             break;
         default:
             break;
@@ -77,14 +88,24 @@ protected:
     }
 
 private:
-    void RefreshItemSizeHints()
+    bool RefreshItemSizeHints()
     {
+        bool changed = false;
+
         for (int i = 0; i < count(); ++i) {
             auto item = this->item(i);
             auto widget = itemWidget(item);
-            if (item && widget)
-                item->setSizeHint(widget->sizeHint());
+            if (!item || !widget)
+                continue;
+
+            auto hint = widget->sizeHint();
+            if (item->sizeHint() != hint) {
+                item->setSizeHint(hint);
+                changed = true;
+            }
         }
+
+        return changed;
     }
 
     int ContentHeight() const
@@ -412,32 +433,8 @@ private:
     // Widget, that contains output source widgets
     QListWidget* outputsContainer_ = 0;
 
-    void DeletePushWidget(const std::string& targetId)
-    {
-        // Delete from model
-        auto outputTargets = &(GlobalMultiOutputConfig().targets);
-        auto currentTarget = std::find_if(outputTargets->begin(), outputTargets->end(), [&targetId](auto& x) { return x->id == targetId; });
-        if (currentTarget == outputTargets->end()) {
-            return;
-        }
-        outputTargets->erase(currentTarget);
-
-        // Delete from List View
-        const QString id = QString::fromStdString(targetId);
-        for(auto listItem: outputsContainer_->findItems("", Qt::MatchContains)) {
-            if (listItem->data(Qt::UserRole).toString() != id) {
-                continue;
-            }
-            int row = outputsContainer_->row(listItem);
-            auto removedItem = outputsContainer_->takeItem(row);
-            auto pushWidget = outputsContainer_->itemWidget(removedItem);
-            delete removedItem;
-            if (pushWidget) {
-                pushWidget->deleteLater();
-            }
-        }
-    }
-
+    // Targets are added/removed through the "Edit Targets" dialog, which
+    // rebuilds the whole list via LoadConfig().
     PushWidget* AddPushWidget(const std::string& targetId)
     {
         auto pushWidget = createPushWidget(targetId, outputsContainer_->viewport());
@@ -447,21 +444,7 @@ private:
         listItem->setSizeHint(pushWidget->sizeHint());
         outputsContainer_->addItem(listItem);
         outputsContainer_->setItemWidget(listItem, pushWidget);
-
-        QObject::connect(pushWidget->GetDeleteButton(), &QPushButton::clicked, [this, targetId]() {
-            auto msgbox = new QMessageBox(
-                QMessageBox::Icon::Question,
-                obs_module_text("Question.Title"),
-                obs_module_text("Question.Delete"),
-                QMessageBox::Yes | QMessageBox::No,
-                this
-            );
-            if (msgbox->exec() != QMessageBox::Yes) {
-                return;
-            }
-            DeletePushWidget(targetId);
-            SaveConfig();
-        });
+        pushWidget->installEventFilter(outputsContainer_);
 
         return pushWidget;
     }

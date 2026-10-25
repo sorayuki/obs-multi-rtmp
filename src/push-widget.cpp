@@ -8,7 +8,6 @@
 #include <tuple>
 #include <unordered_map>
 #include "push-widget.h"
-#include "edit-widget.h"
 #include "output-config.h"
 #include "protocols.h"
 
@@ -245,9 +244,6 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     uint64_t total_bytes_ = 0;
     QTimer* timer_ = 0;
 
-    QPushButton* edit_btn_ = 0;
-    QPushButton* remove_btn_ = 0;
-
     obs_output_t* output_ = 0;
     // Owned reference to the service handed to output_ (the output itself only keeps a weak back-pointer).
     obs_service_t* service_ = 0;
@@ -266,10 +262,6 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     // registration time and won't update if the target is renamed later.
     obs_hotkey_id startHotkeyId_ = OBS_INVALID_HOTKEY_ID;
     obs_hotkey_id stopHotkeyId_ = OBS_INVALID_HOTKEY_ID;
-
-    QPushButton* GetDeleteButton() {
-        return remove_btn_;
-    }
 
     bool PrepareOutputService()
     {
@@ -551,7 +543,6 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     }
 
 
-
     bool ReleaseOutput()
     {
         if (output_) {
@@ -686,40 +677,46 @@ public:
         });
 
         auto layout = new QGridLayout(this);
-        layout->addWidget(status_dot_ = new QLabel(u8"●", this), 0, 0);
-        layout->addWidget(name_ = new QLabel(obs_module_text("NewStreaming"), this), 0, 1, 1, 3);
 
-        layout->addWidget(enabled_cb_ = new QCheckBox(this), 1, 0);
+        layout->addWidget(enabled_cb_ = new QCheckBox(this), 0, 0);
         enabled_cb_->setToolTip(obs_module_text("Target.Enabled"));
         QObject::connect(enabled_cb_, &QCheckBox::clicked, [this](bool checked) {
             SetEnabled(checked);
         });
 
-        layout->addWidget(btn_ = new QPushButton(obs_module_text("Btn.Start"), this), 1, 1);
+        // Status dot hugs the title: both live in a zero-spacing row layout.
+        auto titleWidget = new QWidget(this);
+        auto titleLayout = new QHBoxLayout(titleWidget);
+        titleLayout->setContentsMargins(0, 0, 0, 0);
+        titleLayout->setSpacing(0);
+        titleLayout->addWidget(status_dot_ = new QLabel(u8"●", this));
+        titleLayout->addWidget(name_ = new QLabel(obs_module_text("NewStreaming"), this));
+        titleLayout->addStretch(1);
+        layout->addWidget(titleWidget, 0, 1);
+
+        // Start/Stop shares the title row, pushed to the right edge.
+        layout->addWidget(btn_ = new QPushButton(obs_module_text("Btn.Start"), this), 0, 2);
         QObject::connect(btn_, &QPushButton::clicked, [this]() {
             StartStop();
         });
 
-        layout->addWidget(edit_btn_ = new QPushButton(obs_module_text("Btn.Edit"), this), 1, 2);
-        QObject::connect(edit_btn_, &QPushButton::clicked, [this]() {
-            ShowEditDlg();
-        });
-
-        layout->addWidget(remove_btn_ = new QPushButton(obs_module_text("Btn.Delete"), this), 1, 3);
-
-        // Keep action buttons usable in narrow docks across OBS themes.
-        for (auto button : { btn_, edit_btn_, remove_btn_ }) {
-            button->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-            button->setMinimumWidth(0);
-            button->setMinimumHeight(button->fontMetrics().height() + 8);
+        // Keep the button usable in narrow docks across OBS themes.
+        btn_->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Preferred);
+        btn_->setMinimumHeight(btn_->fontMetrics().height() + 8);
+        {
+            auto fm = btn_->fontMetrics();
+            auto startW = fm.horizontalAdvance(QString::fromUtf8(obs_module_text("Btn.Start")));
+            auto stopW = fm.horizontalAdvance(QString::fromUtf8(obs_module_text("Status.Stop")));
+            btn_->setMinimumWidth((startW > stopW ? startW : stopW) + 24);
         }
+        // Title takes the remaining space so the button stays compact.
         layout->setColumnStretch(1, 1);
-        layout->setColumnStretch(2, 1);
-        layout->setColumnStretch(3, 1);
 
-        layout->addWidget(msg_ = new QLabel(u8"", this), 2, 0, 1, 4);
+        // Message text: keep it from soaking up spare height, otherwise the
+        // item grows taller than its content.
+        layout->addWidget(msg_ = new QLabel(u8"", this), 1, 0, 1, 3);
         msg_->setWordWrap(true);
-        layout->addItem(new QSpacerItem(0, 10), 3, 0);
+        msg_->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
         setLayout(layout);
 
         LoadConfig();
@@ -758,6 +755,28 @@ public:
             obs_hotkey_unregister(stopHotkeyId_);
 
         ReleaseOutput();
+    }
+
+    // QLabel with word wrap reports a far too tall sizeHint, which makes the
+    // list item reserve empty space below the message. Ask the layout for the
+    // height it actually needs at the current width instead.
+    int heightForWidth(int w) const override
+    {
+        auto lay = layout();
+        if (!lay)
+            return QWidget::heightForWidth(w);
+        return lay->hasHeightForWidth() ? lay->heightForWidth(w) : lay->sizeHint().height();
+    }
+
+    QSize sizeHint() const override
+    {
+        auto lay = layout();
+        if (!lay)
+            return QWidget::sizeHint();
+
+        auto hint = lay->sizeHint();
+        hint.setHeight(heightForWidth(width() > 0 ? width() : hint.width()));
+        return hint;
     }
 
 
@@ -933,20 +952,6 @@ public:
         }
     }
 
-    bool ShowEditDlg() override
-    {
-        std::unique_ptr<EditOutputWidget> dlg{ createEditOutputWidget(targetid_, (QMainWindow*)obs_frontend_get_main_window()) };
-
-        if (dlg->exec() == QDialog::DialogCode::Accepted)
-        {
-            SaveMultiOutputConfig();
-            LoadConfig();
-            return true;
-        }
-        else
-            return false;
-    }
-
     void SetMsg(QString msg)
     {
         msg_->setText(msg);
@@ -961,11 +966,9 @@ public:
             isConnecting_ = true;
             isReconnecting_ = false;
             lastErrorCode_ = 0;
-            remove_btn_->setEnabled(false);
             btn_->setText(obs_module_text("Status.Stop"));
             btn_->setEnabled(true);
             SetMsg(obs_module_text("Status.Connecting"));
-            remove_btn_->setEnabled(false);
             UpdateStatusDot();
         });
     }
@@ -976,7 +979,6 @@ public:
             isStarting_ = false;
             isConnecting_ = false;
             isReconnecting_ = false;
-            remove_btn_->setEnabled(false);
             btn_->setText(obs_module_text("Status.Stop"));
             btn_->setEnabled(true);
             SetMsg(obs_module_text("Status.Streaming"));
@@ -993,7 +995,6 @@ public:
             timer_->stop();
             isReconnecting_ = true;
 
-            remove_btn_->setEnabled(false);
             btn_->setText(obs_module_text("Status.Stop"));
             btn_->setEnabled(true);
             SetMsg(obs_module_text("Status.Reconnecting"));
@@ -1005,7 +1006,6 @@ public:
     {
         RunInUIThread([this]() {
             isReconnecting_ = false;
-            remove_btn_->setEnabled(false);
             btn_->setText(obs_module_text("Status.Stop"));
             btn_->setEnabled(true);
             SetMsg(obs_module_text("Status.Streaming"));
@@ -1021,7 +1021,6 @@ public:
         RunInUIThread([this]() {
             timer_->stop();
 
-            remove_btn_->setEnabled(false);
             btn_->setText(obs_module_text("Status.Stop"));
             btn_->setEnabled(true);
             SetMsg(obs_module_text("Status.Stopping"));
@@ -1040,7 +1039,6 @@ public:
             ResetInfo();
             timer_->stop();
 
-            remove_btn_->setEnabled(true);
             btn_->setText(obs_module_text("Btn.Start"));
             btn_->setEnabled(true);
             SetMsg(u8"");
