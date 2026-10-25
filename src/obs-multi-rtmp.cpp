@@ -182,15 +182,11 @@ public:
         QObject::connect(editTargetsButton, &QPushButton::clicked, [this]() {
             auto& global = GlobalMultiOutputConfig();
             GlobalEditSnapshot snapshot;
-            for (int row = 0; row < outputsContainer_->count(); ++row) {
-                auto item = outputsContainer_->item(row);
-                if (!item)
-                    continue;
-                auto widget = dynamic_cast<PushWidget*>(outputsContainer_->itemWidget(item));
-                if (!widget || !widget->IsBusy())
+            for (auto widget : GetAllPushWidgets()) {
+                if (!widget->IsBusy())
                     continue;
 
-                auto targetId = item->data(Qt::UserRole).toString().toStdString();
+                auto targetId = widget->GetTargetId();
                 snapshot.activeTargetIds.insert(targetId);
                 auto target = global.FindTarget(targetId);
                 if (!target)
@@ -209,9 +205,7 @@ public:
             if (!edited.has_value())
                 return;
 
-            global = *edited;
-            SaveConfig();
-            LoadConfig();
+            ApplyEditedConfig(std::move(*edited));
         });
         layout_->addWidget(editTargetsButton);
 
@@ -474,6 +468,84 @@ public:
         for(auto x: GlobalMultiOutputConfig().targets)
         {
             AddPushWidget(x->id);
+        }
+    }
+
+    void ApplyEditedConfig(MultiOutputConfig edited)
+    {
+        auto& global = GlobalMultiOutputConfig();
+        const MultiOutputConfig oldConfig = global;
+        const auto oldWidgets = GetAllPushWidgets();
+        GlobalConfigUpdateContext updateContext;
+
+        DetachPushWidgets();
+        for (auto pushWidget : oldWidgets)
+            pushWidget->UpdateConfig(edited, updateContext);
+
+        global = std::move(edited);
+
+        std::unordered_map<std::string, PushWidget*> widgetsById;
+        for (auto pushWidget : oldWidgets)
+            widgetsById.emplace(pushWidget->GetTargetId(), pushWidget);
+
+        for (const auto& target : global.targets) {
+            auto existing = widgetsById.find(target->id);
+            if (existing != widgetsById.end()) {
+                AttachPushWidget(existing->second);
+                widgetsById.erase(existing);
+            } else {
+                AddPushWidget(target->id);
+            }
+        }
+
+        std::vector<std::string> failedDeletes;
+        const auto remainingWidgets = stagedWidgets_;
+        for (auto pushWidget : remainingWidgets) {
+            if (!pushWidget->IsBusy()) {
+                stagedWidgets_.remove(pushWidget);
+                pushWidget->deleteLater();
+                continue;
+            }
+
+            auto target = pushWidget->GetTargetConfig();
+            if (target) {
+                global.targets.push_back(target);
+                if (target->videoConfig && !global.FindVideoConfig(*target->videoConfig)) {
+                    auto videoConfig = oldConfig.FindVideoConfig(*target->videoConfig);
+                    if (videoConfig)
+                        global.videoConfig.push_back(videoConfig);
+                }
+                if (target->audioConfig && !global.FindAudioConfig(*target->audioConfig)) {
+                    auto audioConfig = oldConfig.FindAudioConfig(*target->audioConfig);
+                    if (audioConfig)
+                        global.audioConfig.push_back(audioConfig);
+                }
+                failedDeletes.push_back(target->name);
+            }
+            AttachPushWidget(pushWidget);
+        }
+
+        SaveConfig();
+
+        std::unordered_set<std::string> shownNotices;
+        QStringList messages;
+        for (const auto& notice : updateContext.notices) {
+            if (shownNotices.insert(notice).second)
+                messages.push_back(QString::fromUtf8(notice));
+        }
+        if (!failedDeletes.empty()) {
+            messages.push_back(QString::fromUtf8(obs_module_text("Notice.DeleteFailed")));
+            for (const auto& name : failedDeletes)
+                messages.push_back(QString::fromUtf8(name));
+        }
+        if (!messages.empty()) {
+            QMessageBox(
+                QMessageBox::Icon::Information,
+                obs_module_text("Notice.Title"),
+                messages.join("\n"),
+                QMessageBox::StandardButton::Ok,
+                this
+            ).exec();
         }
     }
 

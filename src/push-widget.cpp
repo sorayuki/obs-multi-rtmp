@@ -888,7 +888,7 @@ public:
 
     void StartStreaming() override {
         bool expected = false;
-        if (IsRunning() || !isStarting_.compare_exchange_strong(expected, true))
+        if (IsBusy() || !isStarting_.compare_exchange_strong(expected, true))
             return;
 
         auto resetStarting = finally([this] { isStarting_ = false; });
@@ -969,7 +969,7 @@ public:
     }
 
     void StopStreaming() override {
-        if (!IsRunning())
+        if (!IsBusy())
             return;
         
         bool useForce = false;
@@ -998,11 +998,11 @@ public:
         ) {
             Stop();
         } else if (ev == obs_frontend_event::OBS_FRONTEND_EVENT_STREAMING_STARTING) {
-            if (!IsRunning() && config_->syncStart) {
+            if (!IsBusy() && config_->syncStart) {
                 StartStop();
             }
         } else if (ev == obs_frontend_event::OBS_FRONTEND_EVENT_STREAMING_STOPPING) {
-            if (IsRunning() && config_->syncStop) {
+            if (IsBusy() && config_->syncStop) {
                 StartStop();
             }
         }
@@ -1112,6 +1112,11 @@ public:
         return targetid_;
     }
 
+    OutputTargetConfigPtr GetTargetConfig() const override
+    {
+        return config_;
+    }
+
     bool GetEnabled() override { return config_->enabled; }
 
     void SetEnabled(bool enabled) override
@@ -1127,7 +1132,7 @@ public:
 
     void StartStop()
     {
-        if (IsRunning())
+        if (IsBusy())
         {
             StopStreaming();
             return;
@@ -1138,7 +1143,7 @@ public:
 
     void Stop()
     {
-        if (IsRunning())
+        if (IsBusy())
         {
             obs_output_force_stop(output_);
         }
