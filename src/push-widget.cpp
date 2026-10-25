@@ -256,6 +256,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     bool isConnecting_ = false;
     bool isReconnecting_ = false;
     int lastErrorCode_ = 0;
+    std::atomic_bool isBusy_ = false;
 
     // Registered under the stable target id (not the display name) so key
     // bindings survive renames. Their description label is set once at
@@ -849,8 +850,10 @@ public:
             return;
         }
 
+        isBusy_ = true;
         if (!obs_output_start(output_))
         {
+            isBusy_ = false;
             ReleaseOutput();
             SetMsg(obs_module_text("Error.StartOutput"));
             return;
@@ -918,6 +921,11 @@ public:
     bool IsRunning() override
     {
         return output_ != nullptr && obs_output_active(output_);
+    }
+
+    bool IsBusy() override
+    {
+        return isBusy_;
     }
 
     bool GetEnabled() override { return config_->enabled; }
@@ -1029,6 +1037,7 @@ public:
 
     void OnStopped(int code) override
     {
+        isBusy_ = false;
         RunInUIThread([this, code]() {
             ReleaseOutputSceneView();
 
