@@ -236,12 +236,14 @@ class EditTargetsDialogImpl: public QDialog
 
     void ClearPages()
     {
+        // Deleted synchronously: the old panels reference config_, which the
+        // caller may be about to replace. Callers run from button handlers of
+        // this dialog, never from a signal of a page being removed.
         for (auto page : pages_) {
             if (!page)
                 continue;
             rightStack_->removeWidget(page);
-            page->hide();
-            page->deleteLater();
+            delete page;
         }
         pages_.clear();
         panels_.clear();
@@ -354,6 +356,12 @@ class EditTargetsDialogImpl: public QDialog
         ).exec();
         if (confirm != QMessageBox::Yes)
             return;
+
+        // Drop the pages that point into the old config before replacing it.
+        updating_ = true;
+        ClearPages();
+        currentIndex_ = -1;
+        updating_ = false;
 
         config_ = std::move(*imported);
         RebuildTargets();
