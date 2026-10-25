@@ -535,6 +535,24 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         status_dot_->setStyleSheet(QString("color: %1;").arg(color));
     }
 
+    template <typename Task>
+    void RunInUIThread(Task&& task)
+    {
+        auto weakThis = GetWeakThis();
+        if (!GetGlobalService().RunInUIThread([weakThis, task = std::forward<Task>(task)]() mutable {
+            auto self = weakThis.Get();
+            if (!self) {
+                blog(LOG_WARNING, TAG "Skipping UI callback for a destroyed push widget.");
+                return;
+            }
+            task();
+        })) {
+            blog(LOG_WARNING, TAG "Could not schedule push widget callback on the UI thread.");
+        }
+    }
+
+    OBS_MULTI_RTMP_DEFINE_WEAK_THIS()
+
 public:
     PushWidgetImpl(const std::string& targetid, QWidget* parent = 0)
         : QWidget(parent)
@@ -823,7 +841,7 @@ public:
     // obs logical
     void OnStarting() override
     {
-        GetGlobalService().RunInUIThread([this]() {
+        RunInUIThread([this]() {
             begin_time_ = clock::now();
             isConnecting_ = true;
             isReconnecting_ = false;
@@ -839,7 +857,7 @@ public:
 
     void OnStarted() override
     {
-        GetGlobalService().RunInUIThread([this]() {
+        RunInUIThread([this]() {
             isStarting_ = false;
             isConnecting_ = false;
             isReconnecting_ = false;
@@ -856,7 +874,7 @@ public:
 
     void OnReconnect() override
     {
-        GetGlobalService().RunInUIThread([this]() {
+        RunInUIThread([this]() {
             timer_->stop();
             isReconnecting_ = true;
 
@@ -870,7 +888,7 @@ public:
 
     void OnReconnected() override
     {
-        GetGlobalService().RunInUIThread([this]() {
+        RunInUIThread([this]() {
             isReconnecting_ = false;
             remove_btn_->setEnabled(false);
             btn_->setText(obs_module_text("Status.Stop"));
@@ -885,7 +903,7 @@ public:
 
     void OnStopping() override
     {
-        GetGlobalService().RunInUIThread([this]() {
+        RunInUIThread([this]() {
             timer_->stop();
 
             remove_btn_->setEnabled(false);
@@ -897,7 +915,7 @@ public:
 
     void OnStopped(int code) override
     {
-        GetGlobalService().RunInUIThread([this, code]() {
+        RunInUIThread([this, code]() {
             isStarting_ = false;
             isConnecting_ = false;
             isReconnecting_ = false;
