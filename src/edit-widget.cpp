@@ -173,14 +173,13 @@ class EditOutputWidgetImpl: public EditOutputWidget
             setLayout(layout_);
         }
 
-        // owner of props and settings is transfered
+        // owner of props and settings is transfered to the created widget
         void UpdateProperties(obs_properties* props, obs_data* settings) {
             ResetWid();
             wid_ = createPropertyWidget(props, settings_ = settings, this);
             layout_->addWidget(wid_, 0, 0, 1, 1, Qt::AlignTop);
             wid_->SetGeometryChangeCallback(onContentSizeChanged_);
             NotifyContentSizeChanged();
-            obs_data_release(settings);
         }
 
         void ClearProperties() {
