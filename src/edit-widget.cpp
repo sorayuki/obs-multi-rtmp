@@ -164,7 +164,6 @@ class EditTargetPanelImpl: public EditTargetPanel
             layout_->setColumnStretch(0, 1);
             layout_->setContentsMargins(0, 0, 0, 0);
             layout_->setSizeConstraint(QLayout::SetMinAndMaxSize);
-            setLayout(layout_);
         }
 
         // owner of props and settings is transfered to the created widget
@@ -464,7 +463,7 @@ public:
 
         int currow = 0;
         {
-            auto sublayout = new QGridLayout(this);
+            auto sublayout = new QGridLayout();
             sublayout->setColumnStretch(0, 0);
             sublayout->setColumnStretch(1, 1);
             sublayout->addWidget(new QLabel(obs_module_text("StreamingName"), this), 0, 0);
@@ -604,9 +603,7 @@ public:
             layout->addLayout(sub_grid, 1);
         }
         ++currow;
-
         layout->setSizeConstraint(QLayout::SetMinAndMaxSize);
-        setLayout(layout);
 
         LoadProtocols();
         LoadFPSDenumerator();
@@ -1277,7 +1274,6 @@ public:
         }
 
         layout->setSizeConstraint(QLayout::SetMinAndMaxSize);
-        container_->setLayout(layout);
 
         scroll_->setWidget(container_);
         scroll_->setWidgetResizable(false);
@@ -1287,7 +1283,6 @@ public:
         fullLayout->addWidget(scroll_, 0, 0);
         fullLayout->setRowStretch(0, 1);
         fullLayout->setColumnStretch(0, 1);
-        setLayout(fullLayout);
     }
 };
 

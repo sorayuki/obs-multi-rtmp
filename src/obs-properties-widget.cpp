@@ -177,7 +177,13 @@ namespace {
                                 data = LoadCString(obs_property_list_item_string(p, i));
                             cb->addItem(LoadCString(itemname), data);
                         }
+                        break;
                     }
+                    case OBS_PROPERTY_BOOL:
+                    case OBS_PROPERTY_INT:
+                    case OBS_PROPERTY_FLOAT:
+                    case OBS_PROPERTY_TEXT:
+                        break;
                     default:
                         blog(LOG_WARNING, "ReloadProperty did not handle property of type %d", propType);
                         break;

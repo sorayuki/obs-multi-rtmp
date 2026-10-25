@@ -823,7 +823,6 @@ public:
         layout->addWidget(msg_ = new QLabel(u8"", this), 1, 0, 1, 3);
         msg_->setWordWrap(true);
         msg_->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
-        setLayout(layout);
 
         LoadConfig();
         UpdateStatusDot();
