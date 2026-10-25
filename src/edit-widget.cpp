@@ -812,6 +812,8 @@ public:
 
         auto sharedAudioTargets = GetEncoderShareTargets(true);
         a_share_notify_->setText(QString::fromUtf8(obs_module_text("EncoderShare") + makeShareNotify(sharedAudioTargets)));
+
+        UpdateEncoderEditability();
     }
 
     void UpdateSceneModeLock()
@@ -860,8 +862,8 @@ public:
                 != snapshot_->activeAudioConfigIds.end();
         }
 
-        videoGroup_->setEnabled(!targetIsActive && !videoConfigIsActive);
-        audioGroup_->setEnabled(!targetIsActive && !audioConfigIsActive);
+        venc_->setEnabled(!targetIsActive && !videoConfigIsActive);
+        aenc_->setEnabled(!targetIsActive && !audioConfigIsActive);
     }
 
     std::vector<std::string> GetEncoderShareTargets(bool isAudio) {
