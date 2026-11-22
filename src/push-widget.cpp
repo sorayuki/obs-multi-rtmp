@@ -922,6 +922,14 @@ public:
                 bool useDelay = config_get_bool(profileConfig, "Output", "DelayEnable");
                 bool preserveDelay = config_get_bool(profileConfig, "Output", "DelayPreserve");
                 int delaySec = config_get_int(profileConfig, "Output", "DelaySec");
+
+                // WHIP (WebRTC) targets are used for real-time monitoring/return feeds,
+                // so they always start without the global stream delay.
+                if (useDelay && config_->protocol == "WHIP") {
+                    useDelay = false;
+                    blog(LOG_INFO, TAG "Stream delay ignored for WHIP target \"%s\"", config_->name.c_str());
+                }
+
                 obs_output_set_delay(output_,
                     useDelay ? delaySec : 0,
                     preserveDelay ? OBS_OUTPUT_DELAY_PRESERVE : 0
