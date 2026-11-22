@@ -522,6 +522,12 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
                 auto videoConfig = global.FindVideoConfig(config_id);
                 if (videoConfig) {
                     OBSDataAutoRelease settings = obs_data_create_from_json(videoConfig->encoderParams.dump().c_str());
+                    // Let the target's service enforce what it needs from the encoder, as OBS
+                    // does for its own streaming output. WHIP needs no B-frames and SPS/PPS
+                    // repeated on every keyframe, otherwise WebRTC viewers that join after the
+                    // first keyframe never decode a frame.
+                    if (service_)
+                        obs_service_apply_encoder_settings(service_, settings, nullptr);
                     enc = obs_video_encoder_create(videoConfig->encoderId.c_str(), VideoEncoderName().c_str(), settings, nullptr);
                     if (enc) {
                         auto wh = ParseResolution(videoConfig->resolution);
