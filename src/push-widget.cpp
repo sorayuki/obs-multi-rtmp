@@ -7,7 +7,11 @@
 #include <optional>
 #include <tuple>
 #include <unordered_map>
+#include <QCoreApplication>
+#include <QPointer>
+#include <QMetaObject>
 #include "push-widget.h"
+#include "encoder-source.h"
 #include "output-config.h"
 #include "protocols.h"
 
@@ -310,6 +314,10 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     bool isConnecting_ = false;
     bool isReconnecting_ = false;
     int lastErrorCode_ = 0;
+    // Locale key for the last encoder-resolution failure (null when ok).
+    // Set by GetVideoEncoder()/GetAudioEncoder(), consumed by
+    // PrepareOutputEncoders() for an actionable message.
+    const char* lastEncoderError_ = nullptr;
     std::atomic_bool isBusy_ = false;
 
     // Registered under the stable target id (not the display name) so key
@@ -317,6 +325,10 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
     // registration time and won't update if the target is renamed later.
     obs_hotkey_id startHotkeyId_ = OBS_INVALID_HOTKEY_ID;
     obs_hotkey_id stopHotkeyId_ = OBS_INVALID_HOTKEY_ID;
+
+    enum class RestreamState { Stopped, Preparing, Connecting, Streaming, Stopping };
+    RestreamState restreamState_ = RestreamState::Stopped;
+    std::atomic<uint64_t> outputGeneration_{0};
 
     bool PrepareOutputService()
     {
@@ -334,8 +346,6 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
             return false;
         }
 
-        // Auto-release: obs_service_create keeps its own reference and every
-        // early return below would otherwise leak this one.
         OBSDataAutoRelease conf = obs_data_create_from_json(config_->serviceParam.dump().c_str());
 
         auto protocolInfo = GetProtocolInfos()->GetInfo(config_->protocol.c_str());
@@ -348,7 +358,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
 
         if (!conf)
             return false;
-        
+
         // We own this reference. The output only keeps a weak back-pointer,
         // which obs_output_destroy() clears again.
         obs_service_t* service = obs_service_create(service_id, "multi-output-service", conf, nullptr);
@@ -386,7 +396,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
                 blog(LOG_ERROR, TAG "Prepare output scene before encoder is created.");
                 return false;
             }
-            auto videoConfig = GlobalMultiOutputConfig().FindVideoConfig(config_->videoConfig.value_or(""));
+            auto videoConfig = FindById(GlobalMultiOutputConfig().videoConfig, config_->videoConfig.value_or(""));
 
             if (!videoConfig || !videoConfig->outputScene.has_value()) {
                 obs_encoder_set_video(venc, obs_get_video());
@@ -412,7 +422,7 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
             obs_encoder_set_audio(aenc, obs_get_audio());
 
             // Set other audio tracks
-            auto audioConfig = GlobalMultiOutputConfig().FindAudioConfig(config_->audioConfig.value_or(""));
+            auto audioConfig = FindById(GlobalMultiOutputConfig().audioConfig, config_->audioConfig.value_or(""));
             if (audioConfig) {
                 for (auto& track : audioConfig->audioTracks) {
                     auto enc = obs_output_get_audio_encoder(output_, track->output_track);
@@ -432,29 +442,6 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         return true;
     }
 
-
-    std::string VideoEncoderName() {
-        return "multi-rtmp-venc" + config_->videoConfig.value_or("");
-    }
-
-    std::string AudioEncoderName(int track) {
-        return "multi-rtmp-aenc" + config_->audioConfig.value_or("") + "-track-idx-" + std::to_string(track);
-    }
-
-    std::optional<std::tuple<int, int>> ParseResolution(const std::optional<std::string>& res) {
-        if (!res.has_value())
-            return std::nullopt;
-        std::regex res_pattern(R"__(\s*(\d{1,5})\s*x\s*(\d{1,5})\s*)__");
-        std::smatch match;
-        if (std::regex_match(*res, match, res_pattern))
-        {
-            auto width = std::stoi(match[1].str());
-            auto height = std::stoi(match[2].str());
-            return {{ width, height }};
-        }
-
-        return std::nullopt;
-    }
 
     static bool VideoConfigEqual(const VideoEncoderConfig& left, const VideoEncoderConfig& right)
     {
@@ -503,86 +490,352 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
             blog(LOG_WARNING, TAG "Could not update output scene '%s'", sceneName.c_str());
     }
 
+    std::string VideoEncoderName() {
+        return "multi-rtmp-venc" + config_->videoConfig.value_or("");
+    }
+
+    std::string AudioEncoderName(int track) {
+        return "multi-rtmp-aenc" + config_->audioConfig.value_or("") + "-track-idx-" + std::to_string(track);
+    }
+
+    std::optional<std::tuple<int, int>> ParseResolution(const std::optional<std::string>& res) {
+        if (!res.has_value())
+            return std::nullopt;
+        std::regex res_pattern(R"__(\s*(\d{1,5})\s*x\s*(\d{1,5})\s*)__");
+        std::smatch match;
+        if (std::regex_match(*res, match, res_pattern))
+        {
+            auto width = std::stoi(match[1].str());
+            auto height = std::stoi(match[2].str());
+            return {{ width, height }};
+        }
+
+        return std::nullopt;
+    }
+
+    // Snapshot of the OBS profile for Copy modes. Reads only public
+    // frontend/profile APIs; never logs keys or tokens.
+    static ObsProfileView ReadObsProfileView()
+    {
+        ObsProfileView view;
+        config_t *profile = obs_frontend_get_profile_config();
+        if (!profile)
+            return view;
+        auto getStr = [&](const char *section, const char *key) -> std::string {
+            const char *v = config_get_string(profile, section, key);
+            return v ? v : "";
+        };
+        view.outputMode = getStr("Output", "Mode");
+        view.simpleStreamVideo = getStr("SimpleOutput", "StreamEncoder");
+        view.simpleStreamAudio = getStr("SimpleOutput", "StreamAudioEncoder");
+        view.simpleRecVideo = getStr("SimpleOutput", "RecEncoder");
+        view.simpleRecAudio = getStr("SimpleOutput", "RecAudioEncoder");
+        view.advStreamVideo = getStr("AdvOut", "Encoder");
+        view.advStreamAudio = getStr("AdvOut", "AudioEncoder");
+        view.advRecVideo = getStr("AdvOut", "RecEncoder");
+        view.advRecAudio = getStr("AdvOut", "RecAudioEncoder");
+        view.recUsesStreamEncoder = view.advRecVideo.empty() || view.advRecVideo == "none";
+        return view;
+    }
+
+    static std::string CurrentProfileDir()
+    {
+        std::string dir;
+        char *path = obs_frontend_get_current_profile_path();
+        if (path) {
+            dir = path;
+            bfree(path);
+        }
+        return dir;
+    }
+
+    // Copy the *live* encoder's id+settings when it exists (exact snapshot),
+    // else fall back to the profile files. Returns nullopt when neither
+    // yields a usable spec; sets lastEncoderError_ to an actionable key.
+    std::optional<CopiedEncoderSpec> ResolveCopySpec(EncoderSourceMode mode, bool isVideo)
+    {
+        // Prefer the live instance for exact parity when OBS currently has
+        // one; this also covers hardware encoders whose Simple short names
+        // cannot be mapped safely from the profile alone.
+        {
+            OBSOutputAutoRelease src = (mode == EncoderSourceMode::CopyStreaming)
+                                           ? obs_frontend_get_streaming_output()
+                                           : obs_frontend_get_recording_output();
+            obs_encoder_t *live = nullptr;
+            if (src) {
+                live = isVideo ? obs_output_get_video_encoder(src)
+                               : obs_output_get_audio_encoder(src, 0);
+            }
+            if (live) {
+                const char *id = obs_encoder_get_id(live);
+                if (id && *id) {
+                    const obs_data_t *borrowed = obs_encoder_get_settings(live);
+                    // Borrowed settings; copy the JSON text so the new
+                    // encoder owns its settings (snapshot-on-start).
+                    std::string json = "{}";
+                    if (borrowed) {
+                        const char *text = obs_data_get_json((obs_data_t *)borrowed);
+                        if (text && *text)
+                            json = text;
+                    }
+                    return CopiedEncoderSpec{std::string(id), json};
+                }
+            }
+        }
+        EncoderResolveError err = EncoderResolveError::None;
+        auto spec = SnapshotCopyEncoder(ReadObsProfileView(), CurrentProfileDir(), mode, isVideo, &err);
+        if (!spec && err == EncoderResolveError::CopyUnresolvable)
+            lastEncoderError_ = "Error.CopyEncoderUnresolvable";
+        else if (!spec)
+            lastEncoderError_ = EncoderResolveErrorKey(err);
+        return spec;
+    }
+
+    // Borrowed live OBS encoder for a Share mode, or null when the OBS
+    // source output/encoder is not ready. Never creates or mutates.
+    static obs_encoder_t *BorrowSharedVideoEncoder(EncoderSourceMode mode)
+    {
+        OBSOutputAutoRelease src = (mode == EncoderSourceMode::ShareStreaming)
+                                       ? obs_frontend_get_streaming_output()
+                                       : obs_frontend_get_recording_output();
+        if (!src)
+            return nullptr;
+        return obs_output_get_video_encoder(src);
+    }
+
+    static obs_encoder_t *BorrowSharedAudioEncoder(EncoderSourceMode mode, size_t slot)
+    {
+        OBSOutputAutoRelease src = (mode == EncoderSourceMode::ShareStreaming)
+                                       ? obs_frontend_get_streaming_output()
+                                       : obs_frontend_get_recording_output();
+        if (!src)
+            return nullptr;
+        return obs_output_get_audio_encoder(src, slot);
+    }
+
+    // Resolves the configured video encoder and returns an OWNING reference
+    // (libobs output setters take their own reference from the raw pointer,
+    // so callers must pass .Get() without an extra get_ref).
+    // Never silently substitutes another encoder: a missing custom config,
+    // an invalid resolution/FPS divisor, a failed creation, or an
+    // unavailable shared OBS encoder yields null plus lastEncoderError_.
     OBSEncoder GetVideoEncoder() {
+        lastEncoderError_ = nullptr;
         auto config_id = config_->videoConfig.value_or(OBS_STREAMING_ENC_PLACEHOLDER);
         if (config_id == "" || config_id == OBS_STREAMING_ENC_PLACEHOLDER) {
-            OBSOutputAutoRelease stream_output = obs_frontend_get_streaming_output();
-            OBSEncoder enc = obs_output_get_video_encoder(stream_output);
+            OBSEncoder enc = BorrowSharedVideoEncoder(EncoderSourceMode::ShareStreaming);
+            if (!enc) {
+                blog(LOG_WARNING, TAG "Shared OBS streaming encoder unavailable for '%s'. "
+                                      "Start OBS streaming first, or choose Copy/Custom.",
+                     config_->name.c_str());
+                lastEncoderError_ = "Error.SharedEncoderUnavailable";
+                return {};
+            }
             using_main_video_encoder_ = true;
-            return enc.Get();
+            return enc;
         } else if (config_id == OBS_RECORDING_ENC_PLACEHOLDER) {
-            OBSOutputAutoRelease stream_output = obs_frontend_get_recording_output();
-            OBSEncoder enc = obs_output_get_video_encoder(stream_output);
+            OBSEncoder enc = BorrowSharedVideoEncoder(EncoderSourceMode::ShareRecording);
+            if (!enc) {
+                blog(LOG_WARNING, TAG "Shared OBS recording encoder unavailable for '%s'. "
+                                      "Start OBS recording first, or choose Copy/Custom.",
+                     config_->name.c_str());
+                lastEncoderError_ = "Error.SharedEncoderUnavailable";
+                return {};
+            }
             using_main_video_encoder_ = true;
-            return enc.Get();
+            return enc;
+        } else if (config_id == OBS_STREAMING_COPY_PLACEHOLDER ||
+                   config_id == OBS_RECORDING_COPY_PLACEHOLDER) {
+            // Copy OBS configured settings into an independent encoder.
+            // Snapshot-on-start: OBS changes apply on the next start, never
+            // hot-applied mid-stream. Works while OBS is idle.
+            EncoderSourceMode mode = ResolveEncoderSourceMode(config_id);
+            OBSEncoderAutoRelease existing = obs_get_encoder_by_name(VideoEncoderName().c_str());
+            if (existing) {
+                using_main_video_encoder_ = false;
+                OBSEncoder owned = existing.Get();
+                return owned;
+            }
+            auto spec = ResolveCopySpec(mode, true);
+            if (!spec) {
+                if (!lastEncoderError_)
+                    lastEncoderError_ = "Error.CopyEncoderUnresolvable";
+                blog(LOG_WARNING, TAG "Copy OBS video settings unresolvable for '%s' (mode=%s).",
+                     config_->name.c_str(), config_id.c_str());
+                return {};
+            }
+            OBSDataAutoRelease settings = obs_data_create_from_json(spec->settingsJson.c_str());
+            OBSEncoderAutoRelease enc =
+                obs_video_encoder_create(spec->encoderId.c_str(), VideoEncoderName().c_str(),
+                                         settings, nullptr);
+            if (!enc) {
+                blog(LOG_ERROR, TAG "Failed to create copied video encoder '%s' for '%s'.",
+                     spec->encoderId.c_str(), config_->name.c_str());
+                lastEncoderError_ = "Error.CreateEncoder";
+                return {};
+            }
+            blog(LOG_INFO, TAG "Copy video settings for '%s': encoder=%s (snapshot-on-start).",
+                 config_->name.c_str(), spec->encoderId.c_str());
+            using_main_video_encoder_ = false;
+            OBSEncoder owned = enc.Get();
+            return owned;
         } else {
             OBSEncoderAutoRelease enc = obs_get_encoder_by_name(VideoEncoderName().c_str());
             if (!enc) {
                 auto& global = GlobalMultiOutputConfig();
-                auto videoConfig = global.FindVideoConfig(config_id);
-                if (videoConfig) {
-                    OBSDataAutoRelease settings = obs_data_create_from_json(videoConfig->encoderParams.dump().c_str());
-                    enc = obs_video_encoder_create(videoConfig->encoderId.c_str(), VideoEncoderName().c_str(), settings, nullptr);
-                    if (enc) {
-                        auto wh = ParseResolution(videoConfig->resolution);
-                        if (wh.has_value()) {
-                            obs_encoder_set_gpu_scale_type(enc, obs_scale_type::OBS_SCALE_BICUBIC);
-                            auto [w, h] = *wh;
-                            obs_encoder_set_scaled_size(enc, w, h);
-                        }
-                        obs_encoder_set_frame_rate_divisor(enc, videoConfig->fpsDenumerator);
-                    }
-                } else {
-                    assert(false && "No video encoder config found with specified id.");
-                    blog(LOG_ERROR, TAG "Load video encoder config failed for %s. Sharing with main output.", config_->name.c_str());
-                    config_->videoConfig = OBS_STREAMING_ENC_PLACEHOLDER;
-                    return GetVideoEncoder();
+                auto videoConfig = FindById(global.videoConfig, config_id);
+                if (!videoConfig) {
+                    blog(LOG_ERROR, TAG "Video encoder config '%s' for '%s' not found.",
+                         config_id.c_str(), config_->name.c_str());
+                    lastEncoderError_ = "Error.MissingVideoConfig";
+                    return {};
                 }
+                if (videoConfig->resolution.has_value() &&
+                    !ParseResolution(videoConfig->resolution).has_value()) {
+                    blog(LOG_ERROR, TAG "Invalid video resolution '%s' for '%s'.",
+                         videoConfig->resolution->c_str(), config_->name.c_str());
+                    lastEncoderError_ = "Error.InvalidVideoConfig";
+                    return {};
+                }
+                if (videoConfig->fpsDenumerator <= 0) {
+                    blog(LOG_ERROR, TAG "Invalid video FPS divisor for '%s'.",
+                         config_->name.c_str());
+                    lastEncoderError_ = "Error.InvalidVideoConfig";
+                    return {};
+                }
+                OBSDataAutoRelease settings = obs_data_create_from_json(videoConfig->encoderParams.dump().c_str());
+                enc = obs_video_encoder_create(videoConfig->encoderId.c_str(), VideoEncoderName().c_str(), settings, nullptr);
+                if (!enc) {
+                    blog(LOG_ERROR, TAG "Failed to create video encoder '%s' for '%s'.",
+                         videoConfig->encoderId.c_str(), config_->name.c_str());
+                    lastEncoderError_ = "Error.CreateEncoder";
+                    return {};
+                }
+                auto wh = ParseResolution(videoConfig->resolution);
+                if (wh.has_value()) {
+                    obs_encoder_set_gpu_scale_type(enc, obs_scale_type::OBS_SCALE_BICUBIC);
+                    auto [w, h] = *wh;
+                    obs_encoder_set_scaled_size(enc, w, h);
+                }
+                obs_encoder_set_frame_rate_divisor(enc, videoConfig->fpsDenumerator);
             }
 
             using_main_video_encoder_ = false;
-            return enc.Get();
+            OBSEncoder owned = enc.Get();
+            return owned;
         }
     }
 
+    // Same ownership contract as GetVideoEncoder(). Mixer and output-track
+    // indices are validated before creation; out-of-range values yield null
+    // plus lastEncoderError_ instead of a misbound encoder.
     OBSEncoder GetAudioEncoder(int trackIdx = 0, std::optional<int> mixerId = std::nullopt) {
+        lastEncoderError_ = nullptr;
         auto config_id = config_->audioConfig.value_or(OBS_STREAMING_ENC_PLACEHOLDER);
         if (config_id == "" || config_id == OBS_STREAMING_ENC_PLACEHOLDER) {
-            OBSOutputAutoRelease stream_output = obs_frontend_get_streaming_output();
-            OBSEncoder enc = obs_output_get_audio_encoder(stream_output, 0);
+            OBSEncoder enc = BorrowSharedAudioEncoder(EncoderSourceMode::ShareStreaming, 0);
+            if (!enc) {
+                blog(LOG_WARNING, TAG "Shared OBS streaming audio encoder unavailable for '%s'. "
+                                      "Start OBS streaming first, or choose Copy/Custom.",
+                     config_->name.c_str());
+                lastEncoderError_ = "Error.SharedEncoderUnavailable";
+                return {};
+            }
             using_main_audio_encoder_ = true;
-            return enc.Get();
+            return enc;
         } else if (config_id == OBS_RECORDING_ENC_PLACEHOLDER) {
-            OBSOutputAutoRelease stream_output = obs_frontend_get_recording_output();
-            OBSEncoder enc = obs_output_get_audio_encoder(stream_output, 0);
+            // Recording outputs may carry multiple tracks; slot 0 is the
+            // primary track. A missing slot 0 is a track problem, not a
+            // generic unavailability, so it gets its own message.
+            OBSEncoder enc = BorrowSharedAudioEncoder(EncoderSourceMode::ShareRecording, 0);
+            if (!enc) {
+                OBSOutputAutoRelease rec = obs_frontend_get_recording_output();
+                if (!rec) {
+                    blog(LOG_WARNING, TAG "Shared OBS recording audio unavailable for '%s': "
+                                          "recording output inactive.",
+                         config_->name.c_str());
+                    lastEncoderError_ = "Error.SharedEncoderUnavailable";
+                } else {
+                    blog(LOG_WARNING, TAG "Shared OBS recording audio track 1 unavailable for '%s'.",
+                         config_->name.c_str());
+                    lastEncoderError_ = "Error.MissingAudioTrack";
+                }
+                return {};
+            }
             using_main_audio_encoder_ = true;
-            return enc.Get();
+            return enc;
+        } else if (config_id == OBS_STREAMING_COPY_PLACEHOLDER ||
+                   config_id == OBS_RECORDING_COPY_PLACEHOLDER) {
+            EncoderSourceMode mode = ResolveEncoderSourceMode(config_id);
+            if (trackIdx < 0 || trackIdx >= 6) {
+                lastEncoderError_ = "Error.InvalidAudioConfig";
+                return {};
+            }
+            OBSEncoderAutoRelease existing = obs_get_encoder_by_name(AudioEncoderName(trackIdx).c_str());
+            if (existing) {
+                using_main_audio_encoder_ = false;
+                OBSEncoder owned = existing.Get();
+                return owned;
+            }
+            auto spec = ResolveCopySpec(mode, false);
+            if (!spec) {
+                if (!lastEncoderError_)
+                    lastEncoderError_ = "Error.CopyEncoderUnresolvable";
+                return {};
+            }
+            // Copied audio encoders attach to the main mix (mixer 0); the
+            // track slot is resolved by the caller via trackIdx.
+            OBSDataAutoRelease settings = obs_data_create_from_json(spec->settingsJson.c_str());
+            OBSEncoderAutoRelease enc = obs_audio_encoder_create(
+                spec->encoderId.c_str(), AudioEncoderName(trackIdx).c_str(), settings, 0, nullptr);
+            if (!enc) {
+                blog(LOG_ERROR, TAG "Failed to create copied audio encoder '%s' for '%s'.",
+                     spec->encoderId.c_str(), config_->name.c_str());
+                lastEncoderError_ = "Error.CreateEncoder";
+                return {};
+            }
+            blog(LOG_INFO, TAG "Copy audio settings for '%s': encoder=%s (snapshot-on-start).",
+                 config_->name.c_str(), spec->encoderId.c_str());
+            using_main_audio_encoder_ = false;
+            OBSEncoder owned = enc.Get();
+            return owned;
         } else {
             OBSEncoderAutoRelease enc = obs_get_encoder_by_name(AudioEncoderName(trackIdx).c_str());
             if (!enc) {
                 auto& global = GlobalMultiOutputConfig();
                 auto audioConfigId = *config_->audioConfig;
-                auto audioConfig = global.FindAudioConfig(audioConfigId);
-                if (audioConfig) {
-                    OBSDataAutoRelease settings = obs_data_create_from_json(audioConfig->encoderParams.dump().c_str());
+                auto audioConfig = FindById(global.audioConfig, audioConfigId);
+                if (!audioConfig) {
+                    blog(LOG_ERROR, TAG "Audio encoder config '%s' for '%s' not found.",
+                         audioConfigId.c_str(), config_->name.c_str());
+                    lastEncoderError_ = "Error.MissingAudioConfig";
+                    return {};
+                }
+                // If we were provided with a mixerId, override the audioConfig's mixerId with it
+                int defaultMixerId = audioConfig->mixerId;
+                if (auto overrideMixerId = mixerId) {
+                    defaultMixerId = *overrideMixerId;
+                }
+                if (defaultMixerId < 0 || defaultMixerId >= 6 || trackIdx < 0 || trackIdx >= 6) {
+                    blog(LOG_ERROR, TAG "Invalid audio mixer/track index for '%s'.",
+                         config_->name.c_str());
+                    lastEncoderError_ = "Error.InvalidAudioConfig";
+                    return {};
+                }
 
-                    // If we were provided with a mixerId, override the audioConfig's mixerId with it
-                    int defaultMixerId = audioConfig->mixerId;
-                    if (auto overrideMixerId = mixerId) {
-                        defaultMixerId = *overrideMixerId;
-                    }
-
-                    enc = obs_audio_encoder_create(audioConfig->encoderId.c_str(), AudioEncoderName(trackIdx).c_str(), settings, defaultMixerId, nullptr);
-                } else {
-                    assert(false && "No audio encoder config found with specified id.");
-                    blog(LOG_ERROR, TAG "Load audio encoder config failed for %s. Sharing with main output.", config_->name.c_str());
-                    config_->audioConfig = OBS_STREAMING_ENC_PLACEHOLDER;
-                    return GetAudioEncoder();
+                OBSDataAutoRelease settings = obs_data_create_from_json(audioConfig->encoderParams.dump().c_str());
+                enc = obs_audio_encoder_create(audioConfig->encoderId.c_str(), AudioEncoderName(trackIdx).c_str(), settings, defaultMixerId, nullptr);
+                if (!enc) {
+                    blog(LOG_ERROR, TAG "Failed to create audio encoder '%s' for '%s'.",
+                         audioConfig->encoderId.c_str(), config_->name.c_str());
+                    lastEncoderError_ = "Error.CreateEncoder";
+                    return {};
                 }
             }
-            
+
             using_main_audio_encoder_ = false;
-            return enc.Get();
+            OBSEncoder owned = enc.Get();
+            return owned;
         }
     }
 
@@ -593,21 +846,19 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
             return false;
         }
 
+        ReleaseOutputEncoder();
+
         auto& global = GlobalMultiOutputConfig();
 
-        // main output
-        OBSOutput mainOutput = obs_frontend_get_streaming_output();
-        OBSOutput recordingOutput =  obs_frontend_get_recording_output();
-
-        obs_output_release(mainOutput);
-        obs_output_release(recordingOutput);
-
         OBSEncoder venc = GetVideoEncoder();
+        const char* videoError = lastEncoderError_;
         OBSEncoder aenc = GetAudioEncoder();
+        const char* audioError = lastEncoderError_;
 
         std::vector<std::tuple<int, OBSEncoder>> additionalTracks;
+        const char* extraTrackError = nullptr;
         if (auto audioConfigId = config_->audioConfig) {
-            auto audioConfig = global.FindAudioConfig(*audioConfigId);
+            auto audioConfig = FindById(global.audioConfig, *audioConfigId);
 
             if (!audioConfig) {
                 blog(LOG_ERROR, TAG "Load audio encoder config failed for %s. Could not determine additional tracks.", config_->name.c_str());
@@ -617,16 +868,29 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
                     OBSEncoder enc = GetAudioEncoder(track->output_track, track->mixer_track);
                     if (enc) {
                         // Record the output track index and the encoder for later when we set the encoders on the output
-                        additionalTracks.push_back({ track->output_track, enc });
+                        additionalTracks.emplace_back(track->output_track, enc);
+                    } else if (!extraTrackError) {
+                        // A configured extra track must not be dropped
+                        // silently; fail with its specific cause below.
+                        extraTrackError = lastEncoderError_ ? lastEncoderError_ : "Error.CreateEncoder";
                     }
                 }
             }
         }
 
-        if (!aenc || !venc) {
-            auto msgbox = new QMessageBox(QMessageBox::Icon::Critical, 
-                obs_module_text("Notice.Title"), 
-                obs_module_text("Notice.GetEncoder"),
+        if (!aenc || !venc || extraTrackError) {
+            // Never substitute another encoder here. Either the user picked
+            // a shared OBS encoder that is unavailable (start OBS streaming
+            // or recording first), or the saved custom config is missing or
+            // invalid: both are actionable, so report the specific cause.
+            ReleaseOutputEncoder();
+
+            const char* key = extraTrackError ? extraTrackError : (!venc ? videoError : audioError);
+            if (!key)
+                key = "Notice.GetEncoder";
+            auto msgbox = new QMessageBox(QMessageBox::Icon::Critical,
+                obs_module_text("Notice.Title"),
+                obs_module_text(key),
                 QMessageBox::StandardButton::Ok,
                 this
                 );
@@ -634,38 +898,109 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
             return false;
         }
 
-        // set_*_encoder() addrefs internally
-        obs_output_set_audio_encoder(output_, aenc, 0);
+        // The setters take their own reference; the owning wrappers below
+        // release ours at scope end. No extra get_ref: that over-counted by
+        // one per encoder on every start.
+        obs_output_set_audio_encoder(output_, aenc.Get(), 0);
         for (auto& track : additionalTracks) {
-            obs_output_set_audio_encoder(output_, std::get<1>(track), std::get<0>(track));
+            auto trackIdx = std::get<0>(track);
+            auto enc = std::get<1>(track);
+            obs_output_set_audio_encoder(output_, enc.Get(), trackIdx);
         }
-        obs_output_set_video_encoder(output_, venc);
+        obs_output_set_video_encoder(output_, venc.Get());
 
         return true;
     }
 
 
-    bool ReleaseOutput()
+    // libobs can address 6 audio encoder slots per output (see
+    // MAX_OUTPUT_AUDIO_ENCODERS in libobs/obs-output.h).
+    static constexpr size_t kMaxOutputAudioEncoders = 6;
+
+    bool ReleaseOutputEncoder()
     {
-        if (output_) {
-            DisconnectSignals(output_);
+        if (!output_)
+            return true;
+        else if (obs_output_active(output_) == false)
+        {
+            // The setters already release the output's own reference when
+            // clearing a slot, so no manual release follows: the getters
+            // below return borrowed pointers and releasing them would
+            // consume someone else's reference.
+            auto venc = obs_output_get_video_encoder(output_);
+            if (venc)
+                obs_output_set_video_encoder(output_, nullptr);
 
-            // failback: check if the output is still active and force stop it if necessary
+            for (size_t i = 0; i < kMaxOutputAudioEncoders; ++i) {
+                auto aenc = obs_output_get_audio_encoder(output_, i);
+                if (aenc)
+                    obs_output_set_audio_encoder(output_, nullptr, i);
+            }
+
+            return true;
+        }
+        else {
+            blog(LOG_ERROR, TAG "Release output while it is active.");
+            return false;
+        }
+    }
+
+
+    bool ReleaseObsOutput()
+    {
+        ++outputGeneration_;
+        restreamState_ = RestreamState::Stopped;
+        if (timer_) timer_->stop();
+        if (btn_) {
+            btn_->setText(obs_module_text("Btn.Start"));
+            btn_->setEnabled(true);
+        }
+        if (!output_)
+            return true;
+
+        if (obs_output_active(output_)) {
+            // Asynchronous stop: ask libobs to stop but keep every local
+            // reference (signals, encoders, service, scene view) until the
+            // terminal OnStopped() runs this same release to completion.
+            // Dropping references now would pull objects out from under the
+            // streaming thread and leak the service/scene cleanup below.
+            obs_output_force_stop(output_);
             if (obs_output_active(output_))
-                obs_output_force_stop(output_);
-
-            // obs_output_destroy() clears the service's back-pointer
-            obs_output_release(output_);
-            output_ = nullptr;
+                return true;
+            // The stop completed synchronously; fall through to the full
+            // release while the output is verifiably idle.
         }
 
-        // Safe here: the output that referenced the service is gone by now.
+        DisconnectSignals(output_);
+        bool ret = ReleaseOutputEncoder();
+
+        // obs_output_destroy() clears the service's weak back-pointer.
+        obs_output_release(output_);
+        output_ = nullptr;
         ReleaseOutputService();
 
-        // The output is gone; other targets may still hold the shared view.
-        ReleaseOutputSceneView();
+        ret = ReleaseOutputSceneView() && ret;
 
-        return true;
+        return ret;
+    }
+
+    // Synchronous variant for owner teardown (target deletion, profile
+    // change, OBS exit): teardown cannot rely on a future OnStopped()
+    // callback because the owner is going away, so when a stop is still in
+    // flight here the signals are disconnected first and the final output
+    // reference is dropped; libobs stops synchronously inside destroy,
+    // after which the service and scene view are released exactly once. No
+    // OnStopped() can arrive afterwards (signals disconnected).
+    void ForceReleaseObsOutput()
+    {
+        ReleaseObsOutput();
+        if (!output_)
+            return;
+        DisconnectSignals(output_);
+        obs_output_release(output_);
+        output_ = nullptr;
+        ReleaseOutputService();
+        ReleaseOutputSceneView();
     }
 
 
@@ -727,37 +1062,19 @@ class PushWidgetImpl : public PushWidget, public IOBSOutputEventHanlder
         last_info_time_ = now;
     }
 
-    void UpdateStatusDot(bool stopped = false) {
+    void UpdateStatusDot() {
         if (!status_dot_)
             return;
 
         const char* color = "#888888"; // stopped / idle
         if (isReconnecting_ || isConnecting_)
             color = "#e6b800"; // connecting / reconnecting
-        else if (!stopped && IsRunning())
+        else if (IsRunning())
             color = "#2ecc71"; // live
         else if (lastErrorCode_ != 0)
             color = "#e74c3c"; // last attempt failed
 
         status_dot_->setStyleSheet(QString("color: %1;").arg(color));
-    }
-
-    OBS_MULTI_RTMP_DEFINE_WEAK_THIS()
-
-    template <typename Task>
-    void RunInUIThread(Task&& task)
-    {
-        auto weakThis = GetWeakThis();
-        if (!GetGlobalService().RunInUIThread([weakThis, task = std::forward<Task>(task)]() mutable {
-            auto self = weakThis.Get();
-            if (!self) {
-                blog(LOG_WARNING, TAG "Skipping UI callback for a destroyed push widget.");
-                return;
-            }
-            task();
-        })) {
-            blog(LOG_WARNING, TAG "Could not schedule push widget callback on the UI thread.");
-        }
     }
 
 public:
@@ -768,7 +1085,7 @@ public:
         QObject::setObjectName("push-widget");
 
         auto& global = GlobalMultiOutputConfig();
-        config_ = global.FindTarget(targetid_);
+        config_ = FindById(global.targets, targetid_);
         if (!config_)
             return;
 
@@ -820,6 +1137,8 @@ public:
         msg_->setWordWrap(true);
         msg_->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Minimum);
 
+        setLayout(layout);
+
         LoadConfig();
         UpdateStatusDot();
 
@@ -850,12 +1169,11 @@ public:
 
     ~PushWidgetImpl()
     {
+        ForceReleaseObsOutput();
         if (startHotkeyId_ != OBS_INVALID_HOTKEY_ID)
             obs_hotkey_unregister(startHotkeyId_);
         if (stopHotkeyId_ != OBS_INVALID_HOTKEY_ID)
             obs_hotkey_unregister(stopHotkeyId_);
-
-        ReleaseOutput();
     }
 
     // QLabel with word wrap reports a far too tall sizeHint, which makes the
@@ -880,25 +1198,255 @@ public:
         return hint;
     }
 
+    static bool CodecInList(const char* list, const char* codec)
+    {
+        if (!list || !*list)
+            return true; // No restriction declared by the output.
+        if (!codec || !*codec)
+            return true; // Unknown encoder id: creation will report it.
+        std::string items(list);
+        std::string want(codec);
+        size_t pos = 0;
+        while (pos <= items.size()) {
+            size_t end = items.find(';', pos);
+            if (end == std::string::npos)
+                end = items.size();
+            if (items.compare(pos, end - pos, want) == 0)
+                return true;
+            pos = end + 1;
+        }
+        return false;
+    }
+
+    // Side-effect-free local preflight for the AUTOMATIC endpoint creation
+    // path: validates everything StartRestream() needs except the actual
+    // start, without creating a remote LIVE. Returns a locale key on
+    // failure, nullptr when the local configuration is usable. A temporary
+    // output is created for the codec check and always destroyed here, so
+    // StartRestream() still owns the real preparation. The manual Create
+    // Endpoint button intentionally bypasses this: a LIVE may be prepared
+    // before encoders exist.
+    const char* ValidateLocalEncoderConfiguration()
+    {
+        std::string customVideoId;
+        std::string sharedVideoCodec;
+        std::string copyVideoId;
+        // Video track: existence, values, scene, shared availability.
+        {
+            auto config_id = config_->videoConfig.value_or(OBS_STREAMING_ENC_PLACEHOLDER);
+            EncoderSourceMode mode = ResolveEncoderSourceMode(config_id);
+            if (mode == EncoderSourceMode::ShareStreaming ||
+                mode == EncoderSourceMode::ShareRecording) {
+                obs_encoder_t *live = BorrowSharedVideoEncoder(mode);
+                if (!live)
+                    return "Error.SharedEncoderUnavailable";
+                const char *codec = obs_encoder_get_codec(live);
+                if (codec && *codec)
+                    sharedVideoCodec = codec;
+            } else if (mode == EncoderSourceMode::CopyStreaming ||
+                       mode == EncoderSourceMode::CopyRecording) {
+                auto view = ReadObsProfileView();
+                auto id = ResolveCopyVideoEncoderId(view, mode);
+                if (!id || id->empty())
+                    return "Error.CopyEncoderUnresolvable";
+                copyVideoId = *id;
+            } else {
+                auto& global = GlobalMultiOutputConfig();
+                auto videoConfig = FindById(global.videoConfig, config_id);
+                if (!videoConfig)
+                    return "Error.MissingVideoConfig";
+                if (videoConfig->resolution.has_value() &&
+                    !ParseResolution(videoConfig->resolution).has_value())
+                    return "Error.InvalidVideoConfig";
+                if (videoConfig->fpsDenumerator <= 0)
+                    return "Error.InvalidVideoConfig";
+                if (videoConfig->outputScene.has_value()) {
+                    OBSSourceAutoRelease scene =
+                        obs_get_source_by_name(videoConfig->outputScene->c_str());
+                    if (!scene)
+                        return "Error.SceneNotExist";
+                }
+                customVideoId = videoConfig->encoderId;
+            }
+        }
+        // Audio track: existence, values, shared availability (track 0).
+        std::string customAudioEncoder;
+        std::string sharedAudioCodec;
+        std::string copyAudioId;
+        {
+            auto config_id = config_->audioConfig.value_or(OBS_STREAMING_ENC_PLACEHOLDER);
+            EncoderSourceMode mode = ResolveEncoderSourceMode(config_id);
+            if (mode == EncoderSourceMode::ShareStreaming) {
+                obs_encoder_t *live = BorrowSharedAudioEncoder(mode, 0);
+                if (!live)
+                    return "Error.SharedEncoderUnavailable";
+                const char *codec = obs_encoder_get_codec(live);
+                if (codec && *codec)
+                    sharedAudioCodec = codec;
+            } else if (mode == EncoderSourceMode::ShareRecording) {
+                OBSOutputAutoRelease rec = obs_frontend_get_recording_output();
+                if (!rec)
+                    return "Error.SharedEncoderUnavailable";
+                obs_encoder_t *live = obs_output_get_audio_encoder(rec, 0);
+                if (!live)
+                    return "Error.MissingAudioTrack";
+                const char *codec = obs_encoder_get_codec(live);
+                if (codec && *codec)
+                    sharedAudioCodec = codec;
+            } else if (mode == EncoderSourceMode::CopyStreaming ||
+                       mode == EncoderSourceMode::CopyRecording) {
+                auto view = ReadObsProfileView();
+                auto id = ResolveCopyAudioEncoderId(view, mode);
+                if (!id || id->empty())
+                    return "Error.CopyEncoderUnresolvable";
+                copyAudioId = *id;
+            } else {
+                auto& global = GlobalMultiOutputConfig();
+                auto audioConfig = FindById(global.audioConfig, config_id);
+                if (!audioConfig)
+                    return "Error.MissingAudioConfig";
+                if (audioConfig->mixerId < 0 || audioConfig->mixerId >= 6)
+                    return "Error.InvalidAudioConfig";
+                for (auto& track : audioConfig->audioTracks) {
+                    if (!track || track->output_track < 1 || track->output_track >= 6 ||
+                        track->mixer_track < 0 || track->mixer_track >= 6)
+                        return "Error.InvalidAudioConfig";
+                }
+                customAudioEncoder = audioConfig->encoderId;
+            }
+        }
+        // The encoder IDs must be registered at all: libobs reports a
+        // null codec for unknown IDs, and an unregistered encoder could
+        // otherwise pass every check above, mint a remote LIVE, and only
+        // fail when the real encoder is created afterwards.
+        auto codecOf = [](const std::string &id) -> const char * {
+            if (id.empty())
+                return "";
+            return obs_get_encoder_codec(id.c_str());
+        };
+        const char* videoCodec = codecOf(customVideoId.empty() ? copyVideoId : customVideoId);
+        const char* audioCodec = codecOf(customAudioEncoder.empty() ? copyAudioId : customAudioEncoder);
+        if ((!customVideoId.empty() || !copyVideoId.empty()) && (!videoCodec || !*videoCodec))
+            return "Error.CreateEncoder";
+        if ((!customAudioEncoder.empty() || !copyAudioId.empty()) && (!audioCodec || !*audioCodec))
+            return "Error.CreateEncoder";
+        // Codec support against the output for every mode, including shared
+        // instances read from the live encoder. A temporary output is
+        // created for the check and always destroyed here.
+        if (!CreateObsOutput())
+            return "Error.StartOutput";
+        auto cleanup = finally([this] { ReleaseObsOutput(); });
+        auto checkVideo = [&](const char *codec) -> const char * {
+            if (!codec || !*codec)
+                return nullptr;
+            if (!CodecSupportedByOutput(obs_output_get_supported_video_codecs(output_) ?
+                                            obs_output_get_supported_video_codecs(output_) : "",
+                                        codec))
+                return "Error.UnsupportedVideoCodec";
+            return nullptr;
+        };
+        auto checkAudio = [&](const char *codec) -> const char * {
+            if (!codec || !*codec)
+                return nullptr;
+            if (!CodecSupportedByOutput(obs_output_get_supported_audio_codecs(output_) ?
+                                            obs_output_get_supported_audio_codecs(output_) : "",
+                                        codec))
+                return "Error.UnsupportedAudioCodec";
+            return nullptr;
+        };
+        if (!sharedVideoCodec.empty()) {
+            if (const char *err = checkVideo(sharedVideoCodec.c_str()))
+                return err;
+        }
+        if (!sharedAudioCodec.empty()) {
+            if (const char *err = checkAudio(sharedAudioCodec.c_str()))
+                return err;
+        }
+        if (!customVideoId.empty() || !copyVideoId.empty()) {
+            if (const char *err = checkVideo(videoCodec))
+                return err;
+        }
+        if (!customAudioEncoder.empty() || !copyAudioId.empty()) {
+            if (const char *err = checkAudio(audioCodec))
+                return err;
+        }
+        return nullptr;
+    }
 
     void StartStreaming() override {
-        bool expected = false;
-        if (IsBusy() || !isStarting_.compare_exchange_strong(expected, true))
-            return;
-
-        auto resetStarting = finally([this] { isStarting_ = false; });
-
         if (!config_->enabled) {
             SetMsg(obs_module_text("Status.Disabled"));
             return;
         }
+        bool expected = false;
+        if (IsBusy() || !isStarting_.compare_exchange_strong(expected, true))
+            return;
+        auto resetStarting = finally([this] { isStarting_ = false; });
 
-        // recreate output
-        ReleaseOutput();
+        if (restreamState_ != RestreamState::Stopped) return;
+        if (const char* preflight = ValidateLocalEncoderConfiguration()) {
+            blog(LOG_WARNING, TAG "Local encoder preflight failed for '%s' (%s)",
+                 config_->name.c_str(), preflight);
+            SetMsg(obs_module_text(preflight));
+            return;
+        }
+        if (StartRestream())
+            resetStarting.Dismiss();
+    }
 
+    // Returns true when an async OBS start is in flight (OnStarted/
+    // OnStopped will clear the starting guard); false otherwise.
+    bool StartRestream() {
+        auto clearStarting = finally([this] { isStarting_ = false; });
+        if (IsRunning())
+            return false;
+
+        if (restreamState_ != RestreamState::Stopped) return false;
+
+        ReleaseObsOutput();
+        restreamState_ = RestreamState::Preparing;
+
+        if (!CreateObsOutput()) {
+            RestreamFailed("Error.StartOutput");
+            return false;
+        }
+
+        if (!PrepareOutputService())
+        {
+            RestreamFailed("Error.CreateRtmpService");
+            return false;
+        }
+
+        if (!PrepareOutputEncoders())
+        {
+            RestreamFailed("Error.CreateEncoder");
+            return false;
+        }
+
+        if (!PrepareEncoderSource())
+        {
+            RestreamFailed("Error.SceneNotExist");
+            return false;
+        }
+
+        restreamState_ = RestreamState::Connecting;
+        isBusy_ = true;
+        if (!obs_output_start(output_)) {
+            isBusy_ = false;
+            RestreamFailed("Error.StartOutput");
+            return false;
+        }
+        // obs_output_start() is asynchronous: keep the starting guard set
+        // until OnStarted()/OnStopped() clears it.
+        clearStarting.Dismiss();
+        return true;
+    }
+
+    bool CreateObsOutput()
+    {
         if (output_ == nullptr)
         {
-            OBSDataAutoRelease output_settings = obs_data_create_from_json(config_->outputParam.dump().c_str());
+            obs_data* output_settings = obs_data_create_from_json(config_->outputParam.dump().c_str());
 
             auto protocolInfo = GetProtocolInfos()->GetInfo(config_->protocol.c_str());
             assert(protocolInfo);
@@ -911,6 +1459,10 @@ public:
             blog(LOG_DEBUG, "Streaming to output: %s", output_id);
 
             output_ = obs_output_create(output_id, "multi-output", output_settings, nullptr);
+            obs_data_release(output_settings);
+            if (!output_) {
+                return false;
+            }
             SetMeAsHandler(output_);
         }
 
@@ -932,73 +1484,112 @@ public:
             }
         }
 
-        if (!PrepareOutputService())
-        {
-            SetMsg(obs_module_text("Error.CreateRtmpService"));
-            return;
-        }
-
-        if (!PrepareOutputEncoders())
-        {
-            SetMsg(obs_module_text("Error.CreateEncoder"));
-            return;
-        }
-
-        if (!PrepareEncoderSource())
-        {
-            SetMsg(obs_module_text("Error.SceneNotExist"));
-            return;
-        }
-
-        isBusy_ = true;
-        if (!obs_output_start(output_))
-        {
-            isBusy_ = false;
-            ReleaseOutput();
-            SetMsg(obs_module_text("Error.StartOutput"));
-            return;
-        }
-
-        // Start is asynchronous: keep the flag set until OnStarted()/OnStopped() clears it.
-        resetStarting.Dismiss();
+        return output_ != nullptr;
     }
 
-    void StopStreaming() override {
-        if (!IsBusy())
+    // Reads the output's last error BEFORE the output is destroyed.
+    // obs_output_get_last_error() also falls back to encoder errors, so a
+    // failed obs_output_start() reports the encoder's cause here.
+    std::string TakeOutputLastError()
+    {
+        if (!output_)
+            return {};
+        const char* err = obs_output_get_last_error(output_);
+        return err ? err : "";
+    }
+
+    void RestreamFailed(const char *message)
+    {
+        const std::string detail = TakeOutputLastError();
+        ReleaseObsOutput();
+        blog(LOG_WARNING, TAG "Local output failed for '%s' (%s)%s%s", config_->name.c_str(), message,
+             detail.empty() ? "" : ": ", detail.empty() ? "" : detail.c_str());
+        QString msg = QString::fromUtf8(obs_module_text(message));
+        if (!detail.empty())
+            msg += "\n" + QString::fromUtf8(detail.c_str());
+        SetMsg(msg);
+    }
+
+    void StopStreaming() override { StopRestream(); }
+
+    void StopRestream()
+    {
+        isStarting_ = false;
+        if (!IsBusy() || !IsRunning()) {
+            ReleaseObsOutput();
+            isBusy_ = false;
             return;
-        
+        }
+        if (restreamState_ == RestreamState::Stopping) return;
         bool useForce = false;
         if (isUseDelay_) {
-            auto res = QMessageBox(QMessageBox::Icon::Information,
-                "?",
+            const auto res = QMessageBox(QMessageBox::Icon::Information, "?",
                 obs_module_text("Ques.DropDelay"),
-                QMessageBox::StandardButton::Yes | QMessageBox::StandardButton::No,
-                this
-            ).exec();
-            if (res == QMessageBox::Yes)
-                useForce = true;
+                QMessageBox::StandardButton::Yes | QMessageBox::StandardButton::No, this).exec();
+            useForce = res == QMessageBox::Yes;
         }
-
-        if (!useForce)
-            obs_output_stop(output_);
-        else
-            obs_output_force_stop(output_);
+        // A delayed output can finish while the confirmation dialog is open.
+        if (!IsRunning()) { StopRestream(); return; }
+        restreamState_ = RestreamState::Stopping;
+        if (useForce) obs_output_force_stop(output_);
+        else obs_output_stop(output_);
     }
-   
+
+    bool UsesSharedStreamingEncoder() const
+    {
+        return ResolveEncoderSourceMode(config_->videoConfig) == EncoderSourceMode::ShareStreaming ||
+               ResolveEncoderSourceMode(config_->audioConfig) == EncoderSourceMode::ShareStreaming;
+    }
+
+    bool UsesSharedRecordingEncoder() const
+    {
+        return ResolveEncoderSourceMode(config_->videoConfig) == EncoderSourceMode::ShareRecording ||
+               ResolveEncoderSourceMode(config_->audioConfig) == EncoderSourceMode::ShareRecording;
+    }
+
     void OnOBSEvent(obs_frontend_event ev) override
     {
-        if (ev == obs_frontend_event::OBS_FRONTEND_EVENT_EXIT
-            || ev == obs_frontend_event::OBS_FRONTEND_EVENT_PROFILE_CHANGED
-            || ev == obs_frontend_event::OBS_FRONTEND_EVENT_PROFILE_LIST_CHANGED
+        using ev_t = obs_frontend_event;
+        if (ev == ev_t::OBS_FRONTEND_EVENT_EXIT
+            || ev == ev_t::OBS_FRONTEND_EVENT_PROFILE_CHANGED
         ) {
             Stop();
-        } else if (ev == obs_frontend_event::OBS_FRONTEND_EVENT_STREAMING_STARTING) {
+        } else if (ev == ev_t::OBS_FRONTEND_EVENT_PROFILE_LIST_CHANGED) {
+            StopRestream();
+        } else if (ev == ev_t::OBS_FRONTEND_EVENT_STREAMING_STARTING ||
+                   ev == ev_t::OBS_FRONTEND_EVENT_STREAMING_STARTED) {
+            // Prefer STARTED (shared streaming encoders are guaranteed
+            // ready); STARTING is kept as a fallback so sync-start stays
+            // responsive. StartStop()/StartStreaming() are exactly-once via
+            // IsRunning()/restreamState_/isStarting_ guards.
             if (!IsBusy() && config_->syncStart) {
                 StartStop();
             }
-        } else if (ev == obs_frontend_event::OBS_FRONTEND_EVENT_STREAMING_STOPPING) {
-            if (IsBusy() && config_->syncStop) {
+        } else if (ev == ev_t::OBS_FRONTEND_EVENT_RECORDING_STARTED) {
+            if (!IsBusy() && config_->syncStart) {
                 StartStop();
+            }
+        } else if (ev == ev_t::OBS_FRONTEND_EVENT_STREAMING_STOPPING ||
+                   ev == ev_t::OBS_FRONTEND_EVENT_STREAMING_STOPPED) {
+            if (config_->syncStop && (IsBusy() || restreamState_ != RestreamState::Stopped)) {
+                StopStreaming();
+            }
+            // A share-streaming target cannot outlive the OBS streaming
+            // encoder it borrows: stop it gracefully instead of promising
+            // continued availability.
+            if ((ev == ev_t::OBS_FRONTEND_EVENT_STREAMING_STOPPED ||
+                 ev == ev_t::OBS_FRONTEND_EVENT_STREAMING_STOPPING) &&
+                UsesSharedStreamingEncoder() && IsRunning()) {
+                blog(LOG_INFO, TAG "Stopping dependent target '%s': OBS streaming stopped.",
+                     config_->name.c_str());
+                StopStreaming();
+            }
+        } else if (ev == ev_t::OBS_FRONTEND_EVENT_RECORDING_STOPPING ||
+                   ev == ev_t::OBS_FRONTEND_EVENT_RECORDING_STOPPED) {
+            if (UsesSharedRecordingEncoder() && IsRunning()) {
+                blog(LOG_INFO, TAG "Stopping dependent target '%s': OBS recording stopped.",
+                     config_->name.c_str());
+                StopStreaming();
             }
         }
     }
@@ -1102,7 +1693,7 @@ public:
 
     bool IsBusy() override
     {
-        return isBusy_;
+        return isBusy_ || isStarting_ || restreamState_ != RestreamState::Stopped;
     }
 
     const std::string& GetTargetId() const override
@@ -1122,7 +1713,10 @@ public:
         config_->enabled = enabled;
         if (enabled_cb_ && enabled_cb_->isChecked() != enabled)
             enabled_cb_->setChecked(enabled);
-        if (!enabled && IsRunning())
+        if (!enabled) {
+            isStarting_ = false;
+        }
+        if (!enabled && IsBusy() && output_)
             obs_output_force_stop(output_);
         SaveMultiOutputConfig();
         UpdateStatusDot();
@@ -1141,10 +1735,9 @@ public:
 
     void Stop()
     {
-        if (IsBusy())
-        {
-            obs_output_force_stop(output_);
-        }
+        ForceReleaseObsOutput();
+        isBusy_ = false;
+        QCoreApplication::removePostedEvents(this, QEvent::MetaCall);
     }
 
     void SetMsg(QString msg)
@@ -1153,10 +1746,21 @@ public:
         msg_->setToolTip(msg);
     }
 
+    void QueueOutputUI(std::function<void()> callback)
+    {
+        QPointer<QObject> receiver(this);
+        const auto generation = outputGeneration_.load();
+        QMetaObject::invokeMethod(this, [receiver, generation, callback = std::move(callback)]() {
+            auto *self = dynamic_cast<PushWidgetImpl *>(receiver.data());
+            if (self && generation == self->outputGeneration_.load()) callback();
+        }, Qt::QueuedConnection);
+    }
+
     // obs logical
     void OnStarting() override
     {
-        RunInUIThread([this]() {
+        QueueOutputUI([this]() {
+            restreamState_ = RestreamState::Connecting;
             begin_time_ = clock::now();
             isConnecting_ = true;
             isReconnecting_ = false;
@@ -1170,7 +1774,9 @@ public:
 
     void OnStarted() override
     {
-        RunInUIThread([this]() {
+        // QueueOutputUI == RunInUIThread plus the output-generation guard
+        // that drops stale callbacks from replaced outputs.
+        QueueOutputUI([this]() {
             isStarting_ = false;
             isConnecting_ = false;
             isReconnecting_ = false;
@@ -1178,6 +1784,7 @@ public:
             btn_->setEnabled(true);
             SetMsg(obs_module_text("Status.Streaming"));
 
+            restreamState_ = RestreamState::Streaming;
             ResetInfo();
             timer_->start();
             UpdateStatusDot();
@@ -1186,7 +1793,7 @@ public:
 
     void OnReconnect() override
     {
-        RunInUIThread([this]() {
+        QueueOutputUI([this]() {
             timer_->stop();
             isReconnecting_ = true;
 
@@ -1199,12 +1806,13 @@ public:
 
     void OnReconnected() override
     {
-        RunInUIThread([this]() {
+        QueueOutputUI([this]() {
             isReconnecting_ = false;
             btn_->setText(obs_module_text("Status.Stop"));
             btn_->setEnabled(true);
             SetMsg(obs_module_text("Status.Streaming"));
 
+            restreamState_ = RestreamState::Streaming;
             ResetInfo();
             timer_->start();
             UpdateStatusDot();
@@ -1213,7 +1821,7 @@ public:
 
     void OnStopping() override
     {
-        RunInUIThread([this]() {
+        QueueOutputUI([this]() {
             timer_->stop();
 
             btn_->setText(obs_module_text("Status.Stop"));
@@ -1224,17 +1832,18 @@ public:
 
     void OnStopped(int code) override
     {
-        RunInUIThread([this, code]() {
-            ReleaseOutputSceneView();
-
-            // Cleared on the UI thread, together with the rest of the
-            // cleanup, so the widget isn't considered idle (and deleted)
-            // while this lambda is still queued.
+        QueueOutputUI([this, code]() {
             isBusy_ = false;
             isStarting_ = false;
             isConnecting_ = false;
             isReconnecting_ = false;
             lastErrorCode_ = code;
+            // Capture before ReleaseObsOutput() destroys the output.
+            const std::string detail = TakeOutputLastError();
+            ReleaseObsOutput();
+            if (code != 0 && !detail.empty())
+                blog(LOG_WARNING, TAG "Output '%s' stopped with code %d: %s",
+                     config_->name.c_str(), code, detail.c_str());
             ResetInfo();
             timer_->stop();
 
@@ -1245,7 +1854,6 @@ public:
             switch(code)
             {
                 case 0:
-                    SetMsg(u8"");
                     break;
                 case -1:
                     SetMsg(obs_module_text("Error.WrongRTMPUrl"));
@@ -1263,8 +1871,12 @@ public:
                     SetMsg(obs_module_text("Error.Unknown"));
                     break;
             }
+            // Surface the concrete libobs/encoder cause when one was
+            // recorded; the message above stays as the category.
+            if (code != 0 && !detail.empty())
+                SetMsg(msg_->text() + "\n" + QString::fromUtf8(detail.c_str()));
 
-            UpdateStatusDot(true);
+            UpdateStatusDot();
         });
     }
 };
