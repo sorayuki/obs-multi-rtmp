@@ -6,6 +6,9 @@
 #include <QTabWidget>
 #include <qevent.h>
 #include <QComboBox>
+#include <QDialogButtonBox>
+#include <QFormLayout>
+#include <QScrollArea>
 #include <QStandardItemModel>
 #include <QSignalBlocker>
 
@@ -61,6 +64,7 @@ static obs_properties* AddBF(obs_properties* p) {
     }
     return p;
 }
+
 
 class ContentSizeTabWidget: public QTabWidget {
 public:
@@ -149,11 +153,18 @@ protected:
 };
 
 
-// The reusable per-target editor. It owns every control of the "streaming
-// settings" page but neither the scroll area nor the OK button, so it can be
-// dropped into a plain dialog or into a master-detail dialog.
+
 class EditTargetPanelImpl: public EditTargetPanel
 {
+    MultiOutputConfig& globalConfig_;
+    const GlobalEditSnapshot* snapshot_ = nullptr;
+    OutputTargetConfigPtr config_ = nullptr;
+    std::function<void()> onContentSizeChanged_;
+    QTabWidget* topTabs_ = nullptr;
+    QTabWidget* outputSettingsTabs_ = nullptr;
+
+    QLineEdit* name_ = 0;
+
     class PropertiesWidget: public QWidget {
     public:
         PropertiesWidget(std::function<void()> onContentSizeChanged, QWidget* parent)
@@ -224,36 +235,35 @@ class EditTargetPanelImpl: public EditTargetPanel
         }
     };
 
-    MultiOutputConfig& globalConfig_;
-    const GlobalEditSnapshot* snapshot_ = nullptr;
-    OutputTargetConfigPtr config_;
-    std::function<void()> onContentSizeChanged_;
-    QGroupBox* videoGroup_ = nullptr;
-    QGroupBox* audioGroup_ = nullptr;
-
-    QLineEdit* name_ = 0;
-
-    PropertiesWidget* serviceSettings_ = nullptr;
-    PropertiesWidget* outputSettings_ = nullptr;
+    PropertiesWidget* serviceSettings_;
+    PropertiesWidget* outputSettings_;
     std::string supported_video_encoders_;
     std::string supported_audio_encoders_;
-    PropertiesWidget* videoEncoderSettings_ = nullptr;
-    PropertiesWidget* audioEncoderSettings_ = nullptr;
+    PropertiesWidget* videoEncoderSettings_;
+    PropertiesWidget* audioEncoderSettings_;
 
     QComboBox* protocolSelector_ = 0;
+    QComboBox* videoMode_ = 0;
     QComboBox* venc_ = 0;
     QComboBox* v_scene_ = 0;
     QLineEdit* v_resolution_ = 0;
     QComboBox* v_fpsdenumerator_ = 0;
     QLabel* v_share_notify_ = 0;
+    QLabel* videoStatus_ = 0;
+    QLabel* videoHint_ = 0;
+    QWidget* videoCustomBox_ = 0;
 
+    QComboBox* audioMode_ = 0;
     QComboBox* aenc_ = 0;
     QComboBox* a_mixer_ = 0;
     QComboBox* a_vod_track_ = nullptr;
     QLabel* a_share_notify_ = 0;
+    QLabel* audioStatus_ = 0;
+    QLabel* audioHint_ = 0;
+    QWidget* audioCustomBox_ = 0;
 
     QCheckBox* syncStart_ = 0;
-    QCheckBox* syncStop_ = 0;
+    QCheckBox *syncStop_ = 0;
 
     std::vector<std::string> EnumEncodersByCodec(const char* codec)
     {
@@ -278,6 +288,9 @@ class EditTargetPanelImpl: public EditTargetPanel
     }
 
 
+    // "Share from another destination" clones or reuses a *plugin config*
+    // id. This is distinct from sharing a live OBS encoder instance. The
+    // caller owns whether globalConfig_ is a dialog draft or live config.
     template<class T>
     static std::optional<std::string> DuplicateConfig(MultiOutputConfig& global, std::list<T>& list, std::string oldid) {
         auto cfg = FindById(list, oldid);
@@ -292,62 +305,55 @@ class EditTargetPanelImpl: public EditTargetPanel
     }
 
 
+    // "Share from another destination" clones or reuses a *plugin config*
+    // id. This is distinct from sharing a live OBS encoder instance. All
+    // work happens on the dialog draft; Apply/OK commits, Cancel discards.
     void PopupShareMenu(bool isAudio) {
         auto menu = new QMenu(this);
         auto& global = globalConfig_;
 
         {
             auto action = menu->addAction(obs_module_text("NoShare"));
-            QObject::connect(action, &QAction::triggered, [this, isAudio]() {
-                auto& global = globalConfig_;
+            QObject::connect(action, &QAction::triggered, [&]() {
                 if (isAudio) {
-                    if (!config_->audioConfig.has_value())
+                    if (!config_->audioConfig.has_value() ||
+                        IsSpecialEncoder(*config_->audioConfig))
                         return;
                     auto newid = DuplicateConfig(global, global.audioConfig, *config_->audioConfig);
-                    if (!newid.has_value()) {
-                        config_->audioConfig.reset();
+                    if (!newid.has_value())
                         return;
-                    }
                     config_->audioConfig = *newid;
                 }
                 else {
-                    if (!config_->videoConfig.has_value())
+                    if (!config_->videoConfig.has_value() ||
+                        IsSpecialEncoder(*config_->videoConfig))
                         return;
                     auto newid = DuplicateConfig(global, global.videoConfig, *config_->videoConfig);
-                    if (!newid.has_value()) {
-                        config_->videoConfig.reset();
+                    if (!newid.has_value())
                         return;
-                    }
                     config_->videoConfig = *newid;
                 }
+                LoadConfig();
+                UpdateUI();
             });
         }
 
         std::unordered_map<std::string, std::string> items;
         for(auto& target: global.targets) {
-            if (isAudio) {
-                if (target->audioConfig.has_value()) {
-                    auto id = *target->audioConfig;
-                    auto it = items.find(id);
-                    if (it != items.end()) {
-                        it->second += ", " + target->name;
-                    }
-                    else {
-                        items.insert(std::make_pair(id, target->name));
-                    }
-                }
-            } else {
-                if (target->videoConfig.has_value()) {
-                    auto id = *target->videoConfig;
-                    auto it = items.find(id);
-                    if (it != items.end()) {
-                        it->second += ", " + target->name;
-                    }
-                    else {
-                        items.insert(std::make_pair(id, target->name));
-                    }
-                }
-            }
+            auto consider = [&](const std::optional<std::string> &id) {
+                if (!id.has_value() || IsSpecialEncoder(*id))
+                    return;
+                // Staged draft configs are committable ids too.
+                auto it = items.find(*id);
+                if (it != items.end())
+                    it->second += ", " + target->name;
+                else
+                    items.insert(std::make_pair(*id, target->name));
+            };
+            if (isAudio)
+                consider(target->id == config_->id ? config_->audioConfig : target->audioConfig);
+            else
+                consider(target->id == config_->id ? config_->videoConfig : target->videoConfig);
         }
 
         for (auto& item : items) {
@@ -357,6 +363,8 @@ class EditTargetPanelImpl: public EditTargetPanel
                     config_->audioConfig = item.first;
                 else
                     config_->videoConfig = item.first;
+                LoadConfig();
+                UpdateUI();
             });
         }
 
@@ -368,8 +376,19 @@ class EditTargetPanelImpl: public EditTargetPanel
             onContentSizeChanged_();
     }
 
+    QScrollArea *WrapInScroll(QWidget *page)
+    {
+        auto scroll = new QScrollArea(this);
+        scroll->setWidgetResizable(true);
+        scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        page->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+        scroll->setWidget(page);
+        return scroll;
+    }
+
     QTabWidget* CreateOutputSettingsWidget(QWidget* parent) {
-        auto tab = new ContentSizeTabWidget(parent);
+        auto tab = outputSettingsTabs_ = new ContentSizeTabWidget(parent);
 
         // service
         {
@@ -384,10 +403,6 @@ class EditTargetPanelImpl: public EditTargetPanel
             updateOutputTab();
             tab->addTab(outputSettings_, obs_module_text("Tab.Output"));
         }
-
-        QObject::connect(tab, &QTabWidget::currentChanged, [this](int) {
-            NotifyContentSizeChanged();
-        });
 
         tab->setCurrentIndex(0);
 
@@ -444,6 +459,18 @@ class EditTargetPanelImpl: public EditTargetPanel
     }
 
 public:
+    ~EditTargetPanelImpl() override = default;
+
+    void FillModeBox(QComboBox *box)
+    {
+        box->clear();
+        box->addItem(obs_module_text("Encoder.ShareStreaming"), OBS_STREAMING_ENC_PLACEHOLDER);
+        box->addItem(obs_module_text("Encoder.ShareRecording"), OBS_RECORDING_ENC_PLACEHOLDER);
+        box->addItem(obs_module_text("Encoder.CopyStreaming"), OBS_STREAMING_COPY_PLACEHOLDER);
+        box->addItem(obs_module_text("Encoder.CopyRecording"), OBS_RECORDING_COPY_PLACEHOLDER);
+        box->addItem(obs_module_text("Encoder.Custom"), "custom");
+    }
+
     EditTargetPanelImpl(
         MultiOutputConfig& globalConfig,
         OutputTargetConfigPtr config,
@@ -458,153 +485,141 @@ public:
     {
         setSizePolicy(QSizePolicy::Policy::Preferred, QSizePolicy::Policy::Preferred);
 
-        auto layout = new QVBoxLayout(this);
-        layout->setAlignment(Qt::AlignTop);
+        auto fullLayout = new QVBoxLayout(this);
+        topTabs_ = new ContentSizeTabWidget(this);
+        fullLayout->addWidget(topTabs_, 1);
 
-        int currow = 0;
+        // ---- Destino ----
         {
-            auto sublayout = new QGridLayout();
-            sublayout->setColumnStretch(0, 0);
-            sublayout->setColumnStretch(1, 1);
-            sublayout->addWidget(new QLabel(obs_module_text("StreamingName"), this), 0, 0);
-            sublayout->addWidget(name_ = new QLineEdit("", this), 0, 1);
-            sublayout->addWidget(new QLabel(obs_module_text("Protocol"), this), 1, 0);
-            sublayout->addWidget(protocolSelector_ = new QComboBox(this), 1, 1);
-            layout->addLayout(sublayout);
+            auto page = new QWidget(this);
+            auto layout = new QVBoxLayout(page);
+            auto form = new QFormLayout();
+            form->addRow(obs_module_text("StreamingName"), name_ = new QLineEdit(page));
+            form->addRow(obs_module_text("Protocol"), protocolSelector_ = new QComboBox(page));
+            layout->addLayout(form);
+            layout->addWidget(CreateOutputSettingsWidget(page), 1);
+            page->setLayout(layout);
+            topTabs_->addTab(WrapInScroll(page), obs_module_text("Tab.Destination"));
         }
-        ++currow;
-
+        // ---- Video ----
         {
-            auto w = CreateOutputSettingsWidget(this);
-            layout->addWidget(w);
-        }
-        ++currow;
-        {
-            auto sub_grid = new QGridLayout();
-            sub_grid->setColumnStretch(0, 1);
-            sub_grid->setColumnStretch(1, 0);
+            auto page = new QWidget(this);
+            auto layout = new QVBoxLayout(page);
+            auto form = new QFormLayout();
+            form->addRow(obs_module_text("Encoder"), videoMode_ = new QComboBox(page));
+            layout->addLayout(form);
+            layout->addWidget(videoStatus_ = new QLabel(page));
+            videoStatus_->setWordWrap(true);
+            layout->addWidget(videoHint_ = new QLabel(page));
+            videoHint_->setWordWrap(true);
+            videoCustomBox_ = new QWidget(page);
             {
+                auto encLayout = new QGridLayout(videoCustomBox_);
+                int currow = 0;
                 {
-                    auto gp = videoGroup_ = new QGroupBox(obs_module_text("VideoSettings"), this);
-                    sub_grid->addWidget(gp, 0, 0, 2, 1);
-                    auto encLayout = new QGridLayout();
-                    int currow = 0;
-                    {
-                        int curcol = 0;
-                        auto sublayout = new QHBoxLayout();
-                        sublayout->addWidget(v_share_notify_ = new QLabel(gp), 1);
-                        auto shareButton = new QPushButton(obs_module_text("Btn.EncoderShare"), gp);
-                        sublayout->addWidget(shareButton);
-                        encLayout->addLayout(sublayout, currow, curcol++, 1, 2);
-
-                        QObject::connect(shareButton, &QPushButton::clicked, [this]() {
-                            SaveConfig();
-                            PopupShareMenu(false);
-                            LoadConfig();
-                            UpdateUI();
-                        });
-                    }
-                    ++currow;
-                    {
-                        int curcol = 0;
-                        encLayout->addWidget(new QLabel(obs_module_text("Encoder"), gp), currow, curcol++);
-                        encLayout->addWidget(venc_ = new QComboBox(gp), currow, curcol++);
-                    }
-                    ++currow;
-                    {
-                        int curcol = 0;
-                        encLayout->addWidget(new QLabel(obs_module_text("Scene"), gp), currow, curcol++);
-                        encLayout->addWidget(v_scene_ = new QComboBox(gp), currow, curcol++);
-                    }
-                    ++currow;
-                    {
-                        int curcol = 0;
-                        encLayout->addWidget(new QLabel(obs_module_text("VideoResolution"), gp), currow, curcol++);
-                        encLayout->addWidget(v_resolution_ = new QLineEdit("", gp), currow, curcol++);
-                        v_resolution_->setPlaceholderText(obs_module_text("SameAsOBSNow"));
-                    }
-                    ++currow;
-                    {
-                        int curcol = 0;
-                        encLayout->addWidget(new QLabel(obs_module_text("VideoFPSDenumerator"), gp), currow, curcol++);
-                        encLayout->addWidget(v_fpsdenumerator_ = new QComboBox(gp), currow, curcol++);
-                    }
-                    ++currow;
-                    {
-                        encLayout->addWidget(videoEncoderSettings_ = new PropertiesWidget([this]() { NotifyContentSizeChanged(); }, gp), currow, 0, 1, 2);
-                    }
-                    gp->setLayout(encLayout);
+                    auto sublayout = new QHBoxLayout();
+                    sublayout->addWidget(v_share_notify_ = new QLabel(videoCustomBox_), 1);
+                    auto shareButton = new QPushButton(obs_module_text("Btn.EncoderShare"), videoCustomBox_);
+                    sublayout->addWidget(shareButton);
+                    encLayout->addLayout(sublayout, currow, 0, 1, 2);
+                    QObject::connect(shareButton, &QPushButton::clicked, [this]() {
+                        SaveConfig();
+                        PopupShareMenu(false);
+                        LoadConfig();
+                        UpdateUI();
+                    });
                 }
-
-                {
-                    auto gp = audioGroup_ = new QGroupBox(obs_module_text("AudioSettings"), this);
-                    sub_grid->addWidget(gp, 0, 1, 1, 1);
-                    auto encLayout = new QGridLayout();
-                    int currow = 0;
-                    {
-                        int curcol = 0;
-                        auto sublayout = new QHBoxLayout();
-                        sublayout->addWidget(a_share_notify_ = new QLabel(gp), 1);
-                        auto shareButton = new QPushButton(obs_module_text("Btn.EncoderShare"), gp);
-                        sublayout->addWidget(shareButton);
-                        encLayout->addLayout(sublayout, currow, curcol++, 1, 2);
-
-                        QObject::connect(shareButton, &QPushButton::clicked, [this]() {
-                            SaveConfig();
-                            PopupShareMenu(true);
-                            LoadConfig();
-                            UpdateUI();
-                        });
-                    }
-                    ++currow;
-                    {
-                        int curcol = 0;
-                        encLayout->addWidget(new QLabel(obs_module_text("Encoder"), gp), currow, curcol++);
-                        encLayout->addWidget(aenc_ = new QComboBox(gp), currow, curcol++);
-                    }
-                    ++currow;
-                    const int NUM_MIXER_TRACKS = 6;
-                    {
-                        int curcol = 0;
-                        encLayout->addWidget(new QLabel(obs_module_text("AudioMixerID"), gp), currow, curcol++);
-                        encLayout->addWidget(a_mixer_ = new QComboBox(gp), currow, curcol++);
-
-                        for(int i = 1; i <= NUM_MIXER_TRACKS; ++i)
-                            a_mixer_->addItem(QString(std::to_string(i).c_str()), i - 1);
-                    }
-                    ++currow;
-                    {
-                        int curcol = 0;
-                        encLayout->addWidget(new QLabel(obs_module_text("AudioVODTrack"), gp), currow, curcol++);
-                        encLayout->addWidget(a_vod_track_ = new QComboBox(gp), currow, curcol++);
-
-                        // Placeholder item for setting no VOD track
-                        a_vod_track_->addItem("", -1);
-
-                        for(int i = 1; i <= NUM_MIXER_TRACKS; ++i)
-                            a_vod_track_->addItem(QString(std::to_string(i).c_str()), i - 1);
-                    }
-                    ++currow;
-                    {
-                        encLayout->addWidget(audioEncoderSettings_ = new PropertiesWidget([this]() { NotifyContentSizeChanged(); }, gp), currow, 0, 1, 2);
-                    }
-                    gp->setLayout(encLayout);
-                }
-
-                {
-                    auto gp = new QGroupBox(obs_module_text("OtherSettings"), this);
-                    sub_grid->addWidget(gp, 1, 1, 1, 1);
-                    auto otherLayout = new QGridLayout();
-                    otherLayout->addWidget(syncStart_ = new QCheckBox(obs_module_text("SyncStart"), gp), 0, 0);
-                    otherLayout->addWidget(syncStop_ = new QCheckBox(obs_module_text("SyncStop"), gp), 1, 0);
-                    gp->setLayout(otherLayout);
-                }
+                ++currow;
+                encLayout->addWidget(new QLabel(obs_module_text("Encoder"), videoCustomBox_), currow, 0);
+                encLayout->addWidget(venc_ = new QComboBox(videoCustomBox_), currow, 1);
+                ++currow;
+                encLayout->addWidget(new QLabel(obs_module_text("Scene"), videoCustomBox_), currow, 0);
+                encLayout->addWidget(v_scene_ = new QComboBox(videoCustomBox_), currow, 1);
+                ++currow;
+                encLayout->addWidget(new QLabel(obs_module_text("VideoResolution"), videoCustomBox_), currow, 0);
+                encLayout->addWidget(v_resolution_ = new QLineEdit("", videoCustomBox_), currow, 1);
+                v_resolution_->setPlaceholderText(obs_module_text("SameAsOBSNow"));
+                ++currow;
+                encLayout->addWidget(new QLabel(obs_module_text("VideoFPSDenumerator"), videoCustomBox_), currow, 0);
+                encLayout->addWidget(v_fpsdenumerator_ = new QComboBox(videoCustomBox_), currow, 1);
+                ++currow;
+                encLayout->addWidget(videoEncoderSettings_ = new PropertiesWidget([this]() { NotifyContentSizeChanged(); }, videoCustomBox_), currow, 0, 1, 2);
+                videoCustomBox_->setLayout(encLayout);
             }
-            layout->addLayout(sub_grid, 1);
+            layout->addWidget(videoCustomBox_);
+            layout->addStretch(1);
+            page->setLayout(layout);
+            topTabs_->addTab(WrapInScroll(page), obs_module_text("Tab.Video"));
         }
-        ++currow;
-        layout->setSizeConstraint(QLayout::SetMinAndMaxSize);
+        // ---- Audio ----
+        {
+            auto page = new QWidget(this);
+            auto layout = new QVBoxLayout(page);
+            auto form = new QFormLayout();
+            form->addRow(obs_module_text("Encoder"), audioMode_ = new QComboBox(page));
+            layout->addLayout(form);
+            layout->addWidget(audioStatus_ = new QLabel(page));
+            audioStatus_->setWordWrap(true);
+            layout->addWidget(audioHint_ = new QLabel(page));
+            audioHint_->setWordWrap(true);
+            audioCustomBox_ = new QWidget(page);
+            {
+                auto encLayout = new QGridLayout(audioCustomBox_);
+                int currow = 0;
+                {
+                    auto sublayout = new QHBoxLayout();
+                    sublayout->addWidget(a_share_notify_ = new QLabel(audioCustomBox_), 1);
+                    auto shareButton = new QPushButton(obs_module_text("Btn.EncoderShare"), audioCustomBox_);
+                    sublayout->addWidget(shareButton);
+                    encLayout->addLayout(sublayout, currow, 0, 1, 2);
+                    QObject::connect(shareButton, &QPushButton::clicked, [this]() {
+                        SaveConfig();
+                        PopupShareMenu(true);
+                        LoadConfig();
+                        UpdateUI();
+                    });
+                }
+                ++currow;
+                encLayout->addWidget(new QLabel(obs_module_text("Encoder"), audioCustomBox_), currow, 0);
+                encLayout->addWidget(aenc_ = new QComboBox(audioCustomBox_), currow, 1);
+                ++currow;
+                const int NUM_MIXER_TRACKS = 6;
+                encLayout->addWidget(new QLabel(obs_module_text("AudioMixerID"), audioCustomBox_), currow, 0);
+                encLayout->addWidget(a_mixer_ = new QComboBox(audioCustomBox_), currow, 1);
+                for(int i = 1; i <= NUM_MIXER_TRACKS; ++i)
+                    a_mixer_->addItem(QString(std::to_string(i).c_str()), i - 1);
+                ++currow;
+                encLayout->addWidget(new QLabel(obs_module_text("AudioVODTrack"), audioCustomBox_), currow, 0);
+                encLayout->addWidget(a_vod_track_ = new QComboBox(audioCustomBox_), currow, 1);
+                a_vod_track_->addItem("", -1);
+                for(int i = 1; i <= NUM_MIXER_TRACKS; ++i)
+                    a_vod_track_->addItem(QString(std::to_string(i).c_str()), i - 1);
+                ++currow;
+                encLayout->addWidget(audioEncoderSettings_ = new PropertiesWidget([this]() { NotifyContentSizeChanged(); }, audioCustomBox_), currow, 0, 1, 2);
+                audioCustomBox_->setLayout(encLayout);
+            }
+            layout->addWidget(audioCustomBox_);
+            layout->addStretch(1);
+            page->setLayout(layout);
+            topTabs_->addTab(WrapInScroll(page), obs_module_text("Tab.Audio"));
+        }
+        // ---- Avanzado ----
+        {
+            auto page = new QWidget(this);
+            auto advLayout = new QGridLayout(page);
+            auto gp = new QGroupBox(obs_module_text("OtherSettings"), page);
+            auto otherLayout = new QGridLayout(gp);
+            otherLayout->addWidget(syncStart_ = new QCheckBox(obs_module_text("SyncStart"), gp), 0, 0);
+            otherLayout->addWidget(syncStop_ = new QCheckBox(obs_module_text("SyncStop"), gp), 1, 0);
+            gp->setLayout(otherLayout);
+            advLayout->addWidget(gp, 0, 0);
+            advLayout->setRowStretch(1, 1);
+            page->setLayout(advLayout);
+            topTabs_->addTab(WrapInScroll(page), obs_module_text("Tab.Advanced"));
+        }
 
+        FillModeBox(videoMode_);
+        FillModeBox(audioMode_);
         LoadProtocols();
         LoadFPSDenumerator();
         LoadEncoders();
@@ -613,36 +628,35 @@ public:
         LoadConfig();
         ConnectWidgetSignals();
         UpdateUI();
-        UpdateEncoderEditability();
-    }
-
-    ~EditTargetPanelImpl() override
-    {
-        // Members are destroyed before ~QWidget deletes the children, and
-        // child teardown can fire focus/layout callbacks that use them. Delete
-        // the children here, while every member is still alive.
-        onContentSizeChanged_ = nullptr;
-        for (auto combo : { venc_, aenc_, v_scene_, protocolSelector_ })
-            combo->blockSignals(true);
-
-        for (auto child : findChildren<QWidget*>(Qt::FindDirectChildrenOnly))
-            delete child;
+        NotifyContentSizeChanged();
     }
 
     void ConnectWidgetSignals()
     {
-        QObject::connect(venc_, (void (QComboBox::*)(int)) &QComboBox::currentIndexChanged, [this](){
+        // Draft-only: switching widgets never touches global state; Apply/OK
+        // commits via CommitDraft(), Cancel discards.
+        QObject::connect(videoMode_, (void (QComboBox::*)(int)) &QComboBox::currentIndexChanged, [this](){
             SaveConfig();
             LoadConfig();
             UpdateUI();
         });
-        QObject::connect(aenc_, (void (QComboBox::*)(int)) &QComboBox::currentIndexChanged, [this](){
+        QObject::connect(audioMode_, (void (QComboBox::*)(int)) &QComboBox::currentIndexChanged, [this](){
+            SaveConfig();
+            LoadConfig();
+            UpdateUI();
+        });
+        QObject::connect(venc_, (void (QComboBox::*)(int)) &QComboBox::currentIndexChanged, [this](){
             SaveConfig();
             LoadConfig();
             UpdateUI();
         });
         QObject::connect(v_scene_, (void (QComboBox::*)(int)) &QComboBox::currentIndexChanged, [this]() {
             UpdateSceneModeLock();
+        });
+        QObject::connect(aenc_, (void (QComboBox::*)(int)) &QComboBox::currentIndexChanged, [this](){
+            SaveConfig();
+            LoadConfig();
+            UpdateUI();
         });
 
         QObject::connect(protocolSelector_, (void (QComboBox::*)(int)) &QComboBox::currentIndexChanged, [this](){
@@ -653,6 +667,7 @@ public:
             updateServiceTab();
             updateOutputTab();
         });
+
     }
 
     void LoadProtocols()
@@ -674,16 +689,15 @@ public:
 
         std::regex sp(";");
         {
-            // Video encoders
+            // Video encoders: custom ids only. Share/Copy modes live in the
+            // Mode selector above; they are not encoder choices here.
             // Rebuilding emits currentIndexChanged; the handler would then
             // rewrite the config id and break encoder sharing.
             QSignalBlocker blocker(venc_);
             auto old_venc = venc_->currentData();
             std::sregex_token_iterator it(supported_video_encoders_.begin(), supported_video_encoders_.end(), sp, -1), itend;
             venc_->clear();
-	        venc_->addItem(obs_module_text("SameAsOBS"), OBS_STREAMING_ENC_PLACEHOLDER);
-	        venc_->addItem(obs_module_text("SameAsOBSRecording"), OBS_RECORDING_ENC_PLACEHOLDER);
-            max_video_encoder_placeholder_index = venc_->count() - 1;
+            max_video_encoder_placeholder_index = -1;
 
 	        while(it != itend) {
                 for(auto x : EnumEncodersByCodec(it->str().c_str()))
@@ -696,15 +710,13 @@ public:
         }
 
         {
-            // Audio encoders
+            // Audio encoders: custom ids only (see above).
             QSignalBlocker blocker(aenc_);
             auto old_aenc = aenc_->currentData();
             std::sregex_token_iterator it(supported_audio_encoders_.begin(), supported_audio_encoders_.end(), sp, -1), itend;
             aenc_->clear();
-	        aenc_->addItem(obs_module_text("SameAsOBS"), OBS_STREAMING_ENC_PLACEHOLDER);
-	        aenc_->addItem(obs_module_text("SameAsOBSRecording"), OBS_RECORDING_ENC_PLACEHOLDER);
-            max_audio_encoder_placeholder_index = aenc_->count() - 1;
-            
+            max_audio_encoder_placeholder_index = -1;
+
             while(it != itend) {
                 for(auto x : EnumEncodersByCodec(it->str().c_str()))
                     aenc_->addItem(ui_text(x).c_str(), x.c_str());
@@ -759,29 +771,60 @@ public:
         }
     }
 
+    // Availability text for Share/Copy modes without a blocking modal.
+    QString ModeStatusText(EncoderSourceMode mode, bool isVideo)
+    {
+        OBSOutputAutoRelease streamOut = obs_frontend_get_streaming_output();
+        OBSOutputAutoRelease recOut = obs_frontend_get_recording_output();
+        auto ready = [&](OBSOutputAutoRelease &out, bool video) -> bool {
+            if (!out)
+                return false;
+            if (video)
+                return obs_output_get_video_encoder(out) != nullptr;
+            return obs_output_get_audio_encoder(out, 0) != nullptr;
+        };
+        switch (mode) {
+        case EncoderSourceMode::ShareStreaming:
+            return QString::fromUtf8(obs_module_text(
+                ready(streamOut, isVideo) ? "Encoder.StatusAvailable"
+                                          : "Encoder.StatusWaitingStreaming"));
+        case EncoderSourceMode::ShareRecording:
+            return QString::fromUtf8(obs_module_text(
+                ready(recOut, isVideo) ? "Encoder.StatusAvailable"
+                                       : "Encoder.StatusWaitingRecording"));
+        case EncoderSourceMode::CopyStreaming:
+        case EncoderSourceMode::CopyRecording:
+            return QString::fromUtf8(obs_module_text("Encoder.StatusAvailable"));
+        case EncoderSourceMode::Custom:
+        default:
+            return QString();
+        }
+    }
+
     void UpdateUI()
     {
         auto newProtocolIndex = protocolSelector_->findData(QString::fromUtf8(config_->protocol));
         // fallback to RTMP if protocol is invalid - do we really need this line?
         if (newProtocolIndex == -1) newProtocolIndex = 0;
+        protocolSelector_->blockSignals(true);
         protocolSelector_->setCurrentIndex(newProtocolIndex);
+        protocolSelector_->blockSignals(false);
 
-        auto ve = venc_->currentData();
-
-        // Check for special cases where the encoder is grabbed from some other source (like streaming / recording)
-        if (ve.isValid() && IsSpecialEncoder(ve.toString().toStdString()))
-        {
-            v_scene_->setEnabled(false);
-            v_resolution_->setEnabled(false);
-            v_fpsdenumerator_->setEnabled(false);
+        auto videoModeData = videoMode_->currentData().toString().toStdString();
+        EncoderSourceMode videoMode = videoModeData == "custom"
+                                          ? EncoderSourceMode::Custom
+                                          : ResolveEncoderSourceMode(videoModeData);
+        const bool customVideo = videoMode == EncoderSourceMode::Custom;
+        videoCustomBox_->setVisible(customVideo);
+        if (!customVideo) {
+            videoStatus_->setText(ModeStatusText(videoMode, true));
+            videoHint_->setText(QString::fromUtf8(obs_module_text(
+                IsCopyEncoderSource(videoMode) ? "Encoder.CopyNote" : "Encoder.ShareNote")));
+            v_share_notify_->setText(QString());
+        } else {
+            videoStatus_->setText(QString());
+            videoHint_->setText(QString());
         }
-        else
-        {
-            v_scene_->setEnabled(true);
-            v_resolution_->setEnabled(true);
-            v_fpsdenumerator_->setEnabled(true);
-        }
-        UpdateSceneModeLock();
 
         auto makeShareNotify = [&](auto& targets) {
             std::string sharedTargets;
@@ -795,24 +838,35 @@ public:
             return sharedTargets;
         };
 
-        auto sharedVideoTargets = GetEncoderShareTargets(false);
-        v_share_notify_->setText(QString::fromUtf8(obs_module_text("EncoderShare") + makeShareNotify(sharedVideoTargets)));
-
-        auto ae = aenc_->currentData();
-        if (ae.isValid() && IsSpecialEncoder(ae.toString().toStdString()))
-        {
-            a_mixer_->setEnabled(false);
-            a_vod_track_->setEnabled(false);
-        }
-        else
-        {
-            a_mixer_->setEnabled(true);
-            a_vod_track_->setEnabled(true);
+        if (customVideo) {
+            auto sharedVideoTargets = GetEncoderShareTargets(false);
+            v_share_notify_->setText(QString::fromUtf8(
+                obs_module_text("EncoderShare") + makeShareNotify(sharedVideoTargets)));
         }
 
-        auto sharedAudioTargets = GetEncoderShareTargets(true);
-        a_share_notify_->setText(QString::fromUtf8(obs_module_text("EncoderShare") + makeShareNotify(sharedAudioTargets)));
+        auto audioModeData = audioMode_->currentData().toString().toStdString();
+        EncoderSourceMode audioMode = audioModeData == "custom"
+                                          ? EncoderSourceMode::Custom
+                                          : ResolveEncoderSourceMode(audioModeData);
+        const bool customAudio = audioMode == EncoderSourceMode::Custom;
+        audioCustomBox_->setVisible(customAudio);
+        if (!customAudio) {
+            audioStatus_->setText(ModeStatusText(audioMode, false));
+            audioHint_->setText(QString::fromUtf8(obs_module_text(
+                IsCopyEncoderSource(audioMode) ? "Encoder.CopyNote" : "Encoder.ShareNote")));
+            a_share_notify_->setText(QString());
+        } else {
+            audioStatus_->setText(QString());
+            audioHint_->setText(QString());
+        }
 
+        if (customAudio) {
+            auto sharedAudioTargets = GetEncoderShareTargets(true);
+            a_share_notify_->setText(QString::fromUtf8(
+                obs_module_text("EncoderShare") + makeShareNotify(sharedAudioTargets)));
+        }
+
+        UpdateSceneModeLock();
         UpdateEncoderEditability();
     }
 
@@ -862,8 +916,12 @@ public:
                 != snapshot_->activeAudioConfigIds.end();
         }
 
-        venc_->setEnabled(!targetIsActive && !videoConfigIsActive);
-        aenc_->setEnabled(!targetIsActive && !audioConfigIsActive);
+        const bool videoLocked = targetIsActive || videoConfigIsActive;
+        const bool audioLocked = targetIsActive || audioConfigIsActive;
+        videoMode_->setEnabled(!videoLocked);
+        venc_->setEnabled(!videoLocked);
+        audioMode_->setEnabled(!audioLocked);
+        aenc_->setEnabled(!audioLocked);
     }
 
     std::vector<std::string> GetEncoderShareTargets(bool isAudio) {
@@ -903,11 +961,10 @@ public:
     void SaveVideoConfig() {
         if (!config_->videoConfig.has_value() || IsSpecialEncoder(*config_->videoConfig))
             return;
-        
-        auto& global = globalConfig_;
-        auto it = global.FindVideoConfig(*config_->videoConfig);
+
+        auto it = globalConfig_.FindVideoConfig(*config_->videoConfig);
         if (it == nullptr) {
-            auto new_item = global.videoConfig.emplace_back(new VideoEncoderConfig{});
+            auto new_item = globalConfig_.videoConfig.emplace_back(new VideoEncoderConfig{});
             it = new_item;
         }
         it->id = *config_->videoConfig;
@@ -932,11 +989,10 @@ public:
     void SaveAudioConfig() {
         if (!config_->audioConfig.has_value() || IsSpecialEncoder(*config_->audioConfig))
             return;
-        
-        auto& global = globalConfig_;
-        auto it = global.FindAudioConfig(*config_->audioConfig);
+
+        auto it = globalConfig_.FindAudioConfig(*config_->audioConfig);
         if (it == nullptr) {
-            auto new_item = global.audioConfig.emplace_back(new AudioEncoderConfig{});
+            auto new_item = globalConfig_.audioConfig.emplace_back(new AudioEncoderConfig{});
             it = new_item;
         }
         it->id = *config_->audioConfig;
@@ -961,39 +1017,58 @@ public:
         auto& global = globalConfig_;
 
         config_->name = tostdu8(name_->text());
-        config_->protocol = tostdu8(protocolSelector_->itemData(protocolSelector_->currentIndex()).toString());
+        if (protocolSelector_->currentIndex() >= 0)
+            config_->protocol = tostdu8(protocolSelector_->itemData(protocolSelector_->currentIndex()).toString());
         config_->syncStart = syncStart_->isChecked();
         config_->syncStop = syncStop_->isChecked();
-        config_->outputParam = outputSettings_->Save();
-        config_->serviceParam = serviceSettings_->Save();
+        if (outputSettings_)
+            config_->outputParam = outputSettings_->Save();
+        if (serviceSettings_)
+            config_->serviceParam = serviceSettings_->Save();
 
-        if (venc_->currentData().isValid()) {
-            std::string encoderId = venc_->currentData().toString().toStdString();
-            if (IsSpecialEncoder(encoderId))
-                config_->videoConfig = encoderId;
-	        else if (!config_->videoConfig.has_value() || IsSpecialEncoder(*config_->videoConfig)) {
-                config_->videoConfig = global.GenerateId();
-            }
-		    SaveVideoConfig();
-        }
-        else
+        // Video: Mode selector is the source of truth. Custom reuses the
+        // encoder dropdown + staged plugin config; Share/Copy store their
+        // placeholder directly and skip custom persistence.
         {
-            config_->videoConfig.reset();
-        }
-
-        if (aenc_->currentData().isValid()) {
-            std::string encoderId = aenc_->currentData().toString().toStdString();
-
-            if (IsSpecialEncoder(encoderId))
-                config_->audioConfig = encoderId;
-	        else if (!config_->audioConfig.has_value() || IsSpecialEncoder(*config_->audioConfig)) {
-                config_->audioConfig = global.GenerateId();
+            auto data = videoMode_ ? videoMode_->currentData() : QVariant();
+            std::string modeId = data.isValid() ? data.toString().toStdString() : "custom";
+            if (modeId == "custom") {
+                if (venc_ && venc_->currentData().isValid()) {
+                    if (!config_->videoConfig.has_value() ||
+                        IsSpecialEncoder(*config_->videoConfig))
+                        config_->videoConfig = global.GenerateId();
+                    SaveVideoConfig();
+                } else if (!config_->videoConfig.has_value() ||
+                           IsSpecialEncoder(*config_->videoConfig)) {
+                    // Custom mode with no encoder listed yet: keep unset so
+                    // LoadConfig falls back to Share streaming display.
+                    config_->videoConfig.reset();
+                } else {
+                    SaveVideoConfig();
+                }
+            } else {
+                config_->videoConfig = modeId;
             }
-		    SaveAudioConfig();
         }
-        else
+
         {
-            config_->audioConfig.reset();
+            auto data = audioMode_ ? audioMode_->currentData() : QVariant();
+            std::string modeId = data.isValid() ? data.toString().toStdString() : "custom";
+            if (modeId == "custom") {
+                if (aenc_ && aenc_->currentData().isValid()) {
+                    if (!config_->audioConfig.has_value() ||
+                        IsSpecialEncoder(*config_->audioConfig))
+                        config_->audioConfig = global.GenerateId();
+                    SaveAudioConfig();
+                } else if (!config_->audioConfig.has_value() ||
+                           IsSpecialEncoder(*config_->audioConfig)) {
+                    config_->audioConfig.reset();
+                } else {
+                    SaveAudioConfig();
+                }
+            } else {
+                config_->audioConfig = modeId;
+            }
         }
     }
 
@@ -1007,35 +1082,23 @@ public:
         syncStop_->setChecked(target.syncStop);
     }
 
-    using IdOrVideoConfig = std::variant<std::string_view, VideoEncoderConfig*>;
-    void LoadVideoConfig(IdOrVideoConfig idOrConfig) {
-        VideoEncoderConfig* pconfig = nullptr;
+    void LoadVideoConfig(VideoEncoderConfig *pconfig) {
+        if (pconfig == nullptr) {
+            videoEncoderSettings_->ClearProperties();
+            return;
+        }
         {
-            QString encoderId;
-            if (auto placeholder = std::get_if<std::string_view>(&idOrConfig)) {
-                encoderId = QString::fromStdString(std::string(*placeholder));
-            } else if (auto rconfig = std::get_if<VideoEncoderConfig*>(&idOrConfig)) {
-                encoderId = QString::fromStdString((*rconfig)->encoderId);
-                pconfig = *rconfig;
-            } else {
-                return;
-            }
-
+            QString encoderId = QString::fromStdString(pconfig->encoderId);
             auto idx = venc_->findData(encoderId);
-            if (idx > max_video_encoder_placeholder_index)
+            if (idx >= 0) {
+                venc_->blockSignals(true);
                 venc_->setCurrentIndex(idx);
-            else {
-                if (idx < 0)
-                    idx = 0;
-                venc_->setCurrentIndex(idx);
+                venc_->blockSignals(false);
+            } else {
                 videoEncoderSettings_->ClearProperties();
                 return;
             }
         }
-
-        assert(pconfig != nullptr);
-        if (pconfig == nullptr)
-            return;
 
         auto& config = *pconfig;
 
@@ -1072,35 +1135,23 @@ public:
         }
     }
 
-    using IdOrAudioConfig = std::variant<std::string_view, AudioEncoderConfig*>;
-    void LoadAudioConfig(IdOrAudioConfig idOrConfig) {
-        AudioEncoderConfig* pconfig = nullptr;
+    void LoadAudioConfig(AudioEncoderConfig *pconfig) {
+        if (pconfig == nullptr) {
+            audioEncoderSettings_->ClearProperties();
+            return;
+        }
         {
-            QString encoderId;
-            if (auto placeholder = std::get_if<std::string_view>(&idOrConfig)) {
-                encoderId = QString::fromStdString(std::string(*placeholder));
-            } else if (auto rconfig = std::get_if<AudioEncoderConfig*>(&idOrConfig)) {
-                encoderId = QString::fromStdString((*rconfig)->encoderId);
-                pconfig = *rconfig;
-            } else {
-                return;
-            }
-
+            QString encoderId = QString::fromStdString(pconfig->encoderId);
             auto idx = aenc_->findData(encoderId);
-            if (idx > max_audio_encoder_placeholder_index)
+            if (idx >= 0) {
+                aenc_->blockSignals(true);
                 aenc_->setCurrentIndex(idx);
-            else {
-                if (idx < 0)
-                    idx = 0;
-                aenc_->setCurrentIndex(idx);
+                aenc_->blockSignals(false);
+            } else {
                 audioEncoderSettings_->ClearProperties();
                 return;
             }
         }
-
-        assert(pconfig != nullptr);
-        if (pconfig == nullptr)
-            return;
 
         auto& config = *pconfig;
 
@@ -1139,165 +1190,131 @@ public:
         }
     }
 
+    void SetModeBox(QComboBox *box, const std::optional<std::string> &configId)
+    {
+        std::string id = configId.value_or(OBS_STREAMING_ENC_PLACEHOLDER);
+        int idx;
+        if (IsSpecialEncoder(id))
+            idx = box->findData(QString::fromUtf8(id));
+        else
+            idx = box->findData("custom");
+        if (idx < 0)
+            idx = 0;
+        box->blockSignals(true);
+        box->setCurrentIndex(idx);
+        box->blockSignals(false);
+    }
+
     void LoadConfig() {
-        if (!config_)
-            return;
-
-        auto& global = globalConfig_;
-
         if (config_->name.empty())
             config_->name = obs_module_text("NewStreaming");
 
         LoadTargetConfig(*config_);
 
-        auto videoConfigId = config_->videoConfig.value_or(OBS_STREAMING_ENC_PLACEHOLDER);
-        if (IsSpecialEncoder(videoConfigId)) {
-            LoadVideoConfig(videoConfigId);
+        SetModeBox(videoMode_, config_->videoConfig);
+        SetModeBox(audioMode_, config_->audioConfig);
+
+        if (!config_->videoConfig.has_value() || IsSpecialEncoder(*config_->videoConfig)) {
+            videoEncoderSettings_->ClearProperties();
         } else {
-            auto it = global.FindVideoConfig(*config_->videoConfig);
-            if (it != nullptr) {
-                LoadVideoConfig(&*it);
-            }
+            auto it = globalConfig_.FindVideoConfig(*config_->videoConfig);
+            LoadVideoConfig(it ? it.get() : nullptr);
         }
 
-        auto audioConfigId = config_->audioConfig.value_or(OBS_STREAMING_ENC_PLACEHOLDER);
-        if (IsSpecialEncoder(audioConfigId)) {
-            LoadAudioConfig(audioConfigId);
+        if (!config_->audioConfig.has_value() || IsSpecialEncoder(*config_->audioConfig)) {
+            audioEncoderSettings_->ClearProperties();
         } else {
-            auto it = global.FindAudioConfig(*config_->audioConfig);
-            if (it != nullptr) {
-                LoadAudioConfig(&*it);
-            }
+            auto it = globalConfig_.FindAudioConfig(*config_->audioConfig);
+            LoadAudioConfig(it ? it.get() : nullptr);
         }
-        
+
         UpdateUI();
     }
 };
 
 
-// The original single-target dialog: a scrollable EditTargetPanel plus an OK
-// button at the bottom of the scrollable content.
+// The original single-target dialog wraps the reusable panel and provides a
+// transactional draft for encoder configs: Cancel discards everything, OK or
+// Apply upserts only the target and encoder configs touched by the panel.
 class EditOutputWidgetImpl: public EditOutputWidget
 {
-    QWidget* container_;
-    ContentSizeScrollArea* scroll_;
-    EditTargetPanel* panel_ = nullptr;
-
-    std::string targetid_;
+    MultiOutputConfig draftConfig_;
     OutputTargetConfigPtr config_ = nullptr;
+    EditTargetPanel* panel_ = nullptr;
+    QDialogButtonBox* buttons_ = nullptr;
 
-    bool resizeToContentPending_ = false;
-
-    void RefreshContentGeometry() {
-        layout()->activate();
-        container_->layout()->activate();
-        container_->adjustSize();
-        container_->updateGeometry();
-        scroll_->adjustSize();
-        scroll_->updateGeometry();
+    static MultiOutputConfig CloneConfig(const MultiOutputConfig& source)
+    {
+        MultiOutputConfig copy;
+        for (auto& target : source.targets)
+            copy.targets.push_back(std::make_shared<OutputTargetConfig>(*target));
+        for (auto& video : source.videoConfig)
+            copy.videoConfig.push_back(std::make_shared<VideoEncoderConfig>(*video));
+        for (auto& audio : source.audioConfig)
+            copy.audioConfig.push_back(std::make_shared<AudioEncoderConfig>(*audio));
+        return copy;
     }
 
-    QSize CalculateMaximumDialogSize() const {
-        QSize maxSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
-        auto currentScreen = screen();
-        if (!currentScreen)
-            return maxSize;
+    bool CommitDraft()
+    {
+        panel_->SaveConfig();
+        auto& global = GlobalMultiOutputConfig();
+        auto target = global.FindTarget(config_->id);
+        if (!target)
+            return false;
 
-        auto available = currentScreen->availableGeometry().size();
-        auto frame = frameSize() - size();
-        return QSize(
-            (std::max)(0, available.width() - frame.width()),
-            (std::max)(0, available.height() - frame.height()));
-    }
-
-    void ApplyAutoDialogSize() {
-        auto targetSize = sizeHint();
-        if (!targetSize.isValid())
-            return;
-
-        auto maxSize = CalculateMaximumDialogSize();
-        setMaximumSize(maxSize);
-        resize(targetSize.boundedTo(maxSize).expandedTo(minimumSizeHint()));
-    }
-
-    void ScheduleResizeToContent() {
-        if (resizeToContentPending_)
-            return;
-
-        resizeToContentPending_ = true;
-        QTimer::singleShot(0, this, [this]() {
-            resizeToContentPending_ = false;
-            ResizeToContent();
-        });
-    }
-
-    void ResizeToContent() {
-        if (!layout() || !container_ || !container_->layout() || !scroll_)
-            return;
-
-        RefreshContentGeometry();
-        ApplyAutoDialogSize();
-    }
-
-protected:
-    void showEvent(QShowEvent* event) override {
-        QDialog::showEvent(event);
-        ScheduleResizeToContent();
+        *target = *config_;
+        for (auto& staged : draftConfig_.videoConfig) {
+            auto current = global.FindVideoConfig(staged->id);
+            if (current)
+                *current = *staged;
+            else
+                global.videoConfig.push_back(staged);
+        }
+        for (auto& staged : draftConfig_.audioConfig) {
+            auto current = global.FindAudioConfig(staged->id);
+            if (current)
+                *current = *staged;
+            else
+                global.audioConfig.push_back(staged);
+        }
+        SaveMultiOutputConfig();
+        return true;
     }
 
 public:
     EditOutputWidgetImpl(const std::string& targetid, QWidget* parent = 0)
         : QDialog(parent)
-        , targetid_(targetid)
     {
         auto& global = GlobalMultiOutputConfig();
-        auto found = global.FindTarget(targetid_);
-        if (found == nullptr) {
+        draftConfig_ = CloneConfig(global);
+        config_ = draftConfig_.FindTarget(targetid);
+        if (!config_)
             return;
-        }
-        config_ = std::make_shared<OutputTargetConfig>(*found);
 
         setWindowTitle(obs_module_text("StreamingSettings"));
+        auto layout = new QVBoxLayout(this);
+        panel_ = createEditTargetPanel(draftConfig_, config_, []() {}, this);
+        layout->addWidget(panel_, 1);
 
-        scroll_ = new ContentSizeScrollArea(this);
-        scroll_->setHorizontalScrollBarPolicy(Qt::ScrollBarPolicy::ScrollBarAsNeeded);
-        scroll_->setVerticalScrollBarPolicy(Qt::ScrollBarPolicy::ScrollBarAsNeeded);
-        scroll_->setSizePolicy(QSizePolicy::Policy::Preferred, QSizePolicy::Policy::Preferred);
-        scroll_->setSizeAdjustPolicy(QScrollArea::SizeAdjustPolicy::AdjustToContents);
-
-        container_ = new QWidget(scroll_);
-        container_->setSizePolicy(QSizePolicy::Policy::Preferred, QSizePolicy::Policy::Preferred);
-
-        auto layout = new QVBoxLayout(container_);
-        layout->setAlignment(Qt::AlignTop);
-
-        panel_ = createEditTargetPanel(global, config_, [this]() { ScheduleResizeToContent(); }, container_);
-        layout->addWidget(panel_);
-
-        {
-            auto okbtn = new QPushButton(obs_module_text("OK"), container_);
-            QObject::connect(okbtn, &QPushButton::clicked, [this]() {
-                panel_->SaveConfig();
-                auto& global = GlobalMultiOutputConfig();
-                auto it = global.FindTarget(config_->id);
-                if (it != nullptr) {
-                    *it = *config_;
-                }
+        buttons_ = new QDialogButtonBox(
+            QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::Apply,
+            this);
+        buttons_->button(QDialogButtonBox::Ok)->setText(obs_module_text("OK"));
+        buttons_->button(QDialogButtonBox::Cancel)->setText(obs_module_text("Btn.Cancel"));
+        buttons_->button(QDialogButtonBox::Apply)->setText(obs_module_text("Btn.Apply"));
+        QObject::connect(buttons_, &QDialogButtonBox::accepted, [this]() {
+            if (CommitDraft())
                 done(DialogCode::Accepted);
-            });
-            layout->addWidget(okbtn);
-        }
-
-        layout->setSizeConstraint(QLayout::SetMinAndMaxSize);
-
-        scroll_->setWidget(container_);
-        scroll_->setWidgetResizable(false);
-
-        auto fullLayout = new QGridLayout(this);
-        fullLayout->setContentsMargins(0, 0, 0, 0);
-        fullLayout->addWidget(scroll_, 0, 0);
-        fullLayout->setRowStretch(0, 1);
-        fullLayout->setColumnStretch(0, 1);
+        });
+        QObject::connect(buttons_, &QDialogButtonBox::rejected, [this]() {
+            reject();
+        });
+        QObject::connect(buttons_->button(QDialogButtonBox::Apply), &QPushButton::clicked, [this]() {
+            CommitDraft();
+        });
+        layout->addWidget(buttons_);
+        resize(820, 640);
     }
 };
 

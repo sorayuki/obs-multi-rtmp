@@ -57,6 +57,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
   ./src/protocols.cpp
   ./src/helpers.h
   ./src/helpers.cpp
+  ./src/encoder-source.h
+  ./src/encoder-source.cpp
 )
 
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
@@ -65,3 +67,10 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 )
 
 set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})
+
+include(CTest)
+if(BUILD_TESTING)
+  add_executable(test-encoder-source ./tests/test-encoder-source.cpp ./src/encoder-source.cpp)
+  target_include_directories(test-encoder-source PRIVATE ./src ./dep/nlohmann-json)
+  add_test(NAME encoder-source COMMAND test-encoder-source)
+endif()
